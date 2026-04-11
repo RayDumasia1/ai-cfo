@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 type ResultState = {
   burn: number;
   runwayMonths: number | null;
+  runoutMonth: string | null;
   summary: string;
   riskLevel: "Low" | "Medium" | "High" | "Healthy";
 };
@@ -50,6 +51,7 @@ export default function Home() {
       return {
         burn: 0,
         runwayMonths: null,
+        runoutMonth: null,
         summary: "Please enter valid positive numbers in all three fields.",
         riskLevel: "High",
       };
@@ -61,6 +63,7 @@ export default function Home() {
       return {
         burn,
         runwayMonths: null,
+        runoutMonth: null,
         summary:
           "You are currently generating more revenue than expenses each month. You are not burning cash at your current pace.",
         riskLevel: "Healthy",
@@ -71,6 +74,7 @@ export default function Home() {
       return {
         burn,
         runwayMonths: null,
+        runoutMonth: null,
         summary:
           "You are currently break-even. Your cash position is stable as long as revenue and expenses stay at this level.",
         riskLevel: "Healthy",
@@ -80,12 +84,20 @@ export default function Home() {
     const runwayMonths = cashValue / burn;
     const riskLevel = getRiskLevel(runwayMonths);
 
+    const runoutDate = new Date();
+    runoutDate.setMonth(runoutDate.getMonth() + Math.floor(runwayMonths));
+    const runoutMonth = runoutDate.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+
     return {
       burn,
       runwayMonths,
+      runoutMonth,
       summary: `At your current pace, you have about ${runwayMonths.toFixed(
         1
-      )} months of runway remaining.`,
+      )} months of runway remaining. At this rate, you will run out of cash in ${runoutMonth}.`,
       riskLevel,
     };
   }, [cash, revenue, expenses, submitted]);
@@ -222,13 +234,20 @@ export default function Home() {
                         : `${result.runwayMonths.toFixed(1)} months`}
                     </p>
                   </div>
-                </div>
 
-                <div className="rounded-2xl bg-slate-50 p-5">
-                  <p className="text-sm text-slate-500">Risk level</p>
-                  <p className="mt-2 text-lg font-semibold">
-                    {result.riskLevel}
-                  </p>
+                  <div className="rounded-2xl bg-slate-50 p-5">
+                    <p className="text-sm text-slate-500">Runout month</p>
+                    <p className="mt-2 text-2xl font-semibold">
+                      {result.runoutMonth ?? "Stable"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 p-5">
+                    <p className="text-sm text-slate-500">Risk level</p>
+                    <p className="mt-2 text-2xl font-semibold">
+                      {result.riskLevel}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="rounded-2xl bg-slate-50 p-5">
