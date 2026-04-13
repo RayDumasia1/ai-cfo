@@ -131,11 +131,41 @@ function parseMonthDate(raw: unknown): string | null {
 
 /**
  * Coerce a cell value to a number.
- * Returns null for empty/missing cells (valid — stored as NULL in DB).
- * Returns NaN for non-numeric strings — callers must check Number.isNaN().
+ *
+ * Handles currency-formatted strings from Excel:
+ *   "$120,000"  → 120000
+ *   "(1,250)"   → -1250   (accounting negative notation)
+ *   "-"         → null    (common Excel placeholder for zero/N/A)
+ *   ""          → null    (empty cell)
+ *
+ * Returns null for empty/missing cells (stored as NULL in DB).
+ * Returns NaN for genuinely unparseable values — callers must check
+ * Number.isNaN() before using the result.
+ *
+ * Note: % symbols are NOT stripped. These fields are all monetary amounts;
+ * a % in the cell indicates bad data and should surface as an error.
  */
 function toNumber(raw: unknown): number | null {
   if (raw === undefined || raw === null || raw === "") return null;
+
+  // Defensive: XLSX with raw:false always gives us strings, but handle the
+  // numeric case explicitly in case that assumption ever changes.
+  if (typeof raw === "number") return raw; // NaN passthrough is intentional
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === "-") return null;
+
+    // Parenthetical negatives: "(1,250)" → -1250
+    const isNegative = trimmed.startsWith("(") && trimmed.endsWith(")");
+
+    // Strip currency symbol, thousands separator, and parens only.
+    const cleaned = trimmed.replace(/[$,()]/g, "").trim();
+
+    const n = Number(cleaned);
+    return Number.isNaN(n) ? NaN : isNegative ? -n : n;
+  }
+
   return Number(raw);
 }
 
