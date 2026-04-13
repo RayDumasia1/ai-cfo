@@ -218,6 +218,8 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
       if (!key || !value) continue;
       const k = norm(String(key));
 
+      console.log("parser:info-row", { raw: String(key), normed: k, value });
+
       if (k === "business name") {
         profile.business_name = String(value);
       } else if (k === "industry") {
