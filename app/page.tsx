@@ -3,15 +3,10 @@
 import { useMemo, useState } from "react";
 import DashboardLayout from "./components/DashboardLayout";
 import StatCard from "./components/StatCard";
+import { calculateFinancials } from "@/lib/calculations";
+import type { FinancialSnapshot } from "@/lib/types";
 
-type ResultState = {
-  burn: number;
-  runwayMonths: number | null;
-  runoutMonth: string | null;
-  summary: string;
-  riskLevel: "Low" | "Medium" | "High" | "Healthy";
-};
-
+// ── Presentation utility (formatting only, not calculation) ───────
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -20,19 +15,17 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function getRiskLevel(runwayMonths: number): "Low" | "Medium" | "High" {
-  if (runwayMonths >= 6) return "Low";
-  if (runwayMonths >= 3) return "Medium";
-  return "High";
-}
-
 export default function Home() {
   const [cash, setCash] = useState("");
   const [revenue, setRevenue] = useState("");
   const [expenses, setExpenses] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const result = useMemo<ResultState | null>(() => {
+  // ── Data layer ────────────────────────────────────────────────────
+  // Today: reads from form inputs.
+  // Future: swap this useMemo for a hook that reads from QuickBooks /
+  // banking API — calculateFinancials() and the UI below stay the same.
+  const snapshot = useMemo<FinancialSnapshot | null>(() => {
     if (!submitted) return null;
 
     const cashValue = Number(cash);
@@ -50,58 +43,14 @@ export default function Home() {
       revenueValue < 0 ||
       expenseValue < 0
     ) {
-      return {
-        burn: 0,
-        runwayMonths: null,
-        runoutMonth: null,
-        summary: "Please enter valid positive numbers in all three fields.",
-        riskLevel: "High",
-      };
+      return null;
     }
 
-    const burn = expenseValue - revenueValue;
-
-    if (burn < 0) {
-      return {
-        burn,
-        runwayMonths: null,
-        runoutMonth: null,
-        summary:
-          "You are currently generating more revenue than expenses each month. You are not burning cash at your current pace.",
-        riskLevel: "Healthy",
-      };
-    }
-
-    if (burn === 0) {
-      return {
-        burn,
-        runwayMonths: null,
-        runoutMonth: null,
-        summary:
-          "You are currently break-even. Your cash position is stable as long as revenue and expenses stay at this level.",
-        riskLevel: "Healthy",
-      };
-    }
-
-    const runwayMonths = cashValue / burn;
-    const riskLevel = getRiskLevel(runwayMonths);
-
-    const runoutDate = new Date();
-    runoutDate.setMonth(runoutDate.getMonth() + Math.floor(runwayMonths));
-    const runoutMonth = runoutDate.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
+    return calculateFinancials({
+      cashBalance: cashValue,
+      monthlyRevenue: revenueValue,
+      monthlyExpenses: expenseValue,
     });
-
-    return {
-      burn,
-      runwayMonths,
-      runoutMonth,
-      summary: `At your current pace, you have about ${runwayMonths.toFixed(
-        1
-      )} months of runway remaining. At this rate, you will run out of cash in ${runoutMonth}.`,
-      riskLevel,
-    };
   }, [cash, revenue, expenses, submitted]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -109,31 +58,25 @@ export default function Home() {
     setSubmitted(true);
   }
 
-  // Derived display helpers — no calculation changes
-  const isValid =
-    result !== null &&
-    !(result.burn === 0 && result.runwayMonths === null && result.riskLevel === "High");
-
-  const cashDisplay = isValid ? formatCurrency(Number(cash)) : "—";
-  const burnDisplay =
-    isValid && result
-      ? result.riskLevel === "Healthy" && result.burn < 0
-        ? `+${formatCurrency(Math.abs(result.burn))}`
-        : formatCurrency(result.burn)
-      : "—";
-  const runwayDisplay =
-    isValid && result
-      ? result.runwayMonths !== null
-        ? `${result.runwayMonths.toFixed(1)} mo`
-        : "Stable"
-      : "—";
-  const cashOutDisplay = isValid && result ? (result.runoutMonth ?? "Stable") : "—";
+  // ── Display-layer derivations — formatting only, zero math ────────
+  const cashDisplay = snapshot ? formatCurrency(snapshot.cashPosition) : "—";
+  const burnDisplay = snapshot
+    ? snapshot.riskLevel === "Healthy" && snapshot.burnRate < 0
+      ? `+${formatCurrency(Math.abs(snapshot.burnRate))}`
+      : formatCurrency(snapshot.burnRate)
+    : "—";
+  const runwayDisplay = snapshot
+    ? snapshot.runwayMonths !== null
+      ? `${snapshot.runwayMonths.toFixed(1)} mo`
+      : "Stable"
+    : "—";
+  const cashOutDisplay = snapshot ? (snapshot.runoutDate ?? "Stable") : "—";
 
   const riskColors = {
-    High:    "bg-red-50    text-red-600    border-red-200",
-    Medium:  "bg-amber-50  text-amber-600  border-amber-200",
+    High:    "bg-red-50     text-red-600     border-red-200",
+    Medium:  "bg-amber-50   text-amber-600   border-amber-200",
     Low:     "bg-emerald-50 text-emerald-600 border-emerald-200",
-    Healthy: "bg-teal/10   text-teal       border-teal/20",
+    Healthy: "bg-teal/10    text-teal         border-teal/20",
   } as const;
 
   return (
@@ -150,14 +93,14 @@ export default function Home() {
 
         {/* Stat cards — 2 cols on mobile, 4 on large */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
-          <StatCard label="Cash Position"   value={cashDisplay} />
-          <StatCard label="Monthly Burn"    value={burnDisplay} />
-          <StatCard label="Runway"          value={runwayDisplay} />
-          <StatCard label="Cash-Out Date"   value={cashOutDisplay} highlight />
+          <StatCard label="Cash Position" value={cashDisplay} />
+          <StatCard label="Monthly Burn"  value={burnDisplay} />
+          <StatCard label="Runway"        value={runwayDisplay} />
+          <StatCard label="Cash-Out Date" value={cashOutDisplay} highlight />
         </div>
 
         {/* Insight + risk badge */}
-        {isValid && result && (
+        {snapshot && (
           <div
             className="mb-8 bg-surface max-w-2xl"
             style={{
@@ -175,14 +118,14 @@ export default function Home() {
                 AI CFO Insight
               </p>
               <span
-                className={`text-[11px] font-medium px-2 py-0.5 border ${riskColors[result.riskLevel]}`}
+                className={`text-[11px] font-medium px-2 py-0.5 border ${riskColors[snapshot.riskLevel]}`}
                 style={{ borderRadius: "var(--radius-sm)" }}
               >
-                {result.riskLevel} risk
+                {snapshot.riskLevel} risk
               </span>
             </div>
             <p className="text-sm font-light leading-relaxed text-ink">
-              {result.summary}
+              {snapshot.summary}
             </p>
           </div>
         )}
@@ -263,8 +206,10 @@ export default function Home() {
               />
             </div>
 
-            {result && !isValid && (
-              <p className="text-xs text-red-500">{result.summary}</p>
+            {submitted && !snapshot && (
+              <p className="text-xs text-red-500">
+                Please enter valid positive numbers in all three fields.
+              </p>
             )}
 
             <button
