@@ -6,12 +6,10 @@
  *   - Throws on unexpected errors; callers handle UI feedback.
  *   - When auth is wired up, replace TEST_USER_ID with the real session uid.
  *
- * ⚠️  RLS note: these functions use the browser (anon) client, which is
- * subject to Row Level Security. Until auth is set up, queries will be
- * blocked by the `auth.uid() = user_id` policies. To test locally before
- * auth is ready, temporarily disable RLS on the target table in the
- * Supabase dashboard (Table Editor → RLS → Disable), then re-enable it
- * once auth is integrated.
+ * RLS note: functions that default to the browser (anon) client are subject
+ * to Row Level Security via `auth.uid() = user_id`. Server route handlers
+ * must pass the server SupabaseClient (from utils/supabase/server.ts) so the
+ * authenticated session is present and RLS resolves correctly.
  */
 
 import { supabase } from "./supabase";
@@ -51,12 +49,14 @@ export async function getBusinessProfile(
 /**
  * Creates or updates the profile for a user.
  * Safe to call on every save — upserts on the unique user_id constraint.
+ * Accepts an optional client so server route handlers can pass the server client.
  */
 export async function upsertBusinessProfile(
   userId: string,
-  profile: Partial<Omit<BusinessProfileInsert, "user_id">>
+  profile: Partial<Omit<BusinessProfileInsert, "user_id">>,
+  client: SupabaseClient = supabase
 ): Promise<BusinessProfile> {
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("business_profiles")
     .upsert({ ...profile, user_id: userId }, { onConflict: "user_id" })
     .select()
@@ -195,12 +195,14 @@ export async function upsertExpenseCategories(
 
 /**
  * Records a completed (or failed) import run for audit purposes.
+ * Accepts an optional client so server route handlers can pass the server client.
  */
 export async function logDataImport(
   userId: string,
-  importData: Omit<DataImportInsert, "user_id">
+  importData: Omit<DataImportInsert, "user_id">,
+  client: SupabaseClient = supabase
 ): Promise<DataImport> {
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("data_imports")
     .insert({ ...importData, user_id: userId })
     .select()

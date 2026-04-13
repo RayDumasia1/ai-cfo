@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       months_imported: 0,
       status: "pending",
       error_message: null,
-    });
+    }, supabase);
 
     const profile = await getOrCreateBusinessProfile(user.id, supabase);
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
         profileFields: Object.keys(parsed.profile),
       });
 
-      await upsertBusinessProfile(user.id, parsed.profile);
+      await upsertBusinessProfile(user.id, parsed.profile, supabase);
     }
 
     const months = parsed.months.map((m) => ({
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       months_imported: months.length,
       status: "success",
       error_message: null,
-    });
+    }, supabase);
 
     const sorted = months.map((m) => m.month_date).sort();
     const latestMonth = sorted[sorted.length - 1];
