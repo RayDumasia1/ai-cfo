@@ -1,4 +1,8 @@
+"use client";
+
 import { ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 function RisingColumnMark({ className }: { className?: string }) {
   return (
@@ -18,12 +22,19 @@ function RisingColumnMark({ className }: { className?: string }) {
 }
 
 const navItems = [
-  { label: "Dashboard", active: true  },
-  { label: "Reports",   active: false },
-  { label: "Settings",  active: false },
+  { label: "Dashboard", href: "/dashboard", active: true  },
+  { label: "Reports",   href: "/reports",   active: false },
+  { label: "Settings",  href: "/settings",  active: false },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/auth");
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* ── Sidebar ─────────────────────────────────────────────── */}
@@ -53,8 +64,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Nav */}
         <nav className="flex-1 px-3 py-5 space-y-0.5">
           {navItems.map((item) => (
-            <button
+            <a
               key={item.label}
+              href={item.href}
               className={`w-full text-left flex items-center px-3 py-2 text-sm transition-colors ${
                 item.active
                   ? "font-medium text-teal"
@@ -66,18 +78,27 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   ? "rgba(44,166,164,0.12)"
                   : "transparent",
                 color: item.active ? "var(--teal)" : "rgba(255,255,255,0.45)",
+                textDecoration: "none",
+                display: "block",
               }}
             >
               {item.label}
-            </button>
+            </a>
           ))}
         </nav>
 
-        {/* Footer */}
+        {/* Footer — Sign Out */}
         <div
-          className="px-5 py-4"
+          className="px-5 py-4 flex flex-col gap-3"
           style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
         >
+          <button
+            onClick={handleSignOut}
+            className="text-left text-xs font-light transition-opacity hover:opacity-80"
+            style={{ color: "rgba(255,255,255,0.45)" }}
+          >
+            Sign out
+          </button>
           <p
             className="text-[11px] font-light"
             style={{ color: "rgba(255,255,255,0.25)" }}

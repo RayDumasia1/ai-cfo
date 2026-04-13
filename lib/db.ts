@@ -15,6 +15,7 @@
  */
 
 import { supabase } from "./supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   BusinessProfile,
   BusinessProfileInsert,
@@ -114,11 +115,12 @@ export async function upsertFinancialMonth(
  */
 export async function upsertFinancialMonths(
   userId: string,
-  months: Omit<FinancialMonthInsert, "user_id">[]
+  months: Omit<FinancialMonthInsert, "user_id">[],
+  client: SupabaseClient = supabase
 ): Promise<FinancialMonth[]> {
   if (months.length === 0) return [];
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("financial_months")
     .upsert(
       months.map((m) => ({ ...m, user_id: userId })),
@@ -206,4 +208,69 @@ export async function logDataImport(
 
   if (error) throw error;
   return data;
+}
+
+// ─── Composite helpers ────────────────────────────────────────────────────────
+
+/**
+ * Returns the existing business profile for the user, or creates a default one
+ * if none exists yet. Safe to call on every dashboard load.
+ * Accepts an optional client so server route handlers can pass the server client.
+ */
+export async function getOrCreateBusinessProfile(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<BusinessProfile> {
+  const { data: existing, error: fetchError } = await client
+    .from("business_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+  if (existing) return existing;
+
+  const { data, error } = await client
+    .from("business_profiles")
+    .upsert({ user_id: userId }, { onConflict: "user_id" })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export interface CashPositionResult {
+  /** Closing cash of the most recent month. */
+  cash: number;
+  /** ISO date of the most recent month, e.g. "2026-04-01". */
+  month: string;
+  /** Closing cash of the previous month, null if only one month exists. */
+  previousCash: number | null;
+}
+
+/**
+ * Returns the cash position from the two most recent financial months.
+ * Returns null if no data has been imported yet.
+ * Accepts an optional client so server route handlers can pass the server client.
+ */
+export async function getCurrentCashPosition(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<CashPositionResult | null> {
+  const { data, error } = await client
+    .from("financial_months")
+    .select("closing_cash, month_date")
+    .eq("user_id", userId)
+    .order("month_date", { ascending: false })
+    .limit(2);
+
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  return {
+    cash: data[0].closing_cash ?? 0,
+    month: data[0].month_date,
+    previousCash: data[1]?.closing_cash ?? null,
+  };
 }
