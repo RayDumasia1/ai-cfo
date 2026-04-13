@@ -224,12 +224,13 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
         profile.industry = String(value);
       } else if (k === "accounting system") {
         profile.accounting_system = String(value);
-      } else if (k === "employee count" || k === "employees") {
+      } else if (k === "employee count" || k === "employees" || k === "number of employees") {
         const n = Number(String(value).replace(/,/g, ""));
         if (!Number.isNaN(n)) profile.employee_count = Math.round(n);
       } else if (
         k === "min cash reserve" ||
         k === "minimum cash reserve" ||
+        k === "minimum cash reserve ($)" ||
         k === "minimum cash balance" ||
         k === "cash reserve"
       ) {
