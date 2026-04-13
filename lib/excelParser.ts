@@ -222,8 +222,19 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
         profile.business_name = String(value);
       } else if (k === "industry") {
         profile.industry = String(value);
-      } else if (k === "min cash reserve" || k === "minimum cash reserve") {
-        const n = Number(value);
+      } else if (k === "accounting system") {
+        profile.accounting_system = String(value);
+      } else if (k === "employee count" || k === "employees") {
+        const n = Number(String(value).replace(/,/g, ""));
+        if (!Number.isNaN(n)) profile.employee_count = Math.round(n);
+      } else if (
+        k === "min cash reserve" ||
+        k === "minimum cash reserve" ||
+        k === "minimum cash balance" ||
+        k === "cash reserve"
+      ) {
+        // Strip currency formatting before parsing (e.g. "$25,000" → 25000).
+        const n = Number(String(value).replace(/[$,]/g, ""));
         if (!Number.isNaN(n)) profile.min_cash_reserve = n;
       } else if (k === "runway warning threshold") {
         const n = Number(value);
@@ -423,6 +434,8 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   if (months.length === 0 && errors.length === 0) {
     errors.push("No valid data rows found in the sheet.");
   }
+
+  console.log("parser:profile", profile);
 
   return { months, profile, errors, warnings };
 }
