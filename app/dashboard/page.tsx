@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import {
   getCurrentCashPosition,
@@ -11,8 +10,7 @@ import ManualCalculator from "@/app/components/ManualCalculator";
 import ImportRefresher from "./ImportRefresher";
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
