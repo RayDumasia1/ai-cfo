@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import DashboardLayout from "./components/DashboardLayout";
+import StatCard from "./components/StatCard";
 
 type ResultState = {
   burn: number;
@@ -107,160 +109,175 @@ export default function Home() {
     setSubmitted(true);
   }
 
+  // Derived display helpers — no calculation changes
+  const isValid =
+    result !== null &&
+    !(result.burn === 0 && result.runwayMonths === null && result.riskLevel === "High");
+
+  const cashDisplay = isValid ? formatCurrency(Number(cash)) : "—";
+  const burnDisplay =
+    isValid && result
+      ? result.riskLevel === "Healthy" && result.burn < 0
+        ? `+${formatCurrency(Math.abs(result.burn))}`
+        : formatCurrency(result.burn)
+      : "—";
+  const runwayDisplay =
+    isValid && result
+      ? result.runwayMonths !== null
+        ? `${result.runwayMonths.toFixed(1)} mo`
+        : "Stable"
+      : "—";
+  const cashOutDisplay = isValid && result ? (result.runoutMonth ?? "Stable") : "—";
+
+  const riskColors = {
+    High:    "bg-red-50    text-red-600    border-red-200",
+    Medium:  "bg-amber-50  text-amber-600  border-amber-200",
+    Low:     "bg-emerald-50 text-emerald-600 border-emerald-200",
+    Healthy: "bg-teal/10   text-teal       border-teal/20",
+  } as const;
+
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-5xl px-6 py-16">
-        <section className="mb-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
-            AI CFO
+    <DashboardLayout>
+      <div className="px-8 py-8">
+
+        {/* Page header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
+          <p className="mt-1 text-sm font-light text-dim">
+            Enter your numbers below to see your financial snapshot.
           </p>
-          <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-            Get instant visibility into your cash runway
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-600">
-            Enter three numbers to quickly understand your burn, runway, and
-            current financial risk.
+        </div>
+
+        {/* Stat cards — 2 cols on mobile, 4 on large */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
+          <StatCard label="Cash Position"   value={cashDisplay} />
+          <StatCard label="Monthly Burn"    value={burnDisplay} />
+          <StatCard label="Runway"          value={runwayDisplay} />
+          <StatCard label="Cash-Out Date"   value={cashOutDisplay} highlight />
+        </div>
+
+        {/* Insight + risk badge */}
+        {isValid && result && (
+          <div
+            className="mb-8 bg-surface max-w-2xl"
+            style={{
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--line)",
+              boxShadow: "var(--shadow-sm)",
+              padding: "1.25rem 1.5rem",
+            }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <p
+                className="text-[11px] font-medium uppercase tracking-[0.08em]"
+                style={{ color: "var(--dim)" }}
+              >
+                AI CFO Insight
+              </p>
+              <span
+                className={`text-[11px] font-medium px-2 py-0.5 border ${riskColors[result.riskLevel]}`}
+                style={{ borderRadius: "var(--radius-sm)" }}
+              >
+                {result.riskLevel} risk
+              </span>
+            </div>
+            <p className="text-sm font-light leading-relaxed text-ink">
+              {result.summary}
+            </p>
+          </div>
+        )}
+
+        {/* Calculator */}
+        <section
+          className="bg-surface max-w-lg"
+          style={{
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--line)",
+            boxShadow: "var(--shadow-sm)",
+            padding: "1.5rem",
+          }}
+        >
+          <h2 className="text-base font-medium text-ink">Update Inputs</h2>
+          <p className="mt-1 text-sm font-light text-dim">
+            Adjust these to explore different scenarios.
           </p>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+            <div>
+              <label
+                htmlFor="cash"
+                className="block text-xs font-medium text-ink mb-1.5"
+              >
+                Current cash balance
+              </label>
+              <input
+                id="cash"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="50000"
+                value={cash}
+                onChange={(e) => setCash(e.target.value)}
+                className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+                style={{ borderRadius: "var(--radius-sm)" }}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="revenue"
+                className="block text-xs font-medium text-ink mb-1.5"
+              >
+                Average monthly revenue
+              </label>
+              <input
+                id="revenue"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="25000"
+                value={revenue}
+                onChange={(e) => setRevenue(e.target.value)}
+                className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+                style={{ borderRadius: "var(--radius-sm)" }}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="expenses"
+                className="block text-xs font-medium text-ink mb-1.5"
+              >
+                Average monthly expenses
+              </label>
+              <input
+                id="expenses"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="30000"
+                value={expenses}
+                onChange={(e) => setExpenses(e.target.value)}
+                className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+                style={{ borderRadius: "var(--radius-sm)" }}
+              />
+            </div>
+
+            {result && !isValid && (
+              <p className="text-xs text-red-500">{result.summary}</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full px-5 py-2.5 text-sm font-medium text-white bg-teal transition hover:bg-teal/90"
+              style={{ borderRadius: "var(--radius-sm)" }}
+            >
+              Calculate My Runway
+            </button>
+          </form>
         </section>
 
-        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <h2 className="text-xl font-semibold">Runway Calculator</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              No signup required. Start with your current cash, average monthly
-              revenue, and average monthly expenses.
-            </p>
-
-            <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-              <div>
-                <label
-                  htmlFor="cash"
-                  className="mb-2 block text-sm font-medium text-slate-700"
-                >
-                  Current cash balance
-                </label>
-                <input
-                  id="cash"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="50000"
-                  value={cash}
-                  onChange={(e) => setCash(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="revenue"
-                  className="mb-2 block text-sm font-medium text-slate-700"
-                >
-                  Average monthly revenue
-                </label>
-                <input
-                  id="revenue"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="25000"
-                  value={revenue}
-                  onChange={(e) => setRevenue(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="expenses"
-                  className="mb-2 block text-sm font-medium text-slate-700"
-                >
-                  Average monthly expenses
-                </label>
-                <input
-                  id="expenses"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="30000"
-                  value={expenses}
-                  onChange={(e) => setExpenses(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 outline-none transition focus:border-slate-900"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full rounded-2xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-800"
-              >
-                Calculate My Runway
-              </button>
-            </form>
-          </section>
-
-          <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <h2 className="text-xl font-semibold">Your Result</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              This is your first version. Keep it simple and test with real
-              numbers.
-            </p>
-
-            {!submitted && (
-              <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-slate-600">
-                Enter your numbers and click <strong>Calculate My Runway</strong>{" "}
-                to see your burn and runway summary here.
-              </div>
-            )}
-
-            {submitted && result && (
-              <div className="mt-8 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-5">
-                    <p className="text-sm text-slate-500">Monthly burn</p>
-                    <p className="mt-2 text-2xl font-semibold">
-                      {result.riskLevel === "Healthy" && result.burn < 0
-                        ? `${formatCurrency(Math.abs(result.burn))} positive`
-                        : formatCurrency(result.burn)}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-5">
-                    <p className="text-sm text-slate-500">Runway</p>
-                    <p className="mt-2 text-2xl font-semibold">
-                      {result.runwayMonths === null
-                        ? result.riskLevel === "Healthy"
-                          ? "Stable"
-                          : "—"
-                        : `${result.runwayMonths.toFixed(1)} months`}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-5">
-                    <p className="text-sm text-slate-500">Runout month</p>
-                    <p className="mt-2 text-2xl font-semibold">
-                      {result.runoutMonth ?? "Stable"}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-slate-50 p-5">
-                    <p className="text-sm text-slate-500">Risk level</p>
-                    <p className="mt-2 text-2xl font-semibold">
-                      {result.riskLevel}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-slate-50 p-5">
-                  <p className="text-sm text-slate-500">AI CFO insight</p>
-                  <p className="mt-2 leading-7 text-slate-700">
-                    {result.summary}
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
       </div>
-    </main>
+    </DashboardLayout>
   );
 }

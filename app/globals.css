@@ -1,26 +1,38 @@
 @import "tailwindcss";
 
+/* ─── Elidan AI brand tokens ─────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --navy:    #0A1A2F;
+  --teal:    #2CA6A4;
+  --cloud:   #F4F7FA;
+  --ink:     #344150;
+  --gold:    #D4AF7F;
+  --line:    #D8E2EC;
+  --dim:     #6B7A8D;
+  --surface: #FFFFFF;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 3px  rgba(10, 26, 47, 0.08);
+  --shadow-md: 0 4px 16px rgba(10, 26, 47, 0.10);
 }
 
+/* Map CSS vars into Tailwind's token system */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-navy:    var(--navy);
+  --color-teal:    var(--teal);
+  --color-cloud:   var(--cloud);
+  --color-ink:     var(--ink);
+  --color-gold:    var(--gold);
+  --color-line:    var(--line);
+  --color-dim:     var(--dim);
+  --color-surface: var(--surface);
+  --font-sans:     var(--font-inter);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--cloud);
+  color: var(--ink);
 }
