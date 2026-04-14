@@ -124,19 +124,24 @@ export function runwayChangeMoM(
 
 export interface RevenueVsBurnChartData {
   labels: string[];
-  revenue: number[];
-  burn: number[];
-  netCashFlow: number[];
+  /** null means the source month had no total_revenue recorded. */
+  revenue: (number | null)[];
+  /** null means the source month had no total_expenses recorded. */
+  burn: (number | null)[];
+  netCashFlow: (number | null)[];
 }
 
 /**
  * Prepares the last 6 months of revenue and burn data for charting.
  * Input is newest-first (as returned by getFinancialMonths).
  * Output is sorted chronologically (oldest → newest) for left-to-right display.
+ * Returns null when months is empty so the component can render a placeholder.
  */
 export function getRevenueVsBurnChartData(
   months: FinancialMonth[]
-): RevenueVsBurnChartData {
+): RevenueVsBurnChartData | null {
+  if (months.length === 0) return null;
+
   const recent = months.slice(0, 6).reverse(); // oldest → newest
 
   const labels = recent.map((m) => {
@@ -148,9 +153,14 @@ export function getRevenueVsBurnChartData(
     });
   });
 
-  const revenue = recent.map((m) => m.total_revenue ?? 0);
-  const burn = recent.map((m) => m.total_expenses ?? 0);
-  const netCashFlow = recent.map((m) => (m.closing_cash ?? 0) - (m.opening_cash ?? 0));
+  // Preserve null so the tooltip can display "—" instead of $0
+  const revenue = recent.map((m) => m.total_revenue);
+  const burn = recent.map((m) => m.total_expenses);
+  const netCashFlow = recent.map((m) =>
+    m.closing_cash != null && m.opening_cash != null
+      ? m.closing_cash - m.opening_cash
+      : null
+  );
 
   return { labels, revenue, burn, netCashFlow };
 }

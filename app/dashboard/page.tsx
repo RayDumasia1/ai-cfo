@@ -53,22 +53,20 @@ export default async function DashboardPage() {
         </div>
 
         {/* Import uploader */}
-        <div className="mb-8 max-w-lg">
+        <div id="import-section" className="mb-8 max-w-lg">
           <h2 className="text-base font-medium text-ink mb-3">
             Import Financial Data
           </h2>
-          <ImportRefresher />
+          <ImportRefresher hasData={recentMonths.length > 0} />
         </div>
 
-        {/* Revenue vs Burn chart */}
-        {recentMonths.length > 0 && (
-          <div className="mb-8">
-            <RevenueBurnChart months={recentMonths} />
-          </div>
-        )}
+        {/* Revenue vs Burn chart — always rendered; component handles empty state */}
+        <div className="mb-8">
+          <RevenueBurnChart months={recentMonths} />
+        </div>
 
-        {/* Alerts */}
-        {profile && recentMonths.length > 0 && (
+        {/* Alerts — always rendered; component handles empty state */}
+        {profile && (
           <div className="mb-8 max-w-2xl">
             <h2 className="text-base font-medium text-ink mb-3">Alerts</h2>
             <AlertsPanel months={recentMonths} profile={profile} />

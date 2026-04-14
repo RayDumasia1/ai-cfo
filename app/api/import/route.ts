@@ -4,7 +4,6 @@ import { parseExcelBuffer } from "@/lib/excelParser";
 import {
   getOrCreateBusinessProfile,
   upsertBusinessProfile,
-  upsertFinancialMonths,
   logDataImport,
 } from "@/lib/db";
 
@@ -19,7 +18,7 @@ export async function POST(request: NextRequest) {
   let filename: string | null = null;
 
   try {
-    // ── Auth ────────────────────────────────────────────────────────────────
+    // ── Auth ──────────────────────────────────────────────────────────────────
     const supabase = await createClient();
     const {
       data: { user },
@@ -39,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // ── File ────────────────────────────────────────────────────────────────
+    // ── File ──────────────────────────────────────────────────────────────────
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
@@ -50,7 +49,6 @@ export async function POST(request: NextRequest) {
       exists: !!file,
       name: file?.name ?? null,
       size: file?.size ?? null,
-      type: file?.type ?? null,
     });
 
     if (!file) {
@@ -58,12 +56,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // ── Parse ───────────────────────────────────────────────────────────────
-    console.log("import:parse:start", {
-      requestId,
-      userId,
-      filename,
-    });
+    // ── Parse ─────────────────────────────────────────────────────────────────
+    console.log("import:parse:start", { requestId, userId, filename });
 
     const buffer = await file.arrayBuffer();
     const parsed = parseExcelBuffer(buffer);
@@ -86,37 +80,62 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json(
-        {
-          success: false,
-          errors: parsed.errors,
-          requestId,
-        },
+        { success: false, errors: parsed.errors, requestId },
         { status: 400 }
       );
     }
 
-    // ── DB ──────────────────────────────────────────────────────────────────
-    console.log("import:db:start", {
+    // ── Check for existing data ───────────────────────────────────────────────
+    const { count: existingCount } = await supabase
+      .from("financial_months")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+    const isReplacing = (existingCount ?? 0) > 0;
+
+    console.log("import:db:existing", {
       requestId,
       userId,
-      filename,
+      existingCount,
+      isReplacing,
     });
 
-    await logDataImport(user.id, {
-      import_type: "excel",
-      filename: file.name,
-      months_imported: 0,
-      status: "pending",
-      error_message: null,
-    }, supabase);
+    // Log the pending import
+    await logDataImport(
+      user.id,
+      {
+        import_type: "excel",
+        filename: file.name,
+        months_imported: 0,
+        status: "pending",
+        error_message: null,
+      },
+      supabase
+    );
 
+    // ── Replace strategy: delete all existing rows first ─────────────────────
+    if (isReplacing) {
+      console.log("import:db:delete:start", { requestId, userId });
+
+      const { error: delMonthsErr } = await supabase
+        .from("financial_months")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (delMonthsErr) throw delMonthsErr;
+
+      const { error: delCatsErr } = await supabase
+        .from("expense_categories")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (delCatsErr) throw delCatsErr;
+
+      console.log("import:db:delete:success", { requestId, userId });
+    }
+
+    // ── Profile ───────────────────────────────────────────────────────────────
     const profile = await getOrCreateBusinessProfile(user.id, supabase);
-
-    console.log("import:db:profile", {
-      requestId,
-      userId,
-      profileId: profile.id,
-    });
 
     if (Object.keys(parsed.profile).length > 0) {
       console.log("import:db:upsert-profile", {
@@ -124,16 +143,17 @@ export async function POST(request: NextRequest) {
         userId,
         profileFields: Object.keys(parsed.profile),
       });
-
       await upsertBusinessProfile(user.id, parsed.profile, supabase);
     }
 
+    // ── Insert months ─────────────────────────────────────────────────────────
     const months = parsed.months.map((m) => ({
       ...m,
+      user_id: user.id,
       business_id: profile.id,
     }));
 
-    console.log("import:db:upsert-months:start", {
+    console.log("import:db:insert:start", {
       requestId,
       userId,
       count: months.length,
@@ -141,21 +161,31 @@ export async function POST(request: NextRequest) {
       lastMonth: months[months.length - 1]?.month_date ?? null,
     });
 
-    await upsertFinancialMonths(user.id, months, supabase);
+    if (months.length > 0) {
+      const { error: insertErr } = await supabase
+        .from("financial_months")
+        .insert(months);
 
-    console.log("import:db:upsert-months:success", {
+      if (insertErr) throw insertErr;
+    }
+
+    console.log("import:db:insert:success", {
       requestId,
       userId,
       count: months.length,
     });
 
-    await logDataImport(user.id, {
-      import_type: "excel",
-      filename: file.name,
-      months_imported: months.length,
-      status: "success",
-      error_message: null,
-    }, supabase);
+    await logDataImport(
+      user.id,
+      {
+        import_type: "excel",
+        filename: file.name,
+        months_imported: months.length,
+        status: "success",
+        error_message: null,
+      },
+      supabase
+    );
 
     const sorted = months.map((m) => m.month_date).sort();
     const latestMonth = sorted[sorted.length - 1];
@@ -167,13 +197,14 @@ export async function POST(request: NextRequest) {
       userId,
       filename,
       monthsImported: months.length,
+      isReplacing,
       latestMonth,
       currentCash,
-      warnings: parsed.warnings.length,
     });
 
     return NextResponse.json({
       success: true,
+      replaced: isReplacing,
       monthsImported: months.length,
       warnings: parsed.warnings,
       dateRange: { from: sorted[0], to: latestMonth },
@@ -194,29 +225,29 @@ export async function POST(request: NextRequest) {
 
     if (userId && filename) {
       try {
-        await logDataImport(userId, {
-          import_type: "excel",
-          filename,
-          months_imported: 0,
-          status: "error",
-          error_message: errorMessage,
-        });
-      } catch (logError) {
-        console.error("import:error:logDataImport-failed", {
-          requestId,
+        const supabase = await createClient();
+        await logDataImport(
           userId,
-          filename,
-          message: logError instanceof Error ? logError.message : String(logError),
+          {
+            import_type: "excel",
+            filename,
+            months_imported: 0,
+            status: "error",
+            error_message: errorMessage,
+          },
+          supabase
+        );
+      } catch (logError) {
+        console.error("import:error:log-failed", {
+          requestId,
+          message:
+            logError instanceof Error ? logError.message : String(logError),
         });
       }
     }
 
     return NextResponse.json(
-      {
-        error: "Import failed",
-        detail: errorMessage,
-        requestId,
-      },
+      { error: "Import failed", detail: errorMessage, requestId },
       { status: 500 }
     );
   }

@@ -3,8 +3,10 @@
 import { useRef, useState } from "react";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
+type ClearState = "idle" | "confirming" | "clearing";
 
 interface SuccessPayload {
+  replaced: boolean;
   monthsImported: number;
   dateRange: { from: string; to: string };
   currentCash: number | null;
@@ -12,6 +14,8 @@ interface SuccessPayload {
 }
 
 interface ImportUploaderProps {
+  /** Whether the user already has financial data imported. */
+  hasData?: boolean;
   onSuccess?: () => void;
 }
 
@@ -24,7 +28,6 @@ function formatCurrency(n: number): string {
 }
 
 function formatMonthLabel(iso: string): string {
-  // "2026-04-01" → "April 2026"
   const [year, month] = iso.split("-");
   return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
     "en-US",
@@ -32,11 +35,17 @@ function formatMonthLabel(iso: string): string {
   );
 }
 
-export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
+export default function ImportUploader({
+  hasData = false,
+  onSuccess,
+}: ImportUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<UploadState>("idle");
   const [success, setSuccess] = useState<SuccessPayload | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [clearState, setClearState] = useState<ClearState>("idle");
+  // Track whether the user HAS data locally (may change after clear)
+  const [localHasData, setLocalHasData] = useState(hasData);
 
   async function handleFile(file: File) {
     setState("uploading");
@@ -61,6 +70,7 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
       }
 
       setSuccess(json as SuccessPayload);
+      setLocalHasData(true);
       setState("success");
       onSuccess?.();
     } catch {
@@ -72,7 +82,6 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) handleFile(file);
-    // Reset so the same file can be re-uploaded
     e.target.value = "";
   }
 
@@ -80,6 +89,90 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
     setState("idle");
     setSuccess(null);
     setErrorMsg(null);
+    setClearState("idle");
+  }
+
+  async function handleClear() {
+    setClearState("clearing");
+    try {
+      const res = await fetch("/api/data", { method: "DELETE" });
+      if (!res.ok) throw new Error("Server error");
+      setLocalHasData(false);
+      setClearState("idle");
+      setState("idle");
+      onSuccess?.();
+    } catch {
+      setClearState("idle");
+      setErrorMsg("Failed to clear data. Please try again.");
+      setState("error");
+    }
+  }
+
+  // ── Clear confirmation dialog ──────────────────────────────────────────────
+  if (clearState === "confirming") {
+    return (
+      <div
+        className="bg-surface px-6 py-5"
+        style={{
+          borderRadius: "var(--radius-md)",
+          border: "1px solid #ef4444",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>
+          Clear all financial data?
+        </p>
+        <p className="mt-1 text-xs font-light" style={{ color: "var(--dim)" }}>
+          This will permanently delete all your financial data. This cannot be
+          undone.
+        </p>
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={() => setClearState("idle")}
+            className="px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-70"
+            style={{
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--line)",
+              color: "var(--ink)",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleClear}
+            className="px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80"
+            style={{
+              borderRadius: "var(--radius-sm)",
+              backgroundColor: "#ef4444",
+            }}
+          >
+            Clear data
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Clearing in progress ───────────────────────────────────────────────────
+  if (clearState === "clearing") {
+    return (
+      <div
+        className="flex items-center gap-4 bg-surface px-6 py-5"
+        style={{
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--line)",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        <div
+          className="h-5 w-5 rounded-full border-2 animate-spin shrink-0"
+          style={{ borderColor: "var(--teal)", borderTopColor: "transparent" }}
+        />
+        <p className="text-sm font-light" style={{ color: "var(--ink)" }}>
+          Clearing data…
+        </p>
+      </div>
+    );
   }
 
   // ── Uploading ──────────────────────────────────────────────────────────────
@@ -94,7 +187,7 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
         }}
       >
         <div
-          className="h-5 w-5 rounded-full border-2 border-t-transparent animate-spin shrink-0"
+          className="h-5 w-5 rounded-full border-2 animate-spin shrink-0"
           style={{ borderColor: "var(--teal)", borderTopColor: "transparent" }}
         />
         <p className="text-sm font-light" style={{ color: "var(--ink)" }}>
@@ -106,6 +199,7 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
 
   // ── Success ────────────────────────────────────────────────────────────────
   if (state === "success" && success) {
+    const verb = success.replaced ? "Replaced with" : "Imported";
     return (
       <div
         className="bg-surface px-6 py-5"
@@ -117,7 +211,7 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
         }}
       >
         <p className="text-sm font-medium" style={{ color: "var(--teal)" }}>
-          ✓ Imported {success.monthsImported} month
+          ✓ {verb} {success.monthsImported} month
           {success.monthsImported !== 1 ? "s" : ""} of data
         </p>
         <p className="mt-1 text-xs font-light" style={{ color: "var(--dim)" }}>
@@ -137,13 +231,24 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
             ))}
           </ul>
         )}
-        <button
-          onClick={reset}
-          className="mt-4 text-xs font-medium transition-opacity hover:opacity-70"
-          style={{ color: "var(--teal)" }}
-        >
-          Upload another file
-        </button>
+        <div className="mt-4 flex flex-col gap-2">
+          <button
+            onClick={reset}
+            className="text-xs font-medium transition-opacity hover:opacity-70 text-left"
+            style={{ color: "var(--teal)" }}
+          >
+            Upload another file
+          </button>
+          {localHasData && (
+            <button
+              onClick={() => setClearState("confirming")}
+              className="text-xs font-light transition-opacity hover:opacity-70 text-left"
+              style={{ color: "#6B7A8D" }}
+            >
+              Clear all financial data
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -225,6 +330,16 @@ export default function ImportUploader({ onSuccess }: ImportUploaderProps) {
             Download template
           </a>
         </div>
+
+        {localHasData && (
+          <button
+            onClick={() => setClearState("confirming")}
+            className="text-xs font-light transition-opacity hover:opacity-70"
+            style={{ color: "#6B7A8D" }}
+          >
+            Clear all financial data
+          </button>
+        )}
       </div>
     </div>
   );
