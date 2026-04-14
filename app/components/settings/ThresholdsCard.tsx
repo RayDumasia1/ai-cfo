@@ -106,6 +106,8 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
 
       <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 20 }}>
         <Field
+          id="runway-warning-threshold"
+          name="runway_warning_threshold"
           label="Runway warning threshold (months)"
           helper="Amber alert when runway drops below this"
           value={form.runway_warning_threshold}
@@ -114,6 +116,8 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           min={1}
         />
         <Field
+          id="runway-danger-threshold"
+          name="runway_danger_threshold"
           label="Runway danger threshold (months)"
           helper="Red alert when runway drops below this"
           value={form.runway_danger_threshold}
@@ -122,6 +126,8 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           min={1}
         />
         <Field
+          id="min-cash-reserve"
+          name="min_cash_reserve"
           label="Minimum cash reserve ($)"
           helper="Alert when cash drops below this amount"
           value={form.min_cash_reserve}
@@ -131,6 +137,8 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           prefix="$"
         />
         <Field
+          id="burn-rate-warning"
+          name="burn_rate_warning_pct"
           label="Burn rate warning (%)"
           helper="Alert when monthly burn increases by more than this percentage"
           value={form.burn_rate_warning_pct}
@@ -177,6 +185,8 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
 // ── Field sub-component ───────────────────────────────────────────────────────
 
 interface FieldProps {
+  id: string;
+  name: string;
   label: string;
   helper: string;
   value: string;
@@ -187,12 +197,12 @@ interface FieldProps {
   suffix?: string;
 }
 
-function Field({ label, helper, value, onChange, type = "text", min, prefix, suffix }: FieldProps) {
+function Field({ id, name, label, helper, value, onChange, type = "text", min, prefix, suffix }: FieldProps) {
   const [focused, setFocused] = useState(false);
 
   return (
     <div>
-      <label style={labelStyle}>{label}</label>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
       <div style={{ position: "relative", marginTop: 6 }}>
         {prefix && (
           <span style={{
@@ -203,8 +213,11 @@ function Field({ label, helper, value, onChange, type = "text", min, prefix, suf
           </span>
         )}
         <input
+          id={id}
+          name={name}
           type={type}
           min={min}
+          autoComplete="off"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => setFocused(true)}

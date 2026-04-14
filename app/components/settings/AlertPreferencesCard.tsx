@@ -5,10 +5,10 @@ import type { SnoozeType } from "@/lib/types";
 
 const LEGACY_KEY = "elidan_snooze_duration";
 
-const options: { value: SnoozeType; label: string }[] = [
-  { value: "data_reload", label: "Until I reload data" },
-  { value: "24h",         label: "24 hours" },
-  { value: "7d",          label: "7 days" },
+const options: { value: SnoozeType; label: string; id: string }[] = [
+  { value: "data_reload", label: "Until I reload data", id: "snooze-data-reload" },
+  { value: "24h",         label: "24 hours",            id: "snooze-24h"         },
+  { value: "7d",          label: "7 days",              id: "snooze-7d"          },
 ];
 
 type LoadState = "loading" | "ready";
@@ -94,22 +94,29 @@ export default function AlertPreferencesCard() {
       </p>
 
       <div style={{ marginTop: 24 }}>
-        <label style={labelStyle}>Snooze dismissed alerts for</label>
+        {/* Group label — not a <label> element since it doesn't map to a single control */}
+        <p style={labelStyle} id="snooze-duration-group">Snooze dismissed alerts for</p>
 
         {loadState === "loading" ? (
           <div style={{ marginTop: 12, height: 80, display: "flex", alignItems: "center" }}>
             <span style={{ fontSize: 13, color: "#6B7A8D" }}>Loading…</span>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+          <div
+            role="radiogroup"
+            aria-labelledby="snooze-duration-group"
+            style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}
+          >
             {options.map((opt) => (
               <label
                 key={opt.value}
+                htmlFor={opt.id}
                 style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
               >
                 <input
+                  id={opt.id}
                   type="radio"
-                  name="snooze"
+                  name="snooze-duration"
                   value={opt.value}
                   checked={selected === opt.value}
                   onChange={() => setSelected(opt.value)}
