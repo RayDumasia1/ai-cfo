@@ -1,33 +1,48 @@
 "use client";
 
-import { monthlyBurnRate, runwayMonths, runoutDate } from "@/lib/calculations";
+import {
+  monthlyBurnRate,
+  runwayMonths,
+  runwayChangeMoM,
+} from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
 
 interface RunwayCardProps {
-  /** Closing cash of the most recent month (from CashPositionResult.cash). */
+  /** Closing cash of the most recent month. */
   cash: number | null;
   /** Recent financial months, newest-first. */
   months: FinancialMonth[];
+  /**
+   * Months of runway considered healthy (from business_profiles).
+   * Defaults to 6 when not set.
+   */
+  runwayWarningThreshold?: number | null;
 }
 
-export default function RunwayCard({ cash, months }: RunwayCardProps) {
-  // ── Derive values ──────────────────────────────────────────────────────────
+export default function RunwayCard({
+  cash,
+  months,
+  runwayWarningThreshold,
+}: RunwayCardProps) {
+  const threshold = runwayWarningThreshold ?? 6;
+
+  // ── Core calculations ──────────────────────────────────────────────────────
   const expenses = months.map((m) => m.total_expenses);
   const avgBurn = monthlyBurnRate(expenses);
 
-  // avgBurn null  → no expense data
-  // avgBurn <= 0  → profitable / break-even, no runway concern
   const runway =
     cash != null && avgBurn != null && avgBurn > 0
       ? runwayMonths(cash, avgBurn)
       : null;
 
-  // Anchor to the most recent data month, not today.
-  const anchorDate = months[0]?.month_date;
-  const cashOut = runway != null ? runoutDate(runway, anchorDate) : null;
+  // MoM runway delta — uses closing_cash from the two most recent months.
+  const prevCash = months[1]?.closing_cash ?? null;
+  const momDelta =
+    runway != null && prevCash != null && avgBurn != null
+      ? runwayChangeMoM(cash!, prevCash, avgBurn)
+      : null;
 
-  // ── Colour thresholds ──────────────────────────────────────────────────────
-  // Green > 6 months | Amber 3–6 months | Red < 3 months
+  // ── Border colour ──────────────────────────────────────────────────────────
   let borderColor = "var(--line)";
   if (runway != null) {
     if (runway > 6) borderColor = "#22c55e";
@@ -35,18 +50,18 @@ export default function RunwayCard({ cash, months }: RunwayCardProps) {
     else borderColor = "#ef4444";
   }
 
-  // ── Shared card shell ──────────────────────────────────────────────────────
-  const cardStyle: React.CSSProperties = {
-    borderRadius: "var(--radius-md)",
-    border: `1px solid ${borderColor}`,
-    boxShadow: "var(--shadow-sm)",
-    padding: "1.25rem 1.5rem",
-  };
-
   // ── No data ────────────────────────────────────────────────────────────────
-  if (runway === null && avgBurn === null) {
+  if (avgBurn === null) {
     return (
-      <div className="bg-surface flex flex-col" style={cardStyle}>
+      <div
+        className="bg-surface flex flex-col"
+        style={{
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--line)",
+          boxShadow: "var(--shadow-sm)",
+          padding: "1.25rem 1.5rem",
+        }}
+      >
         <p
           className="text-[11px] font-medium uppercase tracking-[0.08em]"
           style={{ color: "var(--dim)" }}
@@ -69,7 +84,15 @@ export default function RunwayCard({ cash, months }: RunwayCardProps) {
   // ── Profitable / break-even ────────────────────────────────────────────────
   if (runway === null) {
     return (
-      <div className="bg-surface flex flex-col" style={{ ...cardStyle, borderColor: "#22c55e" }}>
+      <div
+        className="bg-surface flex flex-col"
+        style={{
+          borderRadius: "var(--radius-md)",
+          border: "1px solid #22c55e",
+          boxShadow: "var(--shadow-sm)",
+          padding: "1.25rem 1.5rem",
+        }}
+      >
         <p
           className="text-[11px] font-medium uppercase tracking-[0.08em]"
           style={{ color: "var(--dim)" }}
@@ -89,9 +112,34 @@ export default function RunwayCard({ cash, months }: RunwayCardProps) {
     );
   }
 
-  // ── Burning cash ───────────────────────────────────────────────────────────
+  // ── Sub-label line 1: target progress ─────────────────────────────────────
+  const meetsTarget = runway >= threshold;
+  const targetLabel = `${runway.toFixed(1)} of ${threshold} month target${meetsTarget ? " ✓" : ""}`;
+
+  // ── Sub-label line 2: MoM delta ───────────────────────────────────────────
+  let momLabel: React.ReactNode;
+  if (momDelta === null) {
+    momLabel = <span style={{ color: "var(--dim)" }}>— vs last month</span>;
+  } else {
+    const improved = momDelta >= 0;
+    const abs = Math.abs(momDelta).toFixed(1);
+    momLabel = (
+      <span style={{ color: improved ? "#22c55e" : "#ef4444" }}>
+        {improved ? "↑" : "↓"} {abs} months vs last month
+      </span>
+    );
+  }
+
   return (
-    <div className="bg-surface flex flex-col" style={cardStyle}>
+    <div
+      className="bg-surface flex flex-col"
+      style={{
+        borderRadius: "var(--radius-md)",
+        border: `1px solid ${borderColor}`,
+        boxShadow: "var(--shadow-sm)",
+        padding: "1.25rem 1.5rem",
+      }}
+    >
       <p
         className="text-[11px] font-medium uppercase tracking-[0.08em]"
         style={{ color: "var(--dim)" }}
@@ -104,9 +152,17 @@ export default function RunwayCard({ cash, months }: RunwayCardProps) {
       >
         {runway.toFixed(1)} months
       </p>
-      <p className="mt-2 text-xs font-light" style={{ color: "var(--dim)" }}>
-        Cash out: {cashOut}
+
+      {/* Line 1 — target progress */}
+      <p
+        className="mt-2 text-xs font-light"
+        style={{ color: meetsTarget ? "var(--teal)" : "var(--dim)" }}
+      >
+        {targetLabel}
       </p>
+
+      {/* Line 2 — MoM delta */}
+      <p className="mt-0.5 text-xs font-light">{momLabel}</p>
     </div>
   );
 }

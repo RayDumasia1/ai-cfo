@@ -42,7 +42,11 @@ export default async function DashboardPage() {
             minCashReserve={profile?.min_cash_reserve}
           />
           <BurnRateCard months={recentMonths ?? []} />
-          <RunwayCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
+          <RunwayCard
+            cash={cashPosition?.cash ?? null}
+            months={recentMonths ?? []}
+            runwayWarningThreshold={profile?.runway_warning_threshold}
+          />
           <CashOutCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
         </div>
 
