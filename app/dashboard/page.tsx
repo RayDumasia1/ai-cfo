@@ -53,7 +53,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Import uploader */}
-        <div className="mb-8 max-w-lg">
+        <div id="import-section" className="mb-8 max-w-lg">
           <h2 className="text-base font-medium text-ink mb-3">
             Import Financial Data
           </h2>

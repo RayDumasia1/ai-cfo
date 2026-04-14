@@ -9,6 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
+import { BarChart2 } from "lucide-react";
 import { getRevenueVsBurnChartData } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
 
@@ -72,12 +73,15 @@ function ChartTooltip({ active, payload, label }: TooltipArgs) {
   );
 }
 
+// Matches the total height of the populated card so there is no layout shift:
+// 24px pad-top + ~24px header block + 16px gap + 200px chart + ~28px legend + 24px pad-bottom
 const CARD_STYLE: React.CSSProperties = {
   backgroundColor: "#FFFFFF",
   border: "1px solid #D8E2EC",
   borderRadius: "var(--radius-lg, 16px)",
   boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
   padding: "24px",
+  minHeight: 316,
 };
 
 export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
@@ -86,13 +90,49 @@ export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!chartResult) {
     return (
-      <div style={{ ...CARD_STYLE, height: 280, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "#0A1A2F", marginBottom: 8 }}>
-          Revenue vs Burn
+      <div style={CARD_STYLE}>
+        {/* Title row — same position as populated state */}
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#0A1A2F", margin: 0 }}>
+          Revenue vs Burn &nbsp;·&nbsp; No data yet
         </p>
-        <p style={{ fontSize: 13, color: "#6B7A8D", textAlign: "center" }}>
-          Upload financial data to see your revenue vs burn trend.
-        </p>
+
+        {/* Centred placeholder body */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: 1,
+            minHeight: 200,
+            gap: 12,
+            paddingTop: 16,
+          }}
+        >
+          <BarChart2 size={32} color="#D8E2EC" strokeWidth={1.5} />
+          <p
+            style={{
+              fontSize: 13,
+              color: "#6B7A8D",
+              textAlign: "center",
+              maxWidth: 280,
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
+            Upload your financial data to see your revenue vs burn trend.
+          </p>
+          <a
+            href="#import"
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById("import-section")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            style={{ fontSize: 13, color: "#2CA6A4", textDecoration: "none" }}
+          >
+            Upload data →
+          </a>
+        </div>
       </div>
     );
   }
