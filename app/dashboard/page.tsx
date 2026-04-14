@@ -8,7 +8,7 @@ import DashboardLayout from "@/app/components/DashboardLayout";
 import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
-import StatCard from "@/app/components/StatCard";
+import CashOutCard from "@/app/components/CashOutCard";
 import ManualCalculator from "@/app/components/ManualCalculator";
 import ImportRefresher from "./ImportRefresher";
 
@@ -43,7 +43,7 @@ export default async function DashboardPage() {
           />
           <BurnRateCard months={recentMonths ?? []} />
           <RunwayCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
-          <StatCard label="Cash-Out Date" value="—" highlight />
+          <CashOutCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
         </div>
 
         {/* Import uploader */}

@@ -40,13 +40,25 @@ export function runwayMonths(cashBalance: number, burn: number): number {
 
 /**
  * Calendar month when cash reaches zero.
- * Returns a formatted string e.g. "August 2027".
+ * Returns a formatted string e.g. "March 2026".
  * Uses Math.floor so 4.9 months → month 4, not month 5.
+ *
+ * @param months      - Runway in months (from runwayMonths()).
+ * @param anchorMonthDate - ISO date string of the most recent data month
+ *   (e.g. "2025-12-01"). When provided, projects forward from that month
+ *   rather than from today. Omit for real-time manual calculations where
+ *   today is the correct anchor.
  */
-export function runoutDate(months: number): string {
-  const date = new Date();
-  date.setMonth(date.getMonth() + Math.floor(months));
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+export function runoutDate(months: number, anchorMonthDate?: string): string {
+  const date = anchorMonthDate
+    ? new Date(anchorMonthDate + "T12:00:00Z") // noon UTC avoids DST/timezone shifts
+    : new Date();
+  date.setUTCMonth(date.getUTCMonth() + Math.floor(months));
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /**

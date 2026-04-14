@@ -22,7 +22,9 @@ export default function RunwayCard({ cash, months }: RunwayCardProps) {
       ? runwayMonths(cash, avgBurn)
       : null;
 
-  const cashOut = runway != null ? runoutDate(runway) : null;
+  // Anchor to the most recent data month, not today.
+  const anchorDate = months[0]?.month_date;
+  const cashOut = runway != null ? runoutDate(runway, anchorDate) : null;
 
   // ── Colour thresholds ──────────────────────────────────────────────────────
   // Green > 6 months | Amber 3–6 months | Red < 3 months
