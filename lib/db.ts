@@ -74,9 +74,10 @@ export async function upsertBusinessProfile(
  */
 export async function getFinancialMonths(
   userId: string,
-  limit = 12
+  limit = 12,
+  client: SupabaseClient = supabase
 ): Promise<FinancialMonth[]> {
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("financial_months")
     .select("*")
     .eq("user_id", userId)

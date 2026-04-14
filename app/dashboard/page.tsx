@@ -2,9 +2,11 @@ import { createClient } from "@/utils/supabase/server";
 import {
   getCurrentCashPosition,
   getOrCreateBusinessProfile,
+  getFinancialMonths,
 } from "@/lib/db";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import CashPositionCard from "@/app/components/CashPositionCard";
+import BurnRateCard from "@/app/components/BurnRateCard";
 import StatCard from "@/app/components/StatCard";
 import ManualCalculator from "@/app/components/ManualCalculator";
 import ImportRefresher from "./ImportRefresher";
@@ -15,9 +17,10 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile] = await Promise.all([
+  const [cashPosition, profile, recentMonths] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
+    user ? getFinancialMonths(user.id, 3, supabase) : [],
   ]);
 
   return (
@@ -37,7 +40,7 @@ export default async function DashboardPage() {
             initialData={cashPosition}
             minCashReserve={profile?.min_cash_reserve}
           />
-          <StatCard label="Monthly Burn" value="—" subtext="Import data to calculate" />
+          <BurnRateCard months={recentMonths ?? []} />
           <StatCard label="Runway" value="—" subtext="Import data to calculate" />
           <StatCard label="Cash-Out Date" value="—" highlight />
         </div>

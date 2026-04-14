@@ -60,6 +60,34 @@ export function riskLevel(months: number): RiskLevel {
 }
 
 /**
+ * 3-month rolling average of total expenses, newest-first.
+ * Null values (missing data) are excluded from the average.
+ * Returns null when there are no non-null expense values to average.
+ */
+export function monthlyBurnRate(
+  expensesNewestFirst: (number | null)[]
+): number | null {
+  const sample = expensesNewestFirst
+    .slice(0, 3)
+    .filter((v): v is number => v !== null);
+  if (sample.length === 0) return null;
+  return sample.reduce((sum, v) => sum + v, 0) / sample.length;
+}
+
+/**
+ * Month-over-month percentage change in burn rate.
+ * Positive → burn increased. Negative → burn decreased.
+ * Returns 0 when previousExpenses is 0 to avoid division-by-zero.
+ */
+export function burnRateChangeMoM(
+  currentExpenses: number,
+  previousExpenses: number
+): number {
+  if (previousExpenses === 0) return 0;
+  return ((currentExpenses - previousExpenses) / previousExpenses) * 100;
+}
+
+/**
  * Master aggregator — the single function the UI calls.
  * Handles all edge cases (profitable, break-even, burning) and
  * returns a fully-populated FinancialSnapshot.
