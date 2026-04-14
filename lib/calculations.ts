@@ -100,6 +100,22 @@ export function burnRateChangeMoM(
 }
 
 /**
+ * Month-over-month change in runway, measured in months.
+ * Positive → runway improved. Negative → runway declined.
+ * Uses the same burn rate for both months so the only variable is cash balance,
+ * isolating the effect of cash movement from any change in spend pattern.
+ * Returns null when fewer than 2 months of cash data are available.
+ */
+export function runwayChangeMoM(
+  currentCash: number,
+  previousCash: number,
+  burn: number
+): number | null {
+  if (burn <= 0) return null;
+  return runwayMonths(currentCash, burn) - runwayMonths(previousCash, burn);
+}
+
+/**
  * Master aggregator — the single function the UI calls.
  * Handles all edge cases (profitable, break-even, burning) and
  * returns a fully-populated FinancialSnapshot.
