@@ -5,7 +5,7 @@ import {
   getFinancialMonths,
   getDismissedAlerts,
 } from "@/lib/db";
-import { alertEngine } from "@/lib/calculations";
+import { alertEngine, isAlertSnoozed } from "@/lib/calculations";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
@@ -33,12 +33,18 @@ export default async function DashboardPage() {
   // data_version lives on business_profiles — null until first import.
   const dataVersion = profile?.data_version ?? null;
 
-  // Run alertEngine once — both alert components receive the same array.
-  // S3 will apply isAlertSnoozed() filtering here using dismissedAlerts + dataVersion.
-  const alerts =
+  // User's snooze preference — used for tooltip text in DismissibleAlert.
+  const snoozeDuration = profile?.snooze_duration ?? "24h";
+
+  // Run alertEngine once, then filter out snoozed alerts.
+  const allAlerts =
     profile && recentMonths.length > 0
       ? alertEngine(recentMonths, profile)
       : [];
+
+  const visibleAlerts = allAlerts.filter(
+    (alert) => !isAlertSnoozed(alert.code, dismissedAlerts ?? [], dataVersion)
+  );
 
   return (
     <DashboardLayout>
@@ -52,7 +58,12 @@ export default async function DashboardPage() {
         </div>
 
         {/* Top alerts — danger + warning only; renders nothing when all clear */}
-        <TopAlerts alerts={alerts} />
+        <TopAlerts
+          alerts={visibleAlerts}
+          dismissedAlerts={dismissedAlerts ?? []}
+          dataVersion={dataVersion}
+          snoozeDuration={snoozeDuration}
+        />
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
@@ -76,7 +87,12 @@ export default async function DashboardPage() {
 
         {/* Bottom alerts — success only, or "everything healthy" when zero total */}
         <div className="mb-8 max-w-2xl">
-          <BottomAlerts alerts={alerts} />
+          <BottomAlerts
+            alerts={visibleAlerts}
+            dismissedAlerts={dismissedAlerts ?? []}
+            dataVersion={dataVersion}
+            snoozeDuration={snoozeDuration}
+          />
         </div>
 
         {/* Import uploader */}
@@ -95,10 +111,6 @@ export default async function DashboardPage() {
           <ManualCalculator />
         </div>
 
-        {/* S3 will use dismissedAlerts + dataVersion to filter alerts before render */}
-        {/* dismissedAlerts={dismissedAlerts} dataVersion={dataVersion} — ready for S3 */}
-        {void dismissedAlerts}
-        {void dataVersion}
       </div>
     </DashboardLayout>
   );
