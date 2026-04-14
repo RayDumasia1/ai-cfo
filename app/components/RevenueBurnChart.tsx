@@ -57,45 +57,79 @@ function ChartTooltip({ active, payload, label }: TooltipArgs) {
       }}
     >
       <p style={{ fontWeight: 600, marginBottom: 4 }}>{String(label)}</p>
-      {payload.map((entry: TooltipEntry) => (
-        <p key={String(entry.name)} style={{ color: entry.color, margin: "2px 0" }}>
-          {entry.name}: {formatDollars(Number(entry.value))}
-        </p>
-      ))}
+      {payload.map((entry: TooltipEntry) => {
+        const displayValue =
+          entry.value == null || entry.value === ""
+            ? "—"
+            : formatDollars(Number(entry.value));
+        return (
+          <p key={String(entry.name)} style={{ color: entry.color, margin: "2px 0" }}>
+            {entry.name}: {displayValue}
+          </p>
+        );
+      })}
     </div>
   );
 }
 
-export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
-  const { labels, revenue, burn } = getRevenueVsBurnChartData(months);
+const CARD_STYLE: React.CSSProperties = {
+  backgroundColor: "#FFFFFF",
+  border: "1px solid #D8E2EC",
+  borderRadius: "var(--radius-lg, 16px)",
+  boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
+  padding: "24px",
+};
 
-  if (labels.length === 0) return null;
+export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
+  const chartResult = getRevenueVsBurnChartData(months);
+
+  // ── Empty state ────────────────────────────────────────────────────────────
+  if (!chartResult) {
+    return (
+      <div style={{ ...CARD_STYLE, height: 280, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "#0A1A2F", marginBottom: 8 }}>
+          Revenue vs Burn
+        </p>
+        <p style={{ fontSize: 13, color: "#6B7A8D", textAlign: "center" }}>
+          Upload financial data to see your revenue vs burn trend.
+        </p>
+      </div>
+    );
+  }
+
+  const { labels, revenue, burn } = chartResult;
+  const count = labels.length;
+
+  // Dynamic title suffix
+  const periodLabel = count === 1 ? "Last month" : `Last ${count} months`;
 
   const chartData = labels.map((label, i) => ({
     label,
+    // Pass null through so Recharts omits the point rather than plotting $0
     Revenue: revenue[i],
     "Burn Rate": burn[i],
   }));
 
-  const lastRevenue = revenue[revenue.length - 1] ?? 0;
-  const lastBurn = burn[burn.length - 1] ?? 0;
-  const revenueLeading = lastRevenue > lastBurn;
-
-  const insightText = revenueLeading
-    ? "Revenue exceeding burn — positive cash flow"
-    : "Burn exceeding revenue — negative cash flow";
-  const insightColor = revenueLeading ? "var(--teal)" : "#ef4444";
+  // Insight line: compare last month's values (null-safe)
+  const lastRevenue = revenue[count - 1];
+  const lastBurn = burn[count - 1];
+  let insightText: string;
+  let insightColor: string;
+  if (lastRevenue != null && lastBurn != null) {
+    if (lastRevenue > lastBurn) {
+      insightText = "Revenue exceeding burn — positive cash flow";
+      insightColor = "var(--teal)";
+    } else {
+      insightText = "Burn exceeding revenue — negative cash flow";
+      insightColor = "#ef4444";
+    }
+  } else {
+    insightText = "Revenue vs expenses — month data";
+    insightColor = "#6B7A8D";
+  }
 
   return (
-    <div
-      style={{
-        backgroundColor: "#FFFFFF",
-        border: "1px solid #D8E2EC",
-        borderRadius: "var(--radius-lg, 16px)",
-        boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
-        padding: "24px",
-      }}
-    >
+    <div style={CARD_STYLE}>
       {/* Header */}
       <div className="mb-4">
         <p
@@ -106,7 +140,7 @@ export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
             margin: 0,
           }}
         >
-          Revenue vs Burn &nbsp;·&nbsp; Last 6 months
+          Revenue vs Burn &nbsp;·&nbsp; {periodLabel}
         </p>
         <p style={{ fontSize: 12, color: insightColor, marginTop: 4 }}>
           {insightText}
