@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import ImportUploader from "@/app/components/ImportUploader";
 
-export default function ImportRefresher() {
+interface ImportRefresherProps {
+  hasData?: boolean;
+}
+
+export default function ImportRefresher({ hasData }: ImportRefresherProps) {
   const router = useRouter();
-  return <ImportUploader onSuccess={() => router.refresh()} />;
+  return (
+    <ImportUploader hasData={hasData} onSuccess={() => router.refresh()} />
+  );
 }

@@ -57,7 +57,7 @@ export default async function DashboardPage() {
           <h2 className="text-base font-medium text-ink mb-3">
             Import Financial Data
           </h2>
-          <ImportRefresher />
+          <ImportRefresher hasData={recentMonths.length > 0} />
         </div>
 
         {/* Revenue vs Burn chart */}
