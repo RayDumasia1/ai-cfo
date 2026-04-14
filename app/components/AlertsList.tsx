@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Alert, SnoozeType } from "@/lib/types";
 import DismissibleAlert from "./DismissibleAlert";
 
@@ -28,6 +28,11 @@ export default function AlertsList({
   emptyMessage,
 }: AlertsListProps) {
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+
+  // Sync state when the server re-fetches after import or clear
+  useEffect(() => {
+    setAlerts(initialAlerts);
+  }, [initialAlerts]);
 
   function onDismissed(alertCode: string) {
     setAlerts((prev) => prev.filter((a) => a.code !== alertCode));
