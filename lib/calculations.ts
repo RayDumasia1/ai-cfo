@@ -11,11 +11,50 @@
 import type {
   Alert,
   BusinessProfile,
+  DismissedAlert,
   FinancialInput,
   FinancialMonth,
   FinancialSnapshot,
   RiskLevel,
 } from "./types";
+
+/** Alert codes that can never be snoozed — always shown regardless of dismissal records. */
+const UNSNOOZABLE: Set<string> = new Set(["RUNWAY_DANGER", "CASH_BELOW_RESERVE"]);
+
+/**
+ * Returns true when an alert is currently snoozed and should be hidden.
+ *
+ * Snooze logic by type:
+ *   'data_reload' — snoozed while data_version matches the version at dismissal time.
+ *   '24h' / '7d'  — snoozed while the current time is before snooze_until.
+ *
+ * Danger alert codes (RUNWAY_DANGER, CASH_BELOW_RESERVE) always return false —
+ * they cannot be snoozed regardless of any dismissal record.
+ */
+export function isAlertSnoozed(
+  alertCode: string,
+  dismissedAlerts: DismissedAlert[],
+  currentDataVersion: string | null
+): boolean {
+  if (UNSNOOZABLE.has(alertCode)) return false;
+
+  const record = dismissedAlerts.find((d) => d.alert_code === alertCode);
+  if (!record) return false;
+
+  switch (record.snooze_type) {
+    case "data_reload":
+      return (
+        record.data_version !== null &&
+        record.data_version === currentDataVersion
+      );
+    case "24h":
+    case "7d":
+      if (!record.snooze_until) return false;
+      return new Date() < new Date(record.snooze_until);
+    default:
+      return false;
+  }
+}
 
 /**
  * Current cash position.

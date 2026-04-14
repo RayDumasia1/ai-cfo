@@ -19,10 +19,13 @@ import type {
   BusinessProfileInsert,
   DataImport,
   DataImportInsert,
+  DismissedAlert,
   ExpenseCategory,
   ExpenseCategoryInsert,
   FinancialMonth,
   FinancialMonthInsert,
+  SnoozeType,
+  UserAlertPreferences,
 } from "./types";
 
 // ─── Test constant ────────────────────────────────────────────────────────────
@@ -276,4 +279,104 @@ export async function getCurrentCashPosition(
     month: data[0].month_date,
     previousCash: data[1]?.closing_cash ?? null,
   };
+}
+
+// ─── Dismissed Alerts ─────────────────────────────────────────────────────────
+
+/** Returns all active dismissal records for a user. */
+export async function getDismissedAlerts(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<DismissedAlert[]> {
+  const { data, error } = await client
+    .from("dismissed_alerts")
+    .select("*")
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Upserts a dismissal record.
+ * Re-dismissing an already-dismissed alert replaces the previous row
+ * (same user_id + alert_code unique index).
+ */
+export async function dismissAlert(
+  userId: string,
+  payload: {
+    alert_code: string;
+    snooze_type: SnoozeType;
+    snooze_until: string | null;
+    data_version: string | null;
+  },
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client
+    .from("dismissed_alerts")
+    .upsert(
+      {
+        user_id: userId,
+        alert_code: payload.alert_code,
+        snooze_type: payload.snooze_type,
+        snooze_until: payload.snooze_until,
+        data_version: payload.data_version,
+        dismissed_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,alert_code" }
+    );
+
+  if (error) throw error;
+}
+
+/** Removes a dismissal record, making the alert visible again. */
+export async function undismissAlert(
+  userId: string,
+  alertCode: string,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client
+    .from("dismissed_alerts")
+    .delete()
+    .eq("user_id", userId)
+    .eq("alert_code", alertCode);
+
+  if (error) throw error;
+}
+
+// ─── Alert Preferences ────────────────────────────────────────────────────────
+
+/**
+ * Returns the user's snooze preference from business_profiles.
+ * Falls back to '24h' if the column is null.
+ */
+export async function getAlertPreferences(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<UserAlertPreferences> {
+  const { data, error } = await client
+    .from("business_profiles")
+    .select("snooze_duration")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  const snooze = (data?.snooze_duration ?? "24h") as SnoozeType;
+  return { snooze_duration: snooze };
+}
+
+/** Persists the snooze preference to business_profiles. */
+export async function updateAlertPreferences(
+  userId: string,
+  prefs: UserAlertPreferences,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client
+    .from("business_profiles")
+    .upsert(
+      { user_id: userId, snooze_duration: prefs.snooze_duration },
+      { onConflict: "user_id" }
+    );
+
+  if (error) throw error;
 }

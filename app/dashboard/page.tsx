@@ -3,6 +3,7 @@ import {
   getCurrentCashPosition,
   getOrCreateBusinessProfile,
   getFinancialMonths,
+  getDismissedAlerts,
 } from "@/lib/db";
 import { alertEngine } from "@/lib/calculations";
 import DashboardLayout from "@/app/components/DashboardLayout";
@@ -22,13 +23,18 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile, recentMonths] = await Promise.all([
+  const [cashPosition, profile, recentMonths, dismissedAlerts] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     user ? getFinancialMonths(user.id, 6, supabase) : [],
+    user ? getDismissedAlerts(user.id, supabase) : [],
   ]);
 
+  // data_version lives on business_profiles — null until first import.
+  const dataVersion = profile?.data_version ?? null;
+
   // Run alertEngine once — both alert components receive the same array.
+  // S3 will apply isAlertSnoozed() filtering here using dismissedAlerts + dataVersion.
   const alerts =
     profile && recentMonths.length > 0
       ? alertEngine(recentMonths, profile)
@@ -88,6 +94,11 @@ export default async function DashboardPage() {
           </h2>
           <ManualCalculator />
         </div>
+
+        {/* S3 will use dismissedAlerts + dataVersion to filter alerts before render */}
+        {/* dismissedAlerts={dismissedAlerts} dataVersion={dataVersion} — ready for S3 */}
+        {void dismissedAlerts}
+        {void dataVersion}
       </div>
     </DashboardLayout>
   );

@@ -175,6 +175,13 @@ export async function POST(request: NextRequest) {
       count: months.length,
     });
 
+    // Stamp data_version so 'snooze until data reload' dismissals expire.
+    const dataVersion = new Date().toISOString();
+    await supabase
+      .from("business_profiles")
+      .update({ data_version: dataVersion })
+      .eq("user_id", user.id);
+
     await logDataImport(
       user.id,
       {

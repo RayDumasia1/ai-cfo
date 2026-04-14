@@ -37,6 +37,10 @@ export type BusinessProfile = {
   runway_danger_threshold: number;
   burn_rate_warning_pct: number;
   invoice_overdue_days: number;
+  /** ISO timestamp of the last successful import — used for 'data_reload' snooze expiry. */
+  data_version: string | null;
+  /** User's preferred snooze duration for dismissed alerts. */
+  snooze_duration: SnoozeType;
   created_at: string;
   updated_at: string;
 };
@@ -79,6 +83,25 @@ export type DataImport = {
   status: "pending" | "success" | "error";
   error_message: string | null;
   created_at: string;
+};
+
+// ─── Alert preferences & dismissals ──────────────────────────────────────────
+
+export type SnoozeType = "data_reload" | "24h" | "7d";
+
+export type DismissedAlert = {
+  id: string;
+  user_id: string;
+  alert_code: string;
+  dismissed_at: string;
+  snooze_until: string | null;
+  snooze_type: SnoozeType;
+  data_version: string | null;
+  created_at: string;
+};
+
+export type UserAlertPreferences = {
+  snooze_duration: SnoozeType;
 };
 
 // ─── Alerts ───────────────────────────────────────────────────────────────────
