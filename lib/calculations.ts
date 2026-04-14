@@ -8,7 +8,14 @@
  *     page (or a future data-layer hook) changes — nothing here.
  */
 
-import type { FinancialInput, FinancialSnapshot, RiskLevel } from "./types";
+import type {
+  Alert,
+  BusinessProfile,
+  FinancialInput,
+  FinancialMonth,
+  FinancialSnapshot,
+  RiskLevel,
+} from "./types";
 
 /**
  * Current cash position.
@@ -113,6 +120,121 @@ export function runwayChangeMoM(
 ): number | null {
   if (burn <= 0) return null;
   return runwayMonths(currentCash, burn) - runwayMonths(previousCash, burn);
+}
+
+/**
+ * Alert engine — evaluates financial health rules and returns sorted alerts.
+ * Severity order: danger → warning → success.
+ * Inputs: newest-first months array + business profile.
+ */
+export function alertEngine(
+  months: FinancialMonth[],
+  profile: BusinessProfile
+): Alert[] {
+  const alerts: Alert[] = [];
+
+  const m0 = months[0];
+  const m1 = months[1];
+
+  // Derive shared metrics
+  const expenses = months.map((m) => m.total_expenses);
+  const avgBurn = monthlyBurnRate(expenses);
+  const cash = m0?.closing_cash ?? null;
+
+  const runway =
+    cash != null && avgBurn != null && avgBurn > 0
+      ? runwayMonths(cash, avgBurn)
+      : null;
+
+  // Rule 1 — RUNWAY_DANGER
+  if (runway != null && runway < profile.runway_danger_threshold) {
+    alerts.push({
+      code: "RUNWAY_DANGER",
+      severity: "danger",
+      title: "Critical runway alert",
+      message: `You have ${runway.toFixed(1)} months of runway remaining — below your ${profile.runway_danger_threshold}-month danger threshold. Immediate action required.`,
+    });
+  }
+  // Rule 2 — RUNWAY_WARNING (only if not already danger)
+  else if (
+    runway != null &&
+    runway < profile.runway_warning_threshold
+  ) {
+    alerts.push({
+      code: "RUNWAY_WARNING",
+      severity: "warning",
+      title: `Runway below ${profile.runway_warning_threshold} months`,
+      message: `Current runway is ${runway.toFixed(1)} months. Consider reducing burn or raising capital before reaching the ${profile.runway_danger_threshold}-month danger threshold.`,
+    });
+  }
+
+  // Rule 3 — BURN_RATE_SPIKE
+  if (
+    m0?.total_expenses != null &&
+    m1?.total_expenses != null &&
+    m1.total_expenses > 0
+  ) {
+    const burnChangePct = burnRateChangeMoM(m0.total_expenses, m1.total_expenses);
+    if (burnChangePct > profile.burn_rate_warning_pct * 100) {
+      alerts.push({
+        code: "BURN_RATE_SPIKE",
+        severity: "warning",
+        title: "Burn rate spike detected",
+        message: `Monthly expenses increased by ${burnChangePct.toFixed(1)}% last month, exceeding your ${(profile.burn_rate_warning_pct * 100).toFixed(0)}% warning threshold.`,
+      });
+    }
+  }
+
+  // Rule 4 — CASH_BELOW_RESERVE
+  if (
+    cash != null &&
+    profile.min_cash_reserve != null &&
+    cash < profile.min_cash_reserve
+  ) {
+    alerts.push({
+      code: "CASH_BELOW_RESERVE",
+      severity: "danger",
+      title: "Cash below minimum reserve",
+      message: `Current cash ($${cash.toLocaleString("en-US")}) is below your minimum reserve of $${profile.min_cash_reserve.toLocaleString("en-US")}.`,
+    });
+  }
+
+  // Rule 5 — HIGH_AR
+  if (
+    m0?.ar_outstanding != null &&
+    cash != null &&
+    m0.ar_outstanding > cash
+  ) {
+    alerts.push({
+      code: "HIGH_AR",
+      severity: "warning",
+      title: "High accounts receivable",
+      message: `Accounts receivable ($${m0.ar_outstanding.toLocaleString("en-US")}) exceeds your current cash balance. Consider accelerating collections.`,
+    });
+  }
+
+  // Rule 6 — REVENUE_GROWTH
+  if (
+    m0?.total_revenue != null &&
+    m1?.total_revenue != null &&
+    m1.total_revenue > 0
+  ) {
+    const revGrowth = (m0.total_revenue - m1.total_revenue) / m1.total_revenue;
+    if (revGrowth > 0.05) {
+      alerts.push({
+        code: "REVENUE_GROWTH",
+        severity: "success",
+        title: "Revenue growth",
+        message: `Revenue grew ${(revGrowth * 100).toFixed(1)}% last month. Strong momentum — keep it up.`,
+      });
+    }
+  }
+
+  // Sort: danger first, then warning, then success
+  const order: Record<string, number> = { danger: 0, warning: 1, success: 2 };
+  alerts.sort((a, b) => order[a.severity] - order[b.severity]);
+
+  return alerts;
 }
 
 /**

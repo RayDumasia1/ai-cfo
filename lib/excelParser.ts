@@ -239,12 +239,31 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
         // Strip currency formatting before parsing (e.g. "$25,000" → 25000).
         const n = Number(String(value).replace(/[$,]/g, ""));
         if (!Number.isNaN(n)) profile.min_cash_reserve = n;
-      } else if (k === "runway warning threshold") {
+      } else if (
+        k === "runway warning threshold" ||
+        k === "runway warning threshold (months)"
+      ) {
         const n = Number(value);
         if (!Number.isNaN(n)) profile.runway_warning_threshold = n;
-      } else if (k === "runway danger threshold") {
+      } else if (
+        k === "runway danger threshold" ||
+        k === "runway danger threshold (months)"
+      ) {
         const n = Number(value);
         if (!Number.isNaN(n)) profile.runway_danger_threshold = n;
+      } else if (
+        k === "burn rate warning" ||
+        k === "burn rate warning (% increase mom)" ||
+        k === "burn rate warning pct"
+      ) {
+        const n = Number(value);
+        if (!Number.isNaN(n)) profile.burn_rate_warning_pct = n;
+      } else if (
+        k === "invoice overdue days" ||
+        k === "invoice overdue threshold (days)"
+      ) {
+        const n = Number(value);
+        if (!Number.isNaN(n)) profile.invoice_overdue_days = Math.round(n);
       }
     }
   }
@@ -329,21 +348,26 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   for (let rowIdx = headerRowIndex + 1; rowIdx < rows.length; rowIdx++) {
     const row = rows[rowIdx] as (unknown | null)[];
 
-    // Stop at the first completely empty row (end of data block).
-    if (row.every((cell) => cell === null || cell === "")) break;
-
     const humanRow = rowIdx + 1; // 1-based for user-facing messages
+
+    // Skip completely empty rows (e.g. blank separator rows between data and totals).
+    if (row.every((cell) => cell === null || cell === "")) continue;
 
     // month_date
     const rawDate = row[colMap.get("month_date")!];
+
+    // Empty date cell — skip this row.
+    if (rawDate === null || rawDate === "") continue;
+
     const monthDate = parseMonthDate(rawDate);
 
     if (!monthDate) {
-      errors.push(
-        `Row ${humanRow}: cannot parse date value "${rawDate}". ` +
-          `Use a format like "Jan 2024" or "2024-01-01".`
+      // Non-parseable date value (e.g. "12-MONTH TOTALS / AVERAGES") — stop reading.
+      warnings.push(
+        `Stopped reading at row ${humanRow} — non-date value found in Month column. ` +
+          `${months.length} month${months.length === 1 ? "" : "s"} imported.`
       );
-      continue;
+      break;
     }
 
     // Numeric fields
@@ -383,6 +407,14 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
     }
 
     if (hasError) continue;
+
+    // Skip rows where all required numeric fields are null (no meaningful data).
+    const requiredNumeric = ["opening_cash", "closing_cash", "total_revenue", "total_expenses"] as const;
+    const allNull = requiredNumeric.every((f) => numericValues[f] === null);
+    if (allNull) {
+      warnings.push(`Row ${humanRow}: all required numeric fields are empty — row skipped.`);
+      continue;
+    }
 
     // Cross-field: payroll cannot exceed total expenses
     if (

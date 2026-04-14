@@ -81,6 +81,25 @@ export type DataImport = {
   created_at: string;
 };
 
+// ─── Alerts ───────────────────────────────────────────────────────────────────
+
+export type AlertSeverity = "danger" | "warning" | "success";
+
+export type AlertCode =
+  | "RUNWAY_DANGER"
+  | "RUNWAY_WARNING"
+  | "BURN_RATE_SPIKE"
+  | "CASH_BELOW_RESERVE"
+  | "HIGH_AR"
+  | "REVENUE_GROWTH";
+
+export type Alert = {
+  code: AlertCode;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+};
+
 /** Insert shapes — omit server-generated fields */
 export type BusinessProfileInsert = Omit<BusinessProfile, "id" | "created_at" | "updated_at">;
 export type FinancialMonthInsert  = Omit<FinancialMonth,  "id" | "created_at" | "updated_at">;

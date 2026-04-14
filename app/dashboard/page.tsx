@@ -10,6 +10,7 @@ import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
 import CashOutCard from "@/app/components/CashOutCard";
 import ManualCalculator from "@/app/components/ManualCalculator";
+import AlertsPanel from "@/app/components/AlertsPanel";
 import ImportRefresher from "./ImportRefresher";
 
 export default async function DashboardPage() {
@@ -57,6 +58,14 @@ export default async function DashboardPage() {
           </h2>
           <ImportRefresher />
         </div>
+
+        {/* Alerts */}
+        {profile && recentMonths.length > 0 && (
+          <div className="mb-8 max-w-2xl">
+            <h2 className="text-base font-medium text-ink mb-3">Alerts</h2>
+            <AlertsPanel months={recentMonths} profile={profile} />
+          </div>
+        )}
 
         {/* Manual scenario calculator */}
         <div>
