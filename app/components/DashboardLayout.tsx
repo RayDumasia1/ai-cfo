@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 function RisingColumnMark({ className }: { className?: string }) {
@@ -22,13 +22,14 @@ function RisingColumnMark({ className }: { className?: string }) {
 }
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", active: true  },
-  { label: "Reports",   href: "/reports",   active: false },
-  { label: "Settings",  href: "/settings",  active: false },
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Reports",   href: "/reports"   },
+  { label: "Settings",  href: "/dashboard/settings" },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -63,28 +64,28 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-5 space-y-0.5">
-          {navItems.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className={`w-full text-left flex items-center px-3 py-2 text-sm transition-colors ${
-                item.active
-                  ? "font-medium text-teal"
-                  : "font-light hover:text-white"
-              }`}
-              style={{
-                borderRadius: "var(--radius-sm)",
-                backgroundColor: item.active
-                  ? "rgba(44,166,164,0.12)"
-                  : "transparent",
-                color: item.active ? "var(--teal)" : "rgba(255,255,255,0.45)",
-                textDecoration: "none",
-                display: "block",
-              }}
-            >
-              {item.label}
-            </a>
-          ))}
+          {navItems.map((item) => {
+            const isActive = pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            return (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`w-full text-left flex items-center px-3 py-2 text-sm transition-colors ${
+                  isActive ? "font-medium" : "font-light hover:text-white"
+                }`}
+                style={{
+                  borderRadius: "var(--radius-sm)",
+                  backgroundColor: isActive ? "rgba(44,166,164,0.12)" : "transparent",
+                  color: isActive ? "var(--teal)" : "rgba(255,255,255,0.45)",
+                  textDecoration: "none",
+                  display: "block",
+                }}
+              >
+                {item.label}
+              </a>
+            );
+          })}
         </nav>
 
         {/* Footer — Sign Out */}
