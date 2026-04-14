@@ -1,38 +1,21 @@
 "use client";
 
-import { alertEngine } from "@/lib/calculations";
-import type { BusinessProfile, FinancialMonth } from "@/lib/types";
 import type { Alert } from "@/lib/types";
 
 interface AlertsPanelProps {
-  months: FinancialMonth[];
-  profile: BusinessProfile;
+  alerts: Alert[];
 }
 
 const severityStyles: Record<
   Alert["severity"],
   { border: string; icon: string; titleColor: string }
 > = {
-  danger: {
-    border: "#ef4444",
-    icon: "✕",
-    titleColor: "#ef4444",
-  },
-  warning: {
-    border: "#f59e0b",
-    icon: "⚠",
-    titleColor: "#f59e0b",
-  },
-  success: {
-    border: "#22c55e",
-    icon: "✓",
-    titleColor: "#22c55e",
-  },
+  danger: { border: "#ef4444", icon: "✕", titleColor: "#ef4444" },
+  warning: { border: "#f59e0b", icon: "⚠", titleColor: "#f59e0b" },
+  success: { border: "#22c55e", icon: "✓", titleColor: "#22c55e" },
 };
 
-export default function AlertsPanel({ months, profile }: AlertsPanelProps) {
-  const alerts = alertEngine(months, profile);
-
+export default function AlertsPanel({ alerts }: AlertsPanelProps) {
   if (alerts.length === 0) {
     return (
       <div
@@ -44,12 +27,6 @@ export default function AlertsPanel({ months, profile }: AlertsPanelProps) {
           backgroundColor: "var(--surface)",
         }}
       >
-        <p
-          className="text-[11px] font-medium uppercase tracking-[0.08em] mb-3"
-          style={{ color: "var(--dim)" }}
-        >
-          Alerts
-        </p>
         <p className="text-sm font-light" style={{ color: "var(--dim)" }}>
           ✓ No alerts — all metrics are within healthy ranges.
         </p>
@@ -67,12 +44,6 @@ export default function AlertsPanel({ months, profile }: AlertsPanelProps) {
         backgroundColor: "var(--surface)",
       }}
     >
-      <p
-        className="text-[11px] font-medium uppercase tracking-[0.08em] mb-3"
-        style={{ color: "var(--dim)" }}
-      >
-        Alerts
-      </p>
       <div className="flex flex-col gap-3">
         {alerts.map((alert) => {
           const s = severityStyles[alert.severity];
@@ -85,10 +56,7 @@ export default function AlertsPanel({ months, profile }: AlertsPanelProps) {
                 animation: "fadeIn 0.2s ease-in",
               }}
             >
-              <p
-                className="text-sm font-medium"
-                style={{ color: s.titleColor }}
-              >
+              <p className="text-sm font-medium" style={{ color: s.titleColor }}>
                 {s.icon} {alert.title}
               </p>
               <p
