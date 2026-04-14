@@ -11,6 +11,7 @@ import RunwayCard from "@/app/components/RunwayCard";
 import CashOutCard from "@/app/components/CashOutCard";
 import ManualCalculator from "@/app/components/ManualCalculator";
 import AlertsPanel from "@/app/components/AlertsPanel";
+import RevenueBurnChart from "@/app/components/RevenueBurnChart";
 import ImportRefresher from "./ImportRefresher";
 
 export default async function DashboardPage() {
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
   const [cashPosition, profile, recentMonths] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
-    user ? getFinancialMonths(user.id, 3, supabase) : [],
+    user ? getFinancialMonths(user.id, 6, supabase) : [],
   ]);
 
   return (
@@ -58,6 +59,13 @@ export default async function DashboardPage() {
           </h2>
           <ImportRefresher />
         </div>
+
+        {/* Revenue vs Burn chart */}
+        {recentMonths.length > 0 && (
+          <div className="mb-8">
+            <RevenueBurnChart months={recentMonths} />
+          </div>
+        )}
 
         {/* Alerts */}
         {profile && recentMonths.length > 0 && (

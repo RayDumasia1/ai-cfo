@@ -122,6 +122,39 @@ export function runwayChangeMoM(
   return runwayMonths(currentCash, burn) - runwayMonths(previousCash, burn);
 }
 
+export interface RevenueVsBurnChartData {
+  labels: string[];
+  revenue: number[];
+  burn: number[];
+  netCashFlow: number[];
+}
+
+/**
+ * Prepares the last 6 months of revenue and burn data for charting.
+ * Input is newest-first (as returned by getFinancialMonths).
+ * Output is sorted chronologically (oldest → newest) for left-to-right display.
+ */
+export function getRevenueVsBurnChartData(
+  months: FinancialMonth[]
+): RevenueVsBurnChartData {
+  const recent = months.slice(0, 6).reverse(); // oldest → newest
+
+  const labels = recent.map((m) => {
+    const d = new Date(m.month_date + "T12:00:00Z");
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  });
+
+  const revenue = recent.map((m) => m.total_revenue ?? 0);
+  const burn = recent.map((m) => m.total_expenses ?? 0);
+  const netCashFlow = recent.map((m) => (m.closing_cash ?? 0) - (m.opening_cash ?? 0));
+
+  return { labels, revenue, burn, netCashFlow };
+}
+
 /**
  * Alert engine — evaluates financial health rules and returns sorted alerts.
  * Severity order: danger → warning → success.
