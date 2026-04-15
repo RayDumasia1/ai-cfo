@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { RotateCcw } from "lucide-react";
 import type { BusinessProfile } from "@/lib/types";
 
 interface ThresholdsCardProps {
   profile: BusinessProfile;
 }
 
-interface FormState {
+interface Values {
   runway_warning_threshold: string;
   runway_danger_threshold: string;
   min_cash_reserve: string;
@@ -16,35 +17,56 @@ interface FormState {
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
-export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
-  const [form, setForm] = useState<FormState>({
+function initValues(profile: BusinessProfile): Values {
+  return {
     runway_warning_threshold: String(profile.runway_warning_threshold ?? 6),
     runway_danger_threshold:  String(profile.runway_danger_threshold ?? 3),
     min_cash_reserve:         String(profile.min_cash_reserve ?? ""),
-    // Profile stores as decimal (0.10) → display as % (10)
     burn_rate_warning_pct:    String(
       profile.burn_rate_warning_pct != null
         ? Math.round(profile.burn_rate_warning_pct * 100)
         : 10
     ),
-  });
+  };
+}
+
+// Formatted display strings for saved value indicators
+function formatSaved(field: keyof Values, raw: string): string {
+  if (field === "min_cash_reserve") {
+    const n = Number(raw);
+    return "$" + (Number.isNaN(n) ? raw : n.toLocaleString());
+  }
+  if (field === "burn_rate_warning_pct") return raw + "%";
+  return raw;
+}
+
+export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
+  const [savedValues, setSavedValues] = useState<Values>(() => initValues(profile));
+  const [currentValues, setCurrentValues] = useState<Values>(() => initValues(profile));
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
 
-  function handleChange(field: keyof FormState, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const dirtyCount = (Object.keys(currentValues) as (keyof Values)[])
+    .filter((k) => currentValues[k] !== savedValues[k]).length;
+
+  function handleChange(field: keyof Values, value: string) {
+    setCurrentValues((prev) => ({ ...prev, [field]: value }));
     setValidationError(null);
     setServerError(null);
   }
 
+  function resetField(field: keyof Values) {
+    setCurrentValues((prev) => ({ ...prev, [field]: savedValues[field] }));
+  }
+
   function validate(): boolean {
-    const warn = Number(form.runway_warning_threshold);
-    const danger = Number(form.runway_danger_threshold);
+    const warn   = Number(currentValues.runway_warning_threshold);
+    const danger = Number(currentValues.runway_danger_threshold);
 
     if (Number.isNaN(warn) || Number.isNaN(danger) ||
-        Number.isNaN(Number(form.min_cash_reserve)) ||
-        Number.isNaN(Number(form.burn_rate_warning_pct))) {
+        Number.isNaN(Number(currentValues.min_cash_reserve)) ||
+        Number.isNaN(Number(currentValues.burn_rate_warning_pct))) {
       setValidationError("All fields must be valid numbers.");
       return false;
     }
@@ -52,11 +74,11 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
       setValidationError("Danger threshold must be less than warning threshold.");
       return false;
     }
-    if (warn <= 0 || danger <= 0 || Number(form.burn_rate_warning_pct) <= 0) {
+    if (warn <= 0 || danger <= 0 || Number(currentValues.burn_rate_warning_pct) <= 0) {
       setValidationError("All values must be greater than zero.");
       return false;
     }
-    if (Number(form.min_cash_reserve) < 0) {
+    if (Number(currentValues.min_cash_reserve) < 0) {
       setValidationError("Minimum cash reserve cannot be negative.");
       return false;
     }
@@ -74,10 +96,10 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          runway_warning_threshold: Number(form.runway_warning_threshold),
-          runway_danger_threshold:  Number(form.runway_danger_threshold),
-          min_cash_reserve:         Number(form.min_cash_reserve),
-          burn_rate_warning_pct:    Number(form.burn_rate_warning_pct),
+          runway_warning_threshold: Number(currentValues.runway_warning_threshold),
+          runway_danger_threshold:  Number(currentValues.runway_danger_threshold),
+          min_cash_reserve:         Number(currentValues.min_cash_reserve),
+          burn_rate_warning_pct:    Number(currentValues.burn_rate_warning_pct),
         }),
       });
 
@@ -89,6 +111,7 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
         return;
       }
 
+      setSavedValues({ ...currentValues });
       setSaveState("success");
       setTimeout(() => setSaveState("idle"), 2000);
     } catch {
@@ -99,6 +122,7 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
 
   return (
     <section style={cardStyle}>
+      <style>{`@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
       <h2 style={cardTitleStyle}>Financial Thresholds</h2>
       <p style={cardDescStyle}>
         These thresholds control when alerts are triggered on your dashboard.
@@ -110,8 +134,11 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           name="runway_warning_threshold"
           label="Runway warning threshold (months)"
           helper="Amber alert when runway drops below this"
-          value={form.runway_warning_threshold}
+          value={currentValues.runway_warning_threshold}
+          isDirty={currentValues.runway_warning_threshold !== savedValues.runway_warning_threshold}
+          savedDisplay={formatSaved("runway_warning_threshold", savedValues.runway_warning_threshold)}
           onChange={(v) => handleChange("runway_warning_threshold", v)}
+          onReset={() => resetField("runway_warning_threshold")}
           type="number"
           min={1}
         />
@@ -120,8 +147,11 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           name="runway_danger_threshold"
           label="Runway danger threshold (months)"
           helper="Red alert when runway drops below this"
-          value={form.runway_danger_threshold}
+          value={currentValues.runway_danger_threshold}
+          isDirty={currentValues.runway_danger_threshold !== savedValues.runway_danger_threshold}
+          savedDisplay={formatSaved("runway_danger_threshold", savedValues.runway_danger_threshold)}
           onChange={(v) => handleChange("runway_danger_threshold", v)}
+          onReset={() => resetField("runway_danger_threshold")}
           type="number"
           min={1}
         />
@@ -130,8 +160,11 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           name="min_cash_reserve"
           label="Minimum cash reserve ($)"
           helper="Alert when cash drops below this amount"
-          value={form.min_cash_reserve}
+          value={currentValues.min_cash_reserve}
+          isDirty={currentValues.min_cash_reserve !== savedValues.min_cash_reserve}
+          savedDisplay={formatSaved("min_cash_reserve", savedValues.min_cash_reserve)}
           onChange={(v) => handleChange("min_cash_reserve", v)}
+          onReset={() => resetField("min_cash_reserve")}
           type="number"
           min={0}
           prefix="$"
@@ -141,8 +174,11 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           name="burn_rate_warning_pct"
           label="Burn rate warning (%)"
           helper="Alert when monthly burn increases by more than this percentage"
-          value={form.burn_rate_warning_pct}
+          value={currentValues.burn_rate_warning_pct}
+          isDirty={currentValues.burn_rate_warning_pct !== savedValues.burn_rate_warning_pct}
+          savedDisplay={formatSaved("burn_rate_warning_pct", savedValues.burn_rate_warning_pct)}
           onChange={(v) => handleChange("burn_rate_warning_pct", v)}
+          onReset={() => resetField("burn_rate_warning_pct")}
           type="number"
           min={1}
           suffix="%"
@@ -172,11 +208,13 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
         >
           {saveState === "saving" ? "Saving…" : "Save thresholds"}
         </button>
-        {saveState === "success" && (
-          <span style={{ fontSize: 13, color: "#2CA6A4" }}>
-            Thresholds saved ✓
+        {saveState === "success" ? (
+          <span style={{ fontSize: 13, color: "#2CA6A4" }}>Thresholds saved ✓</span>
+        ) : dirtyCount > 0 ? (
+          <span style={{ fontSize: 12, color: "#6B7A8D" }}>
+            {dirtyCount} unsaved change{dirtyCount > 1 ? "s" : ""}
           </span>
-        )}
+        ) : null}
       </div>
     </section>
   );
@@ -190,15 +228,23 @@ interface FieldProps {
   label: string;
   helper: string;
   value: string;
+  isDirty: boolean;
+  savedDisplay: string;
   onChange: (v: string) => void;
+  onReset: () => void;
   type?: string;
   min?: number;
   prefix?: string;
   suffix?: string;
 }
 
-function Field({ id, name, label, helper, value, onChange, type = "text", min, prefix, suffix }: FieldProps) {
+function Field({
+  id, name, label, helper, value, isDirty, savedDisplay,
+  onChange, onReset, type = "text", min, prefix, suffix,
+}: FieldProps) {
   const [focused, setFocused] = useState(false);
+
+  const showTeal = isDirty || focused;
 
   return (
     <div>
@@ -229,10 +275,10 @@ function Field({ id, name, label, helper, value, onChange, type = "text", min, p
             fontSize: 14,
             color: "#344150",
             backgroundColor: "#FFFFFF",
-            border: focused ? "1.5px solid #2CA6A4" : "1.5px solid #D8E2EC",
+            border: showTeal ? "1.5px solid #2CA6A4" : "1.5px solid #D8E2EC",
             borderRadius: 10,
             outline: "none",
-            boxShadow: focused ? "0 0 0 3px rgba(44,166,164,0.12)" : "none",
+            boxShadow: showTeal ? "0 0 0 3px rgba(44,166,164,0.12)" : "none",
             boxSizing: "border-box",
             transition: "border-color 0.15s, box-shadow 0.15s",
           }}
@@ -247,7 +293,35 @@ function Field({ id, name, label, helper, value, onChange, type = "text", min, p
           </span>
         )}
       </div>
-      <p style={helperStyle}>{helper}</p>
+      {/* Helper row — always shown; saved indicator appears right-aligned when dirty */}
+      <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
+        <p style={{ ...helperStyle, margin: 0, flex: 1 }}>{helper}</p>
+        {isDirty && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4, marginLeft: "auto",
+            animation: "fadeIn 0.15s ease",
+          }}>
+            <span style={{ fontSize: 11, color: "#6B7A8D", whiteSpace: "nowrap" }}>
+              Saved: {savedDisplay}
+            </span>
+            <button
+              type="button"
+              onClick={onReset}
+              title="Reset to saved value"
+              aria-label="Reset to saved value"
+              style={{
+                background: "none", border: "none", padding: "2px",
+                cursor: "pointer", display: "inline-flex", alignItems: "center",
+                color: "#6B7A8D", flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#2CA6A4")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#6B7A8D")}
+            >
+              <RotateCcw size={11} />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
