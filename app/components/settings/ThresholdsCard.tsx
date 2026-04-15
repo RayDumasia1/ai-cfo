@@ -249,59 +249,58 @@ function Field({
   return (
     <div>
       <label htmlFor={id} style={labelStyle}>{label}</label>
-      <div style={{ position: "relative", marginTop: 6 }}>
-        {prefix && (
-          <span style={{
-            position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-            fontSize: 14, color: "#6B7A8D", pointerEvents: "none",
-          }}>
-            {prefix}
-          </span>
-        )}
-        <input
-          id={id}
-          name={name}
-          type={type}
-          min={min}
-          autoComplete="off"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          style={{
-            width: "100%",
-            maxWidth: 220,
-            padding: prefix ? "8px 12px 8px 24px" : suffix ? "8px 32px 8px 12px" : "8px 12px",
-            fontSize: 14,
-            color: "#344150",
-            backgroundColor: "#FFFFFF",
-            border: showTeal ? "1.5px solid #2CA6A4" : "1.5px solid #D8E2EC",
-            borderRadius: 10,
-            outline: "none",
-            boxShadow: showTeal ? "0 0 0 3px rgba(44,166,164,0.12)" : "none",
-            boxSizing: "border-box",
-            transition: "border-color 0.15s, box-shadow 0.15s",
-          }}
-        />
-        {suffix && (
-          <span style={{
-            position: "absolute", right: "calc(100% - 220px + 12px)", top: "50%",
-            transform: "translateY(-50%)", fontSize: 14, color: "#6B7A8D",
-            pointerEvents: "none",
-          }}>
-            {suffix}
-          </span>
-        )}
-      </div>
-      {/* Helper row — always shown; saved indicator appears right-aligned when dirty */}
-      <div style={{ display: "flex", alignItems: "center", marginTop: 4 }}>
-        <p style={{ ...helperStyle, margin: 0, flex: 1 }}>{helper}</p>
+      {/* Row 2 — input + saved indicator side by side */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
+        <div style={{ position: "relative", flex: 1, maxWidth: 220 }}>
+          {prefix && (
+            <span style={{
+              position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+              fontSize: 14, color: "#6B7A8D", pointerEvents: "none",
+            }}>
+              {prefix}
+            </span>
+          )}
+          <input
+            id={id}
+            name={name}
+            type={type}
+            min={min}
+            autoComplete="off"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+              width: "100%",
+              padding: prefix ? "8px 12px 8px 24px" : suffix ? "8px 32px 8px 12px" : "8px 12px",
+              fontSize: 14,
+              color: "#344150",
+              backgroundColor: "#FFFFFF",
+              border: showTeal ? "1.5px solid #2CA6A4" : "1.5px solid #D8E2EC",
+              borderRadius: 10,
+              outline: "none",
+              boxShadow: showTeal ? "0 0 0 3px rgba(44,166,164,0.12)" : "none",
+              boxSizing: "border-box",
+              transition: "border-color 0.15s, box-shadow 0.15s",
+            }}
+          />
+          {suffix && (
+            <span style={{
+              position: "absolute", right: 12, top: "50%",
+              transform: "translateY(-50%)", fontSize: 14, color: "#6B7A8D",
+              pointerEvents: "none",
+            }}>
+              {suffix}
+            </span>
+          )}
+        </div>
         {isDirty && (
           <div style={{
-            display: "flex", alignItems: "center", gap: 4, marginLeft: "auto",
+            display: "flex", alignItems: "center", gap: 6,
+            whiteSpace: "nowrap", flexShrink: 0,
             animation: "fadeIn 0.15s ease",
           }}>
-            <span style={{ fontSize: 11, color: "#6B7A8D", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12, color: "#6B7A8D" }}>
               Saved: {savedDisplay}
             </span>
             <button
@@ -322,6 +321,8 @@ function Field({
           </div>
         )}
       </div>
+      {/* Row 3 — helper text */}
+      <p style={helperStyle}>{helper}</p>
     </div>
   );
 }
