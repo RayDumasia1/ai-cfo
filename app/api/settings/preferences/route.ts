@@ -1,42 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { requireAuth } from "@/lib/apiAuth";
 import { getAlertPreferences, updateAlertPreferences } from "@/lib/db";
 import type { SnoozeType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = requireAuth(async (_req, { userId, supabase }) => {
   try {
-    const prefs = await getAlertPreferences(user.id, supabase);
+    const prefs = await getAlertPreferences(userId, supabase);
     return NextResponse.json(prefs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+});
 
-export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) => {
   let body: unknown;
   try {
-    body = await request.json();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -53,7 +35,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     await updateAlertPreferences(
-      user.id,
+      userId,
       { snooze_duration: snooze_duration as SnoozeType },
       supabase
     );
@@ -62,4 +44,4 @@ export async function PATCH(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-}
+});

@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { requireAuth } from "@/lib/apiAuth";
 import { upsertBusinessProfile } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) => {
   let body: unknown;
   try {
-    body = await request.json();
+    body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
@@ -28,7 +19,6 @@ export async function PATCH(request: NextRequest) {
     burn_rate_warning_pct,
   } = body as Record<string, unknown>;
 
-  // Validate types
   const warn = Number(runway_warning_threshold);
   const danger = Number(runway_danger_threshold);
   const reserve = Number(min_cash_reserve);
@@ -57,7 +47,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     await upsertBusinessProfile(
-      user.id,
+      userId,
       {
         runway_warning_threshold: warn,
         runway_danger_threshold: danger,
@@ -76,4 +66,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

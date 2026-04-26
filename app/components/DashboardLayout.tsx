@@ -1,8 +1,9 @@
 "use client";
 
 import { ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
+import LogoutButton from "./LogoutButton";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 
 function RisingColumnMark({ className }: { className?: string }) {
   return (
@@ -29,13 +30,8 @@ const navItems = [
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const pathname = usePathname();
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/auth");
-  }
+  const { showWarning, stayLoggedIn, logOutNow } = useSessionTimeout();
 
   return (
     <div className="flex min-h-screen">
@@ -94,13 +90,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           className="px-5 py-4 flex flex-col gap-3"
           style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
         >
-          <button
-            onClick={handleSignOut}
-            className="text-left text-xs font-light transition-opacity hover:opacity-80"
-            style={{ color: "rgba(255,255,255,0.45)" }}
-          >
-            Sign out
-          </button>
+          <LogoutButton variant="sidebar" />
           <p
             className="text-[11px] font-light"
             style={{ color: "rgba(255,255,255,0.25)" }}
@@ -112,6 +102,86 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* ── Main content ────────────────────────────────────────── */}
       <main className="flex-1 bg-cloud overflow-auto">{children}</main>
+
+      {/* ── Session timeout warning modal ───────────────────────── */}
+      {showWarning && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 12,
+              boxShadow: "0 8px 32px rgba(10,26,47,0.18)",
+              padding: 32,
+              maxWidth: 380,
+              width: "90%",
+              textAlign: "center",
+            }}
+          >
+            <p
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "#0A1A2F",
+                marginBottom: 8,
+              }}
+            >
+              Your session is about to expire
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                color: "#475569",
+                marginBottom: 24,
+              }}
+            >
+              You&apos;ll be logged out in 1 minute due to inactivity. Click
+              below to stay logged in.
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                onClick={stayLoggedIn}
+                style={{
+                  backgroundColor: "#14B8A6",
+                  color: "#FFFFFF",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "9px 20px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Stay logged in
+              </button>
+              <button
+                onClick={logOutNow}
+                style={{
+                  backgroundColor: "transparent",
+                  color: "#475569",
+                  border: "1.5px solid #D8E2EC",
+                  borderRadius: 6,
+                  padding: "9px 20px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Log out now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

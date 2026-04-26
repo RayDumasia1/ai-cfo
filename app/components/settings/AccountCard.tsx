@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import LogoutButton from "@/app/components/LogoutButton";
 
 interface AccountCardProps {
   email: string;
@@ -17,13 +16,6 @@ function formatDate(iso: string): string {
 }
 
 export default function AccountCard({ email, memberSince }: AccountCardProps) {
-  const router = useRouter();
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/auth");
-  }
-
   return (
     <section style={cardStyle}>
       <h2 style={cardTitleStyle}>Account</h2>
@@ -53,12 +45,7 @@ export default function AccountCard({ email, memberSince }: AccountCardProps) {
       </div>
 
       <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #D8E2EC" }}>
-        <button
-          onClick={handleSignOut}
-          style={secondaryBtnStyle}
-        >
-          Sign out
-        </button>
+        <LogoutButton variant="account" />
       </div>
     </section>
   );
@@ -107,13 +94,3 @@ const rowLabelStyle: React.CSSProperties = {
   letterSpacing: "0.06em",
 };
 
-const secondaryBtnStyle: React.CSSProperties = {
-  backgroundColor: "transparent",
-  color: "#344150",
-  border: "1.5px solid #D8E2EC",
-  borderRadius: 6,
-  padding: "8px 16px",
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: "pointer",
-};

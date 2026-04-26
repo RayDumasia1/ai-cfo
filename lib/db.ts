@@ -4,7 +4,6 @@
  * Rules:
  *   - Every function accepts userId explicitly — no global auth state.
  *   - Throws on unexpected errors; callers handle UI feedback.
- *   - When auth is wired up, replace TEST_USER_ID with the real session uid.
  *
  * RLS note: functions that default to the browser (anon) client are subject
  * to Row Level Security via `auth.uid() = user_id`. Server route handlers
@@ -27,11 +26,6 @@ import type {
   SnoozeType,
   UserAlertPreferences,
 } from "./types";
-
-// ─── Test constant ────────────────────────────────────────────────────────────
-// TODO: Replace with `(await supabase.auth.getUser()).data.user?.id` once auth
-// is set up. Pass this into each function from the component/page.
-export const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 // ─── Business Profile ─────────────────────────────────────────────────────────
 

@@ -1,19 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { requireAuth } from "@/lib/apiAuth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(req: NextRequest) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const PATCH = requireAuth(async (req: NextRequest, { email, supabase }) => {
   let body: { currentPassword?: string; newPassword?: string };
   try {
     body = await req.json();
@@ -36,7 +26,7 @@ export async function PATCH(req: NextRequest) {
 
   // Re-authenticate to verify current password
   const { error: signInError } = await supabase.auth.signInWithPassword({
-    email: user.email,
+    email,
     password: currentPassword,
   });
 
@@ -59,4 +49,4 @@ export async function PATCH(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true });
-}
+});
