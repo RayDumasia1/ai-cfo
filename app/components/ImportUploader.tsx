@@ -302,7 +302,7 @@ export default function ImportUploader({
       <div className="flex flex-col items-start gap-3">
         <div>
           <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>
-            Upload Financial Data
+            Import Financial Data
           </p>
           <p className="mt-0.5 text-xs font-light" style={{ color: "var(--dim)" }}>
             Excel (.xlsx) or CSV — monthly summary format required

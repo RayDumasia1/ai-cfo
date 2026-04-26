@@ -214,7 +214,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
             padding: "1.5rem",
           }}
         >
-          <h2 className="text-base font-medium text-ink">Manual Scenario</h2>
+          <h2 className="text-base font-medium text-ink">What-If Scenario</h2>
           <p className="mt-1 text-sm font-light text-dim">
             Enter numbers manually to explore scenarios.
           </p>

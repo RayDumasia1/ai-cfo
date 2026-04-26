@@ -6,9 +6,9 @@ export default function ScenariosPage() {
     <DashboardLayout>
       <div className="px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-medium text-ink">Scenarios</h1>
+          <h1 className="text-2xl font-medium text-ink">What-If Scenarios</h1>
           <p className="mt-1 text-sm font-light text-dim">
-            Model financial scenarios manually to plan ahead.
+            Model financial scenarios to plan ahead and stress-test your numbers.
           </p>
         </div>
 

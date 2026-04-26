@@ -86,7 +86,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Bottom alerts — success only, or "everything healthy" when zero total */}
-        <div className="mb-8 max-w-2xl">
+        <div className="mb-8">
           <BottomAlerts
             alerts={visibleAlerts}
             dismissedAlerts={dismissedAlerts ?? []}
@@ -98,9 +98,6 @@ export default async function DashboardPage() {
         {/* Two-column bottom row: Import | Scenario */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div id="import-section">
-            <h2 className="text-base font-medium text-ink mb-3">
-              Import Financial Data
-            </h2>
             <ImportRefresher hasData={recentMonths.length > 0} />
           </div>
 

@@ -18,8 +18,8 @@ export default function ScenarioPanel({ hasData }: { hasData: boolean }) {
       {/* Header row — always visible */}
       <div className="flex items-center justify-between px-6 py-4">
         <div>
-          <p className="text-sm font-medium text-ink">Manual Scenario</p>
-          <p className="mt-0.5 text-xs font-light text-dim">Model a what-if scenario</p>
+          <p className="text-sm font-medium text-ink">What-If Scenario</p>
+          <p className="mt-0.5 text-xs font-light text-dim">Model a scenario to plan ahead</p>
         </div>
         <button
           onClick={() => setExpanded((prev) => !prev)}
