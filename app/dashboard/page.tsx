@@ -11,7 +11,7 @@ import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
 import CashOutCard from "@/app/components/CashOutCard";
-import ManualCalculator from "@/app/components/ManualCalculator";
+import ScenarioPanel from "@/app/components/ScenarioPanel";
 import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
 import RevenueBurnChart from "@/app/components/RevenueBurnChart";
@@ -95,20 +95,16 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Import uploader */}
-        <div id="import-section" className="mb-8 max-w-lg">
-          <h2 className="text-base font-medium text-ink mb-3">
-            Import Financial Data
-          </h2>
-          <ImportRefresher hasData={recentMonths.length > 0} />
-        </div>
+        {/* Two-column bottom row: Import | Scenario */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div id="import-section">
+            <h2 className="text-base font-medium text-ink mb-3">
+              Import Financial Data
+            </h2>
+            <ImportRefresher hasData={recentMonths.length > 0} />
+          </div>
 
-        {/* Manual scenario calculator */}
-        <div>
-          <h2 className="text-base font-medium text-ink mb-3">
-            Manual Scenario
-          </h2>
-          <ManualCalculator />
+          <ScenarioPanel hasData={recentMonths.length > 0} />
         </div>
 
       </div>

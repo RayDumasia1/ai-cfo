@@ -23,6 +23,7 @@ function RisingColumnMark({ className }: { className?: string }) {
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Scenarios", href: "/dashboard/scenarios" },
   { label: "Reports",   href: "/reports"   },
   { label: "Settings",  href: "/dashboard/settings" },
 ];

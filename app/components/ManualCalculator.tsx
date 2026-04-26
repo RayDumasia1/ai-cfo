@@ -13,7 +13,97 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export default function ManualCalculator() {
+const riskColors = {
+  High:    "bg-red-50     text-red-600     border-red-200",
+  Medium:  "bg-amber-50   text-amber-600   border-amber-200",
+  Low:     "bg-emerald-50 text-emerald-600 border-emerald-200",
+  Healthy: "bg-teal/10    text-teal         border-teal/20",
+} as const;
+
+function CalculatorForm({
+  cash, setCash,
+  revenue, setRevenue,
+  expenses, setExpenses,
+  submitted, snapshot,
+  onSubmit,
+}: {
+  cash: string; setCash: (v: string) => void;
+  revenue: string; setRevenue: (v: string) => void;
+  expenses: string; setExpenses: (v: string) => void;
+  submitted: boolean; snapshot: FinancialSnapshot | null;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-5">
+      <div>
+        <label htmlFor="mc-cash" className="block text-xs font-medium text-ink mb-1.5">
+          Current cash balance
+        </label>
+        <input
+          id="mc-cash"
+          type="number"
+          min="0"
+          step="any"
+          placeholder="50000"
+          value={cash}
+          onChange={(e) => setCash(e.target.value)}
+          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+          style={{ borderRadius: "var(--radius-sm)" }}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="mc-revenue" className="block text-xs font-medium text-ink mb-1.5">
+          Average monthly revenue
+        </label>
+        <input
+          id="mc-revenue"
+          type="number"
+          min="0"
+          step="any"
+          placeholder="25000"
+          value={revenue}
+          onChange={(e) => setRevenue(e.target.value)}
+          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+          style={{ borderRadius: "var(--radius-sm)" }}
+        />
+      </div>
+
+      <div>
+        <label htmlFor="mc-expenses" className="block text-xs font-medium text-ink mb-1.5">
+          Average monthly expenses
+        </label>
+        <input
+          id="mc-expenses"
+          type="number"
+          min="0"
+          step="any"
+          placeholder="30000"
+          value={expenses}
+          onChange={(e) => setExpenses(e.target.value)}
+          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
+          style={{ borderRadius: "var(--radius-sm)" }}
+        />
+      </div>
+
+      {submitted && !snapshot && (
+        <p className="text-xs text-red-500">
+          Please enter valid positive numbers in all three fields.
+        </p>
+      )}
+
+      <button
+        type="submit"
+        className="w-full px-5 py-2.5 text-sm font-medium text-white bg-teal transition hover:bg-teal/90"
+        style={{ borderRadius: "var(--radius-sm)" }}
+      >
+        Calculate My Runway
+      </button>
+    </form>
+  );
+}
+
+export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
   const [cash, setCash] = useState("");
   const [revenue, setRevenue] = useState("");
   const [expenses, setExpenses] = useState("");
@@ -47,8 +137,8 @@ export default function ManualCalculator() {
     });
   }, [cash, revenue, expenses, submitted]);
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setSubmitted(true);
   }
 
@@ -65,16 +155,8 @@ export default function ManualCalculator() {
     : "—";
   const cashOutDisplay = snapshot ? (snapshot.runoutDate ?? "Stable") : "—";
 
-  const riskColors = {
-    High: "bg-red-50     text-red-600     border-red-200",
-    Medium: "bg-amber-50   text-amber-600   border-amber-200",
-    Low: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    Healthy: "bg-teal/10    text-teal         border-teal/20",
-  } as const;
-
   return (
     <div>
-      {/* Scenario stat cards */}
       {snapshot && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
           <StatCard label="Cash Position" value={cashDisplay} />
@@ -84,10 +166,9 @@ export default function ManualCalculator() {
         </div>
       )}
 
-      {/* Insight */}
       {snapshot && (
         <div
-          className="mb-6 bg-surface max-w-2xl"
+          className="mb-6 bg-surface"
           style={{
             borderRadius: "var(--radius-md)",
             border: "1px solid var(--line)",
@@ -115,97 +196,39 @@ export default function ManualCalculator() {
         </div>
       )}
 
-      {/* Calculator form */}
-      <section
-        className="bg-surface max-w-lg"
-        style={{
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--line)",
-          boxShadow: "var(--shadow-sm)",
-          padding: "1.5rem",
-        }}
-      >
-        <h2 className="text-base font-medium text-ink">Manual Scenario</h2>
-        <p className="mt-1 text-sm font-light text-dim">
-          Enter numbers manually to explore scenarios.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-          <div>
-            <label
-              htmlFor="mc-cash"
-              className="block text-xs font-medium text-ink mb-1.5"
-            >
-              Current cash balance
-            </label>
-            <input
-              id="mc-cash"
-              type="number"
-              min="0"
-              step="any"
-              placeholder="50000"
-              value={cash}
-              onChange={(e) => setCash(e.target.value)}
-              className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-              style={{ borderRadius: "var(--radius-sm)" }}
+      {bare ? (
+        <CalculatorForm
+          cash={cash} setCash={setCash}
+          revenue={revenue} setRevenue={setRevenue}
+          expenses={expenses} setExpenses={setExpenses}
+          submitted={submitted} snapshot={snapshot}
+          onSubmit={handleSubmit}
+        />
+      ) : (
+        <section
+          className="bg-surface max-w-lg"
+          style={{
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--line)",
+            boxShadow: "var(--shadow-sm)",
+            padding: "1.5rem",
+          }}
+        >
+          <h2 className="text-base font-medium text-ink">Manual Scenario</h2>
+          <p className="mt-1 text-sm font-light text-dim">
+            Enter numbers manually to explore scenarios.
+          </p>
+          <div className="mt-6">
+            <CalculatorForm
+              cash={cash} setCash={setCash}
+              revenue={revenue} setRevenue={setRevenue}
+              expenses={expenses} setExpenses={setExpenses}
+              submitted={submitted} snapshot={snapshot}
+              onSubmit={handleSubmit}
             />
           </div>
-
-          <div>
-            <label
-              htmlFor="mc-revenue"
-              className="block text-xs font-medium text-ink mb-1.5"
-            >
-              Average monthly revenue
-            </label>
-            <input
-              id="mc-revenue"
-              type="number"
-              min="0"
-              step="any"
-              placeholder="25000"
-              value={revenue}
-              onChange={(e) => setRevenue(e.target.value)}
-              className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-              style={{ borderRadius: "var(--radius-sm)" }}
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="mc-expenses"
-              className="block text-xs font-medium text-ink mb-1.5"
-            >
-              Average monthly expenses
-            </label>
-            <input
-              id="mc-expenses"
-              type="number"
-              min="0"
-              step="any"
-              placeholder="30000"
-              value={expenses}
-              onChange={(e) => setExpenses(e.target.value)}
-              className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-              style={{ borderRadius: "var(--radius-sm)" }}
-            />
-          </div>
-
-          {submitted && !snapshot && (
-            <p className="text-xs text-red-500">
-              Please enter valid positive numbers in all three fields.
-            </p>
-          )}
-
-          <button
-            type="submit"
-            className="w-full px-5 py-2.5 text-sm font-medium text-white bg-teal transition hover:bg-teal/90"
-            style={{ borderRadius: "var(--radius-sm)" }}
-          >
-            Calculate My Runway
-          </button>
-        </form>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
