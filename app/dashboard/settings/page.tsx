@@ -3,6 +3,7 @@ import { getOrCreateBusinessProfile } from "@/lib/db";
 import DashboardLayout from "@/app/components/DashboardLayout";
 import AlertPreferencesCard from "@/app/components/settings/AlertPreferencesCard";
 import ThresholdsCard from "@/app/components/settings/ThresholdsCard";
+import ChangePasswordCard from "@/app/components/settings/ChangePasswordCard";
 import AccountCard from "@/app/components/settings/AccountCard";
 
 export default async function SettingsPage() {
@@ -33,7 +34,10 @@ export default async function SettingsPage() {
           {/* Section 2 — Financial Thresholds */}
           {profile && <ThresholdsCard profile={profile} />}
 
-          {/* Section 3 — Account */}
+          {/* Section 3 — Change Password */}
+          <ChangePasswordCard />
+
+          {/* Section 4 — Account */}
           {user && (
             <AccountCard
               email={user.email ?? "—"}

@@ -183,6 +183,26 @@ export default function AuthPage() {
                   (e.currentTarget.style.borderColor = "var(--line)")
                 }
               />
+              {tab === "signin" && (
+                <div className="flex justify-end mt-1.5">
+                  <a
+                    href="/auth/forgot-password"
+                    style={{
+                      fontSize: 12,
+                      color: "#2CA6A4",
+                      textDecoration: "none",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.textDecoration = "underline")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.textDecoration = "none")
+                    }
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -205,6 +225,36 @@ export default function AuthPage() {
                 ? "Sign In"
                 : "Create Account"}
             </button>
+
+            {tab === "signin" && (
+              <div
+                style={{
+                  marginTop: 16,
+                  paddingTop: 16,
+                  borderTop: "1px solid #D8E2EC",
+                  textAlign: "center",
+                }}
+              >
+                <p style={{ fontSize: 12, color: "#6B7A8D", margin: 0 }}>
+                  Not sure which email you used?{" "}
+                  <a
+                    href="mailto:hello@elidan.ai"
+                    style={{
+                      color: "#2CA6A4",
+                      textDecoration: "none",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.textDecoration = "underline")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.textDecoration = "none")
+                    }
+                  >
+                    Contact us at hello@elidan.ai
+                  </a>
+                </p>
+              </div>
+            )}
           </form>
         )}
       </div>
