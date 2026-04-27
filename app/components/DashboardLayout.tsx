@@ -1,9 +1,10 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import LogoutButton from "./LogoutButton";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { createClient } from "@/lib/supabase/browser";
 
 function RisingColumnMark({ className }: { className?: string }) {
   return (
@@ -32,6 +33,22 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { showWarning, stayLoggedIn, logOutNow } = useSessionTimeout();
+
+  useEffect(() => {
+    // bfcache restores the page from memory without making any HTTP request,
+    // bypassing server-side auth checks. Re-validate the session here so a
+    // back-button press after logout sends the user to /auth.
+    async function checkAuthOnRestore(e: PageTransitionEvent) {
+      if (!e.persisted) return;
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = "/auth?reason=session_expired";
+      }
+    }
+    window.addEventListener("pageshow", checkAuthOnRestore);
+    return () => window.removeEventListener("pageshow", checkAuthOnRestore);
+  }, []);
 
   return (
     <div className="flex min-h-screen">
