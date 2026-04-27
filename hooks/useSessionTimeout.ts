@@ -23,9 +23,9 @@ export function useSessionTimeout() {
   const router = useRouter();
   const [showWarning, setShowWarning] = useState(false);
 
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const warnTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const absTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const warnTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const absTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const doLogout = useCallback(async () => {
     sessionStorage.removeItem(SESSION_START_KEY);
