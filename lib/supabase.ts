@@ -1,10 +1,14 @@
 /**
- * Backward-compat shim — keeps existing `import { supabase } from "@/lib/supabase"`
- * imports working while new code migrates to createClient() from @/lib/supabase/browser.
+ * Browser-only Supabase singleton.
  *
- * New code should prefer: import { createClient } from "@/lib/supabase/browser"
+ * For "use client" components and lib/db.ts (browser context).
+ * New code can also import createClient from @/lib/supabase/browser.
+ * For Server Components and Route Handlers use @/lib/supabase/server instead.
  */
 
-import { createClient } from "./supabase/browser";
+import { createBrowserClient } from "@supabase/ssr";
 
-export const supabase = createClient();
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+);
