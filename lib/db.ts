@@ -13,6 +13,7 @@
 
 import { supabase } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Plan, FeatureTier } from "./featureGates";
 import type {
   BusinessProfile,
   BusinessProfileInsert,
@@ -373,4 +374,173 @@ export async function updateAlertPreferences(
     );
 
   if (error) throw error;
+}
+
+// ─── Subscriptions & Usage ────────────────────────────────────────────────────
+
+export interface SubscriptionResult {
+  plan: Plan;
+  feature_tier: FeatureTier;
+  status: string;
+  founding_member_expires_at: string | null;
+  founding_member_number: number | null;
+}
+
+const DEFAULT_STARTER: SubscriptionResult = {
+  plan: "starter",
+  feature_tier: "starter",
+  status: "active",
+  founding_member_expires_at: null,
+  founding_member_number: null,
+};
+
+/**
+ * Returns the user's subscription row, handling founding_member expiry.
+ * Always call with the server client from utils/supabase/server.ts.
+ */
+export async function getSubscription(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<SubscriptionResult> {
+  const { data, error } = await client
+    .from("subscriptions")
+    .select(
+      "plan, feature_tier, status, founding_member_expires_at, founding_member_number"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return DEFAULT_STARTER;
+
+  const row = data as SubscriptionResult;
+
+  if (
+    row.plan === "founding_member" &&
+    row.founding_member_expires_at !== null &&
+    new Date() > new Date(row.founding_member_expires_at)
+  ) {
+    const { error: updateError } = await client
+      .from("subscriptions")
+      .update({ feature_tier: "starter" })
+      .eq("user_id", userId);
+
+    if (updateError) throw updateError;
+    return { ...row, feature_tier: "starter" };
+  }
+
+  return row;
+}
+
+export interface UsageResult {
+  count: number;
+  usage_limit: number | null;
+  warning_sent_at: string | null;
+}
+
+/**
+ * Returns usage for a metric in the current billing period.
+ * Always call with the server client from utils/supabase/server.ts.
+ */
+export async function getUsage(
+  userId: string,
+  metric: string,
+  periodStart: Date,
+  client: SupabaseClient = supabase
+): Promise<UsageResult> {
+  const { data, error } = await client
+    .from("usage_tracking")
+    .select("count, usage_limit, warning_sent_at")
+    .eq("user_id", userId)
+    .eq("metric", metric)
+    .eq("period_start", periodStart.toISOString())
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return { count: 0, usage_limit: null, warning_sent_at: null };
+
+  return {
+    count: data.count,
+    usage_limit: data.usage_limit,
+    warning_sent_at: data.warning_sent_at,
+  };
+}
+
+/**
+ * Atomically increments usage via a PostgreSQL RPC to avoid race conditions.
+ * Requires the `increment_usage` function to exist in Supabase.
+ * Always call with the server client from utils/supabase/server.ts.
+ */
+export async function incrementUsage(
+  userId: string,
+  metric: string,
+  periodStart: Date,
+  periodEnd: Date,
+  usageLimit: number | null,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client.rpc("increment_usage", {
+    p_user_id: userId,
+    p_metric: metric,
+    p_period_start: periodStart.toISOString(),
+    p_period_end: periodEnd.toISOString(),
+    p_usage_limit: usageLimit,
+  });
+
+  if (error) throw error;
+}
+
+/**
+ * Records that a usage warning email has been sent for this period.
+ * Always call with the server client from utils/supabase/server.ts.
+ */
+export async function markWarningSent(
+  userId: string,
+  metric: string,
+  periodStart: Date,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client
+    .from("usage_tracking")
+    .update({ warning_sent_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("metric", metric)
+    .eq("period_start", periodStart.toISOString());
+
+  if (error) throw error;
+}
+
+/**
+ * Returns the start of the current billing period (midnight UTC) based on
+ * the day-of-month the subscription was originally created.
+ *
+ * Example: created on the 14th, today is the 20th of next month
+ * → period start is the 14th of this month at 00:00 UTC.
+ */
+export function getBillingPeriodStart(subscriptionCreatedAt: Date): Date {
+  const now = new Date();
+  const createdDay = subscriptionCreatedAt.getUTCDate();
+
+  const thisYear = now.getUTCFullYear();
+  const thisMonth = now.getUTCMonth();
+
+  // Clamp to the last day of the month in case the subscription day doesn't exist
+  const daysInThisMonth = new Date(
+    Date.UTC(thisYear, thisMonth + 1, 0)
+  ).getUTCDate();
+  const billingDayThisMonth = Math.min(createdDay, daysInThisMonth);
+
+  if (now.getUTCDate() >= billingDayThisMonth) {
+    return new Date(Date.UTC(thisYear, thisMonth, billingDayThisMonth));
+  }
+
+  // Period started last month
+  const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+  const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+  const daysInLastMonth = new Date(
+    Date.UTC(lastMonthYear, lastMonth + 1, 0)
+  ).getUTCDate();
+  const billingDayLastMonth = Math.min(createdDay, daysInLastMonth);
+
+  return new Date(Date.UTC(lastMonthYear, lastMonth, billingDayLastMonth));
 }
