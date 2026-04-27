@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
 import { getOrCreateBusinessProfile } from "@/lib/db";
-import DashboardLayout from "@/app/components/DashboardLayout";
 import AlertPreferencesCard from "@/app/components/settings/AlertPreferencesCard";
 import ThresholdsCard from "@/app/components/settings/ThresholdsCard";
 import ChangePasswordCard from "@/app/components/settings/ChangePasswordCard";
@@ -17,8 +16,7 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <DashboardLayout>
-      <div className="px-8 py-8" style={{ maxWidth: 640 }}>
+    <div className="px-8 py-8" style={{ maxWidth: 640 }}>
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-ink">Settings</h1>
@@ -46,6 +44,6 @@ export default async function SettingsPage() {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 }

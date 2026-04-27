@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import SessionExpiredAlert from "@/app/components/SessionExpiredAlert";
 
 function AuthForm() {
@@ -23,11 +22,20 @@ function AuthForm() {
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/dashboard");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Sign in failed");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch {
+      setError("Network error — please try again");
     }
 
     setLoading(false);

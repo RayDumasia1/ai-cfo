@@ -6,7 +6,6 @@ import {
   getDismissedAlerts,
 } from "@/lib/db";
 import { alertEngine, isAlertSnoozed } from "@/lib/calculations";
-import DashboardLayout from "@/app/components/DashboardLayout";
 import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
@@ -47,8 +46,7 @@ export default async function DashboardPage() {
   );
 
   return (
-    <DashboardLayout>
-      <div className="px-8 py-8">
+    <div className="px-8 py-8">
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
@@ -105,6 +103,6 @@ export default async function DashboardPage() {
         </div>
 
       </div>
-    </DashboardLayout>
+    </div>
   );
 }
