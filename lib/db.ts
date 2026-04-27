@@ -411,7 +411,18 @@ export async function getSubscription(
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) return DEFAULT_STARTER;
+
+  if (!data) {
+    // Insert a default starter row so every user has a subscription record.
+    // Uses upsert to be safe against concurrent calls — won't overwrite existing rows.
+    await client
+      .from("subscriptions")
+      .upsert(
+        { user_id: userId, plan: "starter", feature_tier: "starter", status: "active" },
+        { onConflict: "user_id" }
+      );
+    return DEFAULT_STARTER;
+  }
 
   const row = data as SubscriptionResult;
 

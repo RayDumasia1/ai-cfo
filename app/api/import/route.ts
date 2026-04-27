@@ -5,6 +5,7 @@ import {
   getOrCreateBusinessProfile,
   upsertBusinessProfile,
   logDataImport,
+  getSubscription,
 } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -193,6 +194,9 @@ export async function POST(request: NextRequest) {
       },
       supabase
     );
+
+    // Ensure a subscription row exists for every user who imports data.
+    await getSubscription(user.id, supabase);
 
     const sorted = months.map((m) => m.month_date).sort();
     const latestMonth = sorted[sorted.length - 1];
