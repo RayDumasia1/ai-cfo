@@ -1,14 +1,19 @@
 /**
  * Browser-only Supabase singleton.
  *
- * For "use client" components and lib/db.ts (browser context).
- * New code can also import createClient from @/lib/supabase/browser.
- * For Server Components and Route Handlers use @/lib/supabase/server instead.
+ * Import this in "use client" components and lib/db.ts (browser context).
+ * For Server Components and Route Handlers, import directly from
+ * @/utils/supabase/server — never import the server client through this file.
+ *
+ * Note: @supabase/auth-helpers-nextjs is deprecated. This project uses the
+ * modern @supabase/ssr package instead.
  */
 
 import { createBrowserClient } from "@supabase/ssr";
 
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-);
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
+
+// One shared instance for all client-side usage.
+// createBrowserClient handles its own singleton logic internally.
+export const supabase = createBrowserClient(url, key);

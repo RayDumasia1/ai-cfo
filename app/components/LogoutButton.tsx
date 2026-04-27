@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 interface LogoutButtonProps {
   variant: "sidebar" | "account";
 }
 
 export default function LogoutButton({ variant }: LogoutButtonProps) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function handleLogout() {
@@ -18,7 +16,9 @@ export default function LogoutButton({ variant }: LogoutButtonProps) {
     } catch {
       // best-effort — proceed with redirect even if request fails
     }
-    router.push("/auth?reason=logged_out");
+    // Hard navigation clears Next.js's in-memory router cache so the back
+    // button triggers a real server request (caught by the proxy auth check).
+    window.location.href = "/auth?reason=logged_out";
   }
 
   if (variant === "sidebar") {
