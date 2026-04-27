@@ -9,7 +9,9 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/dashboard") && !user) {
-    return NextResponse.redirect(new URL("/auth", request.url));
+    return NextResponse.redirect(
+      new URL("/auth?reason=session_expired", request.url)
+    );
   }
   if (pathname === "/auth" && user) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
