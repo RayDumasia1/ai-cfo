@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         reason: error.message,
         status: "failure",
       });
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
     await logSessionEvent({
