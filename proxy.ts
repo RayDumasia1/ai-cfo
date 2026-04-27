@@ -16,6 +16,14 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/auth" && user) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
+
+  // Prevent browsers from caching protected pages. Without this, the back
+  // button after logout serves a stale cached copy, bypassing the auth check.
+  if (pathname.startsWith("/dashboard")) {
+    supabaseResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    supabaseResponse.headers.set("Pragma", "no-cache");
+  }
+
   return supabaseResponse;
 }
 
