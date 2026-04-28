@@ -4,6 +4,7 @@ import {
   getOrCreateBusinessProfile,
   getFinancialMonths,
   getDismissedAlerts,
+  getSubscription,
 } from "@/lib/db";
 import { alertEngine, isAlertSnoozed } from "@/lib/calculations";
 import CashPositionCard from "@/app/components/CashPositionCard";
@@ -15,6 +16,7 @@ import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
 import RevenueBurnChart from "@/app/components/RevenueBurnChart";
 import ImportRefresher from "./ImportRefresher";
+import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -22,11 +24,12 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile, recentMonths, dismissedAlerts] = await Promise.all([
+  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     user ? getFinancialMonths(user.id, 6, supabase) : [],
     user ? getDismissedAlerts(user.id, supabase) : [],
+    user ? getSubscription(user.id, supabase) : null,
   ]);
 
   // data_version lives on business_profiles — null until first import.
@@ -93,7 +96,7 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Two-column bottom row: Import | Scenario */}
+        {/* Two-column data row: Import | What-If Scenario */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div id="import-section">
             <ImportRefresher hasData={recentMonths.length > 0} />
@@ -101,6 +104,11 @@ export default async function DashboardPage() {
 
           <ScenarioPanel hasData={recentMonths.length > 0} />
         </div>
+
+        {/* Upgrade strip — Starter only */}
+        {subscription && (
+          <UpgradeStrip currentTier={subscription.feature_tier} />
+        )}
 
       </div>
   );

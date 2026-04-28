@@ -1,6 +1,8 @@
 "use client";
 
 import LogoutButton from "@/app/components/LogoutButton";
+import { useSubscription } from "@/hooks/useSubscription";
+import type { Plan } from "@/lib/featureGates";
 
 interface AccountCardProps {
   email: string;
@@ -15,7 +17,65 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatMonth(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+const PLAN_BADGE: Record<
+  Plan,
+  { bg: string; border: string; color: string; label: string }
+> = {
+  starter: {
+    bg: "#FBF5EC",
+    border: "#D4AF7F",
+    color: "#7D4E00",
+    label: "STARTER",
+  },
+  core: {
+    bg: "#E8F7F7",
+    border: "#2CA6A4",
+    color: "#1A6B69",
+    label: "CORE",
+  },
+  growth: {
+    bg: "#EEEDFE",
+    border: "#6366F1",
+    color: "#3C3489",
+    label: "GROWTH",
+  },
+  advisory: {
+    bg: "#E8ECF0",
+    border: "#0A1A2F",
+    color: "#0A1A2F",
+    label: "ADVISORY",
+  },
+  founding_member: {
+    bg: "#FBF5EC",
+    border: "#D4AF7F",
+    color: "#7D4E00",
+    label: "FOUNDING MEMBER",
+  },
+};
+
 export default function AccountCard({ email, memberSince }: AccountCardProps) {
+  const { subscription, loading } = useSubscription();
+
+  const plan = subscription?.plan ?? "starter";
+  const badge = PLAN_BADGE[plan] ?? PLAN_BADGE.starter;
+
+  let planSubText: string | null = null;
+  if (plan === "founding_member") {
+    const expires = subscription?.founding_member_expires_at;
+    if (expires && new Date() < new Date(expires)) {
+      planSubText = `Core features · Locked until ${formatMonth(expires)}`;
+    } else {
+      planSubText = "Starter features";
+    }
+  }
+
   return (
     <section style={cardStyle}>
       <h2 style={cardTitleStyle}>Account</h2>
@@ -26,20 +86,45 @@ export default function AccountCard({ email, memberSince }: AccountCardProps) {
         <Row label="Member since" value={formatDate(memberSince)} />
         <div>
           <span style={rowLabelStyle}>Plan</span>
-          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 14, color: "#344150" }}>Starter</span>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#92400e",
-              backgroundColor: "#fef3c7",
-              border: "1px solid #D4AF7F",
-              borderRadius: 4,
-              padding: "2px 7px",
-              letterSpacing: "0.04em",
-            }}>
-              STARTER
-            </span>
+          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {loading ? (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "#6B7A8D",
+                  backgroundColor: "#F4F7FA",
+                  border: "1px solid #D8E2EC",
+                  borderRadius: 4,
+                  padding: "2px 7px",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                —
+              </span>
+            ) : (
+              <>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: badge.color,
+                    backgroundColor: badge.bg,
+                    border: `1px solid ${badge.border}`,
+                    borderRadius: 4,
+                    padding: "2px 7px",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {badge.label}
+                </span>
+                {planSubText && (
+                  <span style={{ fontSize: 12, color: "#6B7A8D" }}>
+                    {planSubText}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -93,4 +178,3 @@ const rowLabelStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.06em",
 };
-

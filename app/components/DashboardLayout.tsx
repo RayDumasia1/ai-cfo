@@ -4,6 +4,8 @@ import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import LogoutButton from "./LogoutButton";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import { useSubscription } from "@/hooks/useSubscription";
+import { hasFeature } from "@/lib/featureGates";
 import { createClient } from "@/lib/supabase/browser";
 
 function RisingColumnMark({ className }: { className?: string }) {
@@ -33,6 +35,8 @@ const navItems = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { showWarning, stayLoggedIn, logOutNow } = useSessionTimeout();
+  const { subscription } = useSubscription();
+  const userTier = subscription?.feature_tier ?? "starter";
 
   useEffect(() => {
     // bfcache restores the page from memory without making any HTTP request,
@@ -79,6 +83,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         {/* Nav */}
         <nav className="flex-1 px-3 py-5 space-y-0.5">
           {navItems.map((item) => {
+            if (
+              item.href === "/reports" &&
+              !hasFeature(userTier, "custom_reports")
+            )
+              return null;
             const isActive = pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
