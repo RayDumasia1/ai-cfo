@@ -53,17 +53,31 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
       );
     if (upsertError) {
       console.error("checkout:upsertCustomer:error", upsertError);
+      // Proceed anyway — customer exists in Stripe even if the DB write failed
     }
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+  if (!customerId) {
+    console.error("checkout:missingCustomerId", { userId });
+    return Response.json({ error: "Could not resolve Stripe customer" }, { status: 500 });
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    console.error("checkout:missingAppUrl — NEXT_PUBLIC_APP_URL is not set");
+    return Response.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+
+  const successUrl = `${appUrl}/dashboard?checkout=success`;
+  const cancelUrl = `${appUrl}/dashboard/settings?tab=billing&checkout=cancelled`;
+  console.log("checkout:urls", { successUrl, cancelUrl, customerId, planKey, mode });
 
   const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
     customer: customerId,
     mode: mode as "subscription" | "payment",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/dashboard?checkout=success`,
-    cancel_url: `${appUrl}/dashboard/settings?tab=billing&checkout=cancelled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     allow_promotion_codes: true,
     metadata: { supabase_user_id: userId, plan_key: planKey },
   };
