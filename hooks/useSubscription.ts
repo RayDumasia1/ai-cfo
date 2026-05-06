@@ -18,7 +18,9 @@ export function useSubscription() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function fetchSubscription() {
+    setLoading(true);
+    setError(null);
     fetch("/api/subscription")
       .then((r) => r.json())
       .then((data) => {
@@ -29,7 +31,11 @@ export function useSubscription() {
         setError(err.message);
         setLoading(false);
       });
+  }
+
+  useEffect(() => {
+    fetchSubscription();
   }, []);
 
-  return { subscription, loading, error };
+  return { subscription, loading, error, refetch: fetchSubscription };
 }

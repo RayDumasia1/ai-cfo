@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   ChevronRight,
   CheckCircle2,
   Lock,
+  Loader2,
   MessageSquare,
   Sparkles,
   TrendingUp,
@@ -79,8 +79,32 @@ export default function UpgradeModal({
   currentTier,
   upgradeMessage,
 }: UpgradeModalProps) {
-  const router = useRouter();
   const prefersReducedMotion = useRef(false);
+  const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  async function handleUpgrade() {
+    setLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planKey: upgradeMessage.upgrade_to,
+          mode: "subscription",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+      window.location.href = data.url;
+    } catch (err) {
+      setCheckoutError(
+        err instanceof Error ? err.message : "Could not start checkout"
+      );
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     prefersReducedMotion.current =
@@ -123,6 +147,10 @@ export default function UpgradeModal({
         @keyframes upgradeModalFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
 
@@ -273,30 +301,61 @@ export default function UpgradeModal({
 
         {/* CTA button */}
         <button
-          onClick={() => router.push("/dashboard/settings?tab=billing")}
+          onClick={handleUpgrade}
+          disabled={loading}
           style={{
             width: "100%",
             height: 44,
-            backgroundColor: "#2CA6A4",
+            backgroundColor: loading ? "#6B7A8D" : "#2CA6A4",
             color: "#FFFFFF",
             border: "none",
             borderRadius: 10,
             fontSize: 14,
             fontWeight: 500,
-            cursor: "pointer",
+            cursor: loading ? "not-allowed" : "pointer",
             marginTop: 24,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
           }}
-          onMouseEnter={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.backgroundColor =
-              "#3DBFBD")
-          }
-          onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.backgroundColor =
-              "#2CA6A4")
-          }
+          onMouseEnter={(e) => {
+            if (!loading)
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                "#3DBFBD";
+          }}
+          onMouseLeave={(e) => {
+            if (!loading)
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                "#2CA6A4";
+          }}
         >
-          Upgrade to {capitaliseTier(upgradeMessage.upgrade_to)}
+          {loading ? (
+            <>
+              <Loader2
+                size={16}
+                style={{ animation: "spin 1s linear infinite" }}
+              />
+              Redirecting to checkout...
+            </>
+          ) : (
+            `Upgrade to ${capitaliseTier(upgradeMessage.upgrade_to)}`
+          )}
         </button>
+
+        {checkoutError && (
+          <p
+            style={{
+              fontSize: 13,
+              color: "#DC2626",
+              textAlign: "center",
+              marginTop: 8,
+              marginBottom: 0,
+            }}
+          >
+            {checkoutError}
+          </p>
+        )}
 
         {/* Maybe later */}
         <div style={{ textAlign: "center", marginTop: 12 }}>

@@ -17,8 +17,15 @@ import BottomAlerts from "@/app/components/BottomAlerts";
 import RevenueBurnChart from "@/app/components/RevenueBurnChart";
 import ImportRefresher from "./ImportRefresher";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
+import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanner";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
+  const params = await searchParams;
+  const checkoutSuccess = params.checkout === "success";
   const supabase = await createClient();
   const {
     data: { user },
@@ -50,6 +57,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="px-8 py-8">
+        {/* Checkout success banner — above page header, auto-dismisses after 5s */}
+        <CheckoutSuccessBanner show={checkoutSuccess} />
+
         {/* Page header */}
         <div className="mb-8">
           <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
