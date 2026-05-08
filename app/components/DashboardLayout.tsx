@@ -26,10 +26,11 @@ function RisingColumnMark({ className }: { className?: string }) {
 }
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Scenarios", href: "/dashboard/scenarios" },
-  { label: "Reports",   href: "/reports"   },
-  { label: "Settings",  href: "/dashboard/settings" },
+  { label: "Dashboard",       href: "/dashboard" },
+  { label: "Scenarios",       href: "/dashboard/scenarios" },
+  { label: "Reports",         href: "/reports" },
+  { label: "Book a CFO Call", href: "/dashboard/cfo-call" },
+  { label: "Settings",        href: "/dashboard/settings" },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -86,6 +87,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             if (
               item.href === "/reports" &&
               !hasFeature(userTier, "custom_reports")
+            )
+              return null;
+            if (
+              item.href === "/dashboard/cfo-call" &&
+              userTier === "starter"
             )
               return null;
             const isActive = pathname === item.href ||
