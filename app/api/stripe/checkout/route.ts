@@ -88,6 +88,31 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
     };
   }
 
-  const session = await stripe.checkout.sessions.create(sessionParams);
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create(sessionParams);
+  } catch (err: unknown) {
+    const stripeErr = err as { code?: string; param?: string };
+    if (stripeErr.code === "resource_missing" && stripeErr.param === "customer") {
+      // Stale customer ID — belongs to a different Stripe account (e.g. local vs preview).
+      // Create a fresh customer and retry once.
+      console.warn("checkout:staleCustomer — creating fresh customer", { customerId });
+      const freshCustomer = await stripe.customers.create({
+        email,
+        metadata: { supabase_user_id: userId },
+      });
+      const { error: clearError } = await supabase
+        .from("subscriptions")
+        .update({ stripe_customer_id: freshCustomer.id })
+        .eq("user_id", userId);
+      if (clearError) {
+        console.error("checkout:clearStaleCustomer:error", clearError);
+      }
+      sessionParams.customer = freshCustomer.id;
+      session = await stripe.checkout.sessions.create(sessionParams);
+    } else {
+      throw err;
+    }
+  }
   return Response.json({ url: session.url });
 });

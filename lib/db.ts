@@ -443,6 +443,52 @@ export async function getSubscription(
   return row;
 }
 
+export interface BillingDetails {
+  plan: Plan;
+  feature_tier: FeatureTier;
+  status: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_price_id: string | null;
+  billing_period_start: string | null;
+  billing_period_end: string | null;
+  cancelled_at: string | null;
+  founding_member_number: number | null;
+  founding_member_expires_at: string | null;
+}
+
+export async function getBillingDetails(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<BillingDetails> {
+  const { data, error } = await client
+    .from("subscriptions")
+    .select(
+      "plan, feature_tier, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, billing_period_start, billing_period_end, cancelled_at, founding_member_number, founding_member_expires_at"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    return {
+      plan: "starter",
+      feature_tier: "starter",
+      status: "active",
+      stripe_customer_id: null,
+      stripe_subscription_id: null,
+      stripe_price_id: null,
+      billing_period_start: null,
+      billing_period_end: null,
+      cancelled_at: null,
+      founding_member_number: null,
+      founding_member_expires_at: null,
+    };
+  }
+  return data as BillingDetails;
+}
+
 export interface UsageResult {
   count: number;
   usage_limit: number | null;

@@ -1,43 +1,93 @@
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import { getOrCreateBusinessProfile, getSubscription } from "@/lib/db";
+import { getOrCreateBusinessProfile, getBillingDetails } from "@/lib/db";
 import AlertPreferencesCard from "@/app/components/settings/AlertPreferencesCard";
 import ThresholdsCard from "@/app/components/settings/ThresholdsCard";
 import ChangePasswordCard from "@/app/components/settings/ChangePasswordCard";
 import AccountCard from "@/app/components/settings/AccountCard";
-import CfoCallButton from "@/app/components/billing/CfoCallButton";
+import CurrentPlanCard from "@/app/components/billing/CurrentPlanCard";
+import UsageCard from "@/app/components/billing/UsageCard";
+import PlanComparisonCard from "@/app/components/billing/PlanComparisonCard";
+import BillingHistoryCard from "@/app/components/billing/BillingHistoryCard";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const params = await searchParams;
+  const tab = params.tab ?? "general";
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [profile, subscription] = await Promise.all([
+  const [profile, billing] = await Promise.all([
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
-    user ? getSubscription(user.id, supabase) : null,
+    tab === "billing" && user ? getBillingDetails(user.id, supabase) : null,
   ]);
+
+  const tabLinkStyle = (active: boolean): React.CSSProperties => ({
+    display: "inline-block",
+    padding: "8px 0",
+    marginRight: 24,
+    fontSize: 14,
+    fontWeight: active ? 500 : 400,
+    color: active ? "#0A1A2F" : "#6B7A8D",
+    textDecoration: "none",
+    borderBottom: active ? "2px solid #2CA6A4" : "2px solid transparent",
+  });
 
   return (
     <div className="px-8 py-8" style={{ maxWidth: 640 }}>
-        {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-medium text-ink">Settings</h1>
-          <p className="mt-1 text-sm font-light text-dim">
-            Manage your preferences and account configuration.
-          </p>
-        </div>
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-medium text-ink">Settings</h1>
+        <p className="mt-1 text-sm font-light text-dim">
+          Manage your preferences and account configuration.
+        </p>
+      </div>
 
+      {/* Tab navigation */}
+      <div
+        style={{
+          borderBottom: "1px solid #D8E2EC",
+          marginBottom: 32,
+        }}
+      >
+        <Link href="?tab=general" style={tabLinkStyle(tab === "general")}>
+          General
+        </Link>
+        <Link href="?tab=billing" style={tabLinkStyle(tab === "billing")}>
+          Billing
+        </Link>
+        <Link href="?tab=account" style={tabLinkStyle(tab === "account")}>
+          Account
+        </Link>
+      </div>
+
+      {tab === "billing" && billing ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {/* Section 1 — Alert Preferences */}
-          <AlertPreferencesCard />
+          <CurrentPlanCard billing={billing} />
 
-          {/* Section 2 — Financial Thresholds */}
-          {profile && <ThresholdsCard profile={profile} />}
+          {(billing.feature_tier === "core" || billing.feature_tier === "growth") && (
+            <UsageCard
+              periodStart={billing.billing_period_start}
+              periodEnd={billing.billing_period_end}
+              tier={billing.feature_tier}
+            />
+          )}
 
-          {/* Section 3 — Change Password */}
-          <ChangePasswordCard />
+          <PlanComparisonCard
+            currentPlan={billing.plan}
+            currentTier={billing.feature_tier}
+          />
 
-          {/* Section 4 — Account */}
+          <BillingHistoryCard />
+        </div>
+      ) : tab === "account" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           {user && (
             <AccountCard
               email={user.email ?? "—"}
@@ -45,14 +95,15 @@ export default async function SettingsPage() {
             />
           )}
 
-          {/* Section 5 — CFO Call */}
-          {user && subscription && (
-            <CfoCallButton
-              userTier={subscription.feature_tier}
-              userEmail={user.email ?? ""}
-            />
-          )}
+          <ChangePasswordCard />
         </div>
-      </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          <AlertPreferencesCard />
+
+          {profile && <ThresholdsCard profile={profile} />}
+        </div>
+      )}
+    </div>
   );
 }
