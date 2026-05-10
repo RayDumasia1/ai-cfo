@@ -39,3 +39,14 @@ export function useSubscription() {
 
   return { subscription, loading, error, refetch: fetchSubscription };
 }
+
+export function useUsageFromHeaders(headers: Headers) {
+  const used = headers.get("X-Usage-Used");
+  const limit = headers.get("X-Usage-Limit");
+  const throttled = headers.get("X-Usage-Throttled");
+  return {
+    used: used != null ? parseInt(used, 10) : null,
+    limit: limit === "unlimited" ? null : limit != null ? parseInt(limit, 10) : null,
+    throttled: throttled === "true",
+  };
+}

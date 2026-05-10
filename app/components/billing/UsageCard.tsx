@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import type { FeatureTier } from "@/lib/featureGates";
 
 interface UsageItem {
@@ -27,6 +28,14 @@ function formatDate(iso: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function formatRelativeTime(date: Date): string {
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "just now";
+  if (diffMin === 1) return "1 minute ago";
+  return `${diffMin} minutes ago`;
 }
 
 function UsageBar({ count, limit }: { count: number; limit: number | null }) {
@@ -80,13 +89,7 @@ function SkeletonRow() {
           marginBottom: 8,
         }}
       />
-      <div
-        style={{
-          height: 6,
-          backgroundColor: "#D8E2EC",
-          borderRadius: 3,
-        }}
-      />
+      <div style={{ height: 6, backgroundColor: "#D8E2EC", borderRadius: 3 }} />
     </div>
   );
 }
@@ -94,15 +97,30 @@ function SkeletonRow() {
 export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardProps) {
   const [usage, setUsage] = useState<UsageItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
+  function fetchUsage(isRefresh = false) {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     fetch("/api/usage")
       .then((r) => r.json())
       .then((data) => {
         setUsage(data.usage ?? []);
-        setLoading(false);
+        setLastUpdated(new Date());
       })
-      .catch(() => setLoading(false));
+      .catch(() => {})
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }
+
+  useEffect(() => {
+    fetchUsage();
   }, []);
 
   const periodLabel =
@@ -122,19 +140,49 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
         padding: 24,
       }}
     >
-      <h2
+      <div
         style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#0A1A2F",
-          margin: "0 0 4px",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          marginBottom: 4,
         }}
       >
-        Usage this period
-      </h2>
+        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: 0 }}>
+          Usage this period
+        </h2>
+        <button
+          onClick={() => fetchUsage(true)}
+          disabled={refreshing}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            fontSize: 12,
+            color: "#2CA6A4",
+            background: "transparent",
+            border: "none",
+            cursor: refreshing ? "default" : "pointer",
+            padding: 0,
+          }}
+        >
+          {refreshing ? (
+            <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
+          ) : (
+            <RefreshCw size={12} />
+          )}
+          Refresh
+        </button>
+      </div>
+
       {periodLabel && (
-        <p style={{ fontSize: 12, color: "#6B7A8D", margin: "0 0 20px" }}>
+        <p style={{ fontSize: 12, color: "#6B7A8D", margin: "0 0 4px" }}>
           {periodLabel}
+        </p>
+      )}
+      {lastUpdated && (
+        <p style={{ fontSize: 11, color: "#6B7A8D", fontStyle: "italic", margin: "0 0 16px" }}>
+          Updated {formatRelativeTime(lastUpdated)}
         </p>
       )}
 
@@ -145,7 +193,7 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
           <SkeletonRow />
         </>
       ) : (
-        <div>
+        <div style={{ marginTop: lastUpdated ? 0 : 16 }}>
           {usage.map((item) => (
             <div key={item.metric} style={{ marginBottom: 16 }}>
               <p
@@ -163,6 +211,7 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
           ))}
         </div>
       )}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </section>
   );
 }
