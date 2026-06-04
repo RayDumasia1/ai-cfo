@@ -18,7 +18,7 @@ const PLAN_PRICES: Record<Plan, string> = {
   starter: "$49 / month",
   core: "$99 / month",
   growth: "$199 / month",
-  advisory: "$499 / month",
+  advisory: "$599 / month",
   founding_member: "$49 / month",
 };
 

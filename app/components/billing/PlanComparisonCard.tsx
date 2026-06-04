@@ -61,7 +61,7 @@ const PLANS: PlanDef[] = [
     key: "advisory",
     tier: "advisory",
     name: "Advisory",
-    price: "$499 / mo",
+    price: "$599 / mo",
     features: [
       "Everything in Growth",
       "Monthly CFO call",
