@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import type { Plan, FeatureTier } from "@/lib/featureGates";
+import { GROWTH_AVAILABLE, ADVISORY_AVAILABLE } from "@/lib/launchConfig";
 
 interface PlanComparisonCardProps {
   currentPlan: Plan;
@@ -39,7 +40,6 @@ const PLANS: PlanDef[] = [
       "Ask your CFO (20 questions/mo)",
       "AI insights (3 runs/mo)",
       "QuickBooks & Xero sync",
-      "Weekly CFO summary",
       "Up to 50 active actions",
     ],
   },
@@ -54,6 +54,7 @@ const PLANS: PlanDef[] = [
       "Unlimited AI insights",
       "12-month cash flow forecast",
       "Scenario comparison",
+      "AI-recommended actions",
       "Unlimited active actions",
     ],
   },
@@ -78,6 +79,12 @@ const TIER_RANK: Record<FeatureTier, number> = {
   growth: 2,
   advisory: 3,
 };
+
+function isTierAvailable(tier: FeatureTier): boolean {
+  if (tier === "growth") return GROWTH_AVAILABLE;
+  if (tier === "advisory") return ADVISORY_AVAILABLE;
+  return true;
+}
 
 function UpgradeButton({ planKey }: { planKey: Plan }) {
   const [loading, setLoading] = useState(false);
@@ -135,6 +142,27 @@ function UpgradeButton({ planKey }: { planKey: Plan }) {
       )}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
+  );
+}
+
+function ComingSoonButton() {
+  return (
+    <button
+      disabled
+      style={{
+        width: "100%",
+        padding: "8px 0",
+        fontSize: 13,
+        fontWeight: 500,
+        color: "#6B7A8D",
+        background: "#F4F7FA",
+        border: "1px solid #D8E2EC",
+        borderRadius: 8,
+        cursor: "not-allowed",
+      }}
+    >
+      Coming soon
+    </button>
   );
 }
 
@@ -223,6 +251,7 @@ export default function PlanComparisonCard({
           const planRank = TIER_RANK[plan.tier];
           const isHigher = planRank > currentRank;
           const isLower = planRank < currentRank;
+          const isComingSoon = isHigher && !isTierAvailable(plan.tier);
 
           return (
             <div
@@ -248,9 +277,29 @@ export default function PlanComparisonCard({
                     fontWeight: 600,
                     color: "#0A1A2F",
                     margin: "0 0 2px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
                   {plan.name}
+                  {isComingSoon && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 600,
+                        color: "#6B7A8D",
+                        background: "#F4F7FA",
+                        border: "1px solid #D8E2EC",
+                        borderRadius: 4,
+                        padding: "1px 5px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      Coming soon
+                    </span>
+                  )}
                 </p>
                 <p
                   style={{
@@ -298,7 +347,7 @@ export default function PlanComparisonCard({
                     Current plan
                   </div>
                 ) : isHigher ? (
-                  <UpgradeButton planKey={plan.key} />
+                  isComingSoon ? <ComingSoonButton /> : <UpgradeButton planKey={plan.key} />
                 ) : isLower ? (
                   <DowngradeButton />
                 ) : null}

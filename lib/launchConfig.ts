@@ -19,3 +19,11 @@
  * Do not add expiry logic without explicit approval from the founder.
  */
 export const FOUNDING_MEMBER_SPOTS = 50;
+
+/**
+ * Tier availability gates — set to true when the tier's features are built and ready to ship.
+ * Controls upgrade CTA visibility across PlanComparisonCard and UpgradeModal.
+ * Does NOT affect existing subscribers on those tiers.
+ */
+export const GROWTH_AVAILABLE = false;
+export const ADVISORY_AVAILABLE = false;

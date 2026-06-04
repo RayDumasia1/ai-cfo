@@ -20,6 +20,7 @@ import {
   Building2,
 } from "lucide-react";
 import type { Feature, FeatureTier } from "@/lib/featureGates";
+import { GROWTH_AVAILABLE, ADVISORY_AVAILABLE } from "@/lib/launchConfig";
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -56,7 +57,6 @@ const TIER_HIGHLIGHTS: Record<FeatureTier, string[]> = {
   core: [
     "Ask your CFO financial questions with AI",
     "Connect QuickBooks or Xero automatically",
-    "Weekly CFO email summary",
   ],
   growth: [
     "Unlimited AI insights and Ask CFO",
@@ -84,6 +84,10 @@ export default function UpgradeModal({
   const prefersReducedMotion = useRef(false);
   const [loading, setLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const isComingSoon =
+    (upgradeMessage.upgrade_to === "growth" && !GROWTH_AVAILABLE) ||
+    (upgradeMessage.upgrade_to === "advisory" && !ADVISORY_AVAILABLE);
 
   async function handleUpgrade() {
     setLoading(true);
@@ -302,48 +306,68 @@ export default function UpgradeModal({
         )}
 
         {/* CTA button */}
-        <button
-          onClick={handleUpgrade}
-          disabled={loading}
-          style={{
-            width: "100%",
-            height: 44,
-            backgroundColor: loading ? "#6B7A8D" : "#2CA6A4",
-            color: "#FFFFFF",
-            border: "none",
-            borderRadius: 10,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: loading ? "not-allowed" : "pointer",
-            marginTop: 24,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-          }}
-          onMouseEnter={(e) => {
-            if (!loading)
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "#3DBFBD";
-          }}
-          onMouseLeave={(e) => {
-            if (!loading)
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                "#2CA6A4";
-          }}
-        >
-          {loading ? (
-            <>
-              <Loader2
-                size={16}
-                style={{ animation: "spin 1s linear infinite" }}
-              />
-              Redirecting to checkout...
-            </>
-          ) : (
-            `Upgrade to ${capitaliseTier(upgradeMessage.upgrade_to)}`
-          )}
-        </button>
+        {isComingSoon ? (
+          <button
+            disabled
+            style={{
+              width: "100%",
+              height: 44,
+              backgroundColor: "#F4F7FA",
+              color: "#6B7A8D",
+              border: "1px solid #D8E2EC",
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "not-allowed",
+              marginTop: 24,
+            }}
+          >
+            Coming soon
+          </button>
+        ) : (
+          <button
+            onClick={handleUpgrade}
+            disabled={loading}
+            style={{
+              width: "100%",
+              height: 44,
+              backgroundColor: loading ? "#6B7A8D" : "#2CA6A4",
+              color: "#FFFFFF",
+              border: "none",
+              borderRadius: 10,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: loading ? "not-allowed" : "pointer",
+              marginTop: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              if (!loading)
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "#3DBFBD";
+            }}
+            onMouseLeave={(e) => {
+              if (!loading)
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                  "#2CA6A4";
+            }}
+          >
+            {loading ? (
+              <>
+                <Loader2
+                  size={16}
+                  style={{ animation: "spin 1s linear infinite" }}
+                />
+                Redirecting to checkout...
+              </>
+            ) : (
+              `Upgrade to ${capitaliseTier(upgradeMessage.upgrade_to)}`
+            )}
+          </button>
+        )}
 
         {checkoutError && (
           <p
