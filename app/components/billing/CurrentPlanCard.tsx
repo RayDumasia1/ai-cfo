@@ -2,6 +2,9 @@ import type { BillingDetails } from "@/lib/db";
 import type { Plan } from "@/lib/featureGates";
 import ManageSubscriptionButton from "./ManageSubscriptionButton";
 import UpgradePromptButton from "./UpgradePromptButton";
+import FoundingMemberBadge from "./FoundingMemberBadge";
+import FoundingMemberManageButton from "./FoundingMemberManageButton";
+import FoundingMemberPendingCancellationSection from "./FoundingMemberPendingCancellationSection";
 
 const PLAN_DISPLAY: Record<Plan, string> = {
   starter: "Starter",
@@ -16,7 +19,7 @@ const PLAN_PRICES: Record<Plan, string> = {
   core: "$99 / month",
   growth: "$199 / month",
   advisory: "$499 / month",
-  founding_member: "Founding Member rate",
+  founding_member: "$49 / month",
 };
 
 const PLAN_BADGE_COLORS: Record<Plan, { bg: string; color: string }> = {
@@ -24,13 +27,14 @@ const PLAN_BADGE_COLORS: Record<Plan, { bg: string; color: string }> = {
   core: { bg: "rgba(44,166,164,0.10)", color: "#2CA6A4" },
   growth: { bg: "rgba(44,166,164,0.15)", color: "#1D8A88" },
   advisory: { bg: "rgba(10,26,47,0.08)", color: "#0A1A2F" },
-  founding_member: { bg: "rgba(44,166,164,0.10)", color: "#2CA6A4" },
+  founding_member: { bg: "#FBF5EC", color: "#7D4E00" },
 };
 
 const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }> = {
   active: { bg: "rgba(44,166,164,0.10)", color: "#2CA6A4", label: "Active" },
   past_due: { bg: "rgba(217,119,6,0.10)", color: "#B45309", label: "Past due" },
   cancelled: { bg: "rgba(220,38,38,0.10)", color: "#DC2626", label: "Cancelled" },
+  pending_cancellation: { bg: "rgba(245,158,11,0.10)", color: "#7D4E00", label: "" },
 };
 
 function formatDate(iso: string) {
@@ -52,13 +56,18 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
   let renewalLine: string;
   if (billing.status === "cancelled" && billing.billing_period_end) {
     renewalLine = `Cancelled · access until ${formatDate(billing.billing_period_end)}`;
-  } else if (billing.billing_period_end && billing.status !== "cancelled") {
-    renewalLine = `Renews on ${formatDate(billing.billing_period_end)}`;
+  } else if (billing.status === "pending_cancellation" && billing.billing_period_end) {
+    renewalLine = `Cancels on ${formatDate(billing.billing_period_end)}`;
   } else if (billing.billing_period_end) {
     renewalLine = `Renews on ${formatDate(billing.billing_period_end)}`;
   } else {
     renewalLine = "—";
   }
+
+  const isPendingCancellationFM =
+    billing.plan === "founding_member" && billing.status === "pending_cancellation";
+  const isActiveFoundingMember =
+    billing.plan === "founding_member" && billing.status === "active";
 
   return (
     <section
@@ -108,20 +117,47 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
         >
           {PLAN_DISPLAY[billing.plan]}
         </span>
-        <span
-          style={{
-            display: "inline-block",
-            padding: "3px 10px",
-            borderRadius: 20,
-            fontSize: 12,
-            fontWeight: 500,
-            backgroundColor: statusInfo.bg,
-            color: statusInfo.color,
-          }}
-        >
-          {statusInfo.label}
-        </span>
+        {isPendingCancellationFM && billing.billing_period_end ? (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "2px 8px",
+              borderRadius: 4,
+              fontSize: 11,
+              fontWeight: 500,
+              backgroundColor: "rgba(245,158,11,0.10)",
+              border: "1px solid #F59E0B",
+              color: "#7D4E00",
+            }}
+          >
+            Cancels {new Date(billing.billing_period_end).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </span>
+        ) : (
+          <span
+            style={{
+              display: "inline-block",
+              padding: "3px 10px",
+              borderRadius: 20,
+              fontSize: 12,
+              fontWeight: 500,
+              backgroundColor: statusInfo.bg,
+              color: statusInfo.color,
+            }}
+          >
+            {statusInfo.label}
+          </span>
+        )}
       </div>
+
+      {/* Founding member badge */}
+      {billing.plan === "founding_member" && (
+        <div style={{ marginBottom: 12 }}>
+          <FoundingMemberBadge
+            memberNumber={billing.founding_member_number}
+            featureTier={billing.feature_tier}
+          />
+        </div>
+      )}
 
       <p
         style={{
@@ -137,13 +173,29 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
         {renewalLine}
       </p>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {billing.stripe_customer_id ? (
-          <ManageSubscriptionButton customerId={billing.stripe_customer_id} />
-        ) : (
-          <UpgradePromptButton />
-        )}
-      </div>
+      {isPendingCancellationFM &&
+        billing.billing_period_end &&
+        billing.founding_member_grace_ends_at ? (
+        <FoundingMemberPendingCancellationSection
+          memberNumber={billing.founding_member_number ?? 1}
+          billingPeriodEnd={billing.billing_period_end}
+          graceEndsAt={billing.founding_member_grace_ends_at}
+        />
+      ) : (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {isActiveFoundingMember && billing.billing_period_end ? (
+            <FoundingMemberManageButton
+              customerId={billing.stripe_customer_id ?? ""}
+              billingPeriodEnd={billing.billing_period_end}
+              memberNumber={billing.founding_member_number ?? 1}
+            />
+          ) : billing.stripe_customer_id ? (
+            <ManageSubscriptionButton customerId={billing.stripe_customer_id} />
+          ) : (
+            <UpgradePromptButton />
+          )}
+        </div>
+      )}
     </section>
   );
 }

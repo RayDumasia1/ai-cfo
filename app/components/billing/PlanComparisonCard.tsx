@@ -72,6 +72,7 @@ const PLANS: PlanDef[] = [
 ];
 
 const TIER_RANK: Record<FeatureTier, number> = {
+  suspended: -1,
   starter: 0,
   core: 1,
   growth: 2,

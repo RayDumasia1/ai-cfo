@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { hasFeature, isSuperuser } from '../lib/featureGates'
+import { hasFeature, isSuperuser, TIER_RANK } from '../lib/featureGates'
 
 describe('hasFeature', () => {
   describe('starter tier', () => {
@@ -58,6 +58,14 @@ describe('hasFeature', () => {
       expect(hasFeature('starter', 'ask_cfo', 'stranger@example.com')).toBe(false)
     })
   })
+})
+
+describe('suspended tier', () => {
+  it('TIER_RANK.suspended === -1', () => expect(TIER_RANK['suspended']).toBe(-1))
+  it('hasFeature(suspended, ask_cfo) → false', () => expect(hasFeature('suspended', 'ask_cfo')).toBe(false))
+  it('hasFeature(suspended, ai_insights) → false', () => expect(hasFeature('suspended', 'ai_insights')).toBe(false))
+  it('hasFeature(suspended, custom_reports) → false', () => expect(hasFeature('suspended', 'custom_reports')).toBe(false))
+  it('hasFeature(suspended, forecasting) → false', () => expect(hasFeature('suspended', 'forecasting')).toBe(false))
 })
 
 describe('isSuperuser', () => {

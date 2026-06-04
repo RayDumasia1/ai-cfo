@@ -1,6 +1,7 @@
 "use client";
 
 import LogoutButton from "@/app/components/LogoutButton";
+import FoundingMemberBadge from "@/app/components/billing/FoundingMemberBadge";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { Plan } from "@/lib/featureGates";
 
@@ -13,13 +14,6 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatMonth(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
     year: "numeric",
   });
 }
@@ -66,16 +60,6 @@ export default function AccountCard({ email, memberSince }: AccountCardProps) {
   const plan = subscription?.plan ?? "starter";
   const badge = PLAN_BADGE[plan] ?? PLAN_BADGE.starter;
 
-  let planSubText: string | null = null;
-  if (plan === "founding_member") {
-    const expires = subscription?.founding_member_expires_at;
-    if (expires && new Date() < new Date(expires)) {
-      planSubText = `Core features · Locked until ${formatMonth(expires)}`;
-    } else {
-      planSubText = "Starter features";
-    }
-  }
-
   return (
     <section style={cardStyle}>
       <h2 style={cardTitleStyle}>Account</h2>
@@ -86,7 +70,7 @@ export default function AccountCard({ email, memberSince }: AccountCardProps) {
         <Row label="Member since" value={formatDate(memberSince)} />
         <div>
           <span style={rowLabelStyle}>Plan</span>
-          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 4 }}>
             {loading ? (
               <span
                 style={{
@@ -102,28 +86,26 @@ export default function AccountCard({ email, memberSince }: AccountCardProps) {
               >
                 —
               </span>
+            ) : plan === "founding_member" ? (
+              <FoundingMemberBadge
+                memberNumber={subscription?.founding_member_number ?? null}
+                featureTier={subscription?.feature_tier ?? "starter"}
+              />
             ) : (
-              <>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: badge.color,
-                    backgroundColor: badge.bg,
-                    border: `1px solid ${badge.border}`,
-                    borderRadius: 4,
-                    padding: "2px 7px",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {badge.label}
-                </span>
-                {planSubText && (
-                  <span style={{ fontSize: 12, color: "#6B7A8D" }}>
-                    {planSubText}
-                  </span>
-                )}
-              </>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: badge.color,
+                  backgroundColor: badge.bg,
+                  border: `1px solid ${badge.border}`,
+                  borderRadius: 4,
+                  padding: "2px 7px",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {badge.label}
+              </span>
             )}
           </div>
         </div>

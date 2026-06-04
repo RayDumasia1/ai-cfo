@@ -7,8 +7,11 @@ export interface SubscriptionData {
   plan: Plan;
   feature_tier: FeatureTier;
   status: string;
+  billing_period_end: string | null;
   founding_member_number: number | null;
   founding_member_expires_at: string | null;
+  founding_member_cancelled_at: string | null;
+  founding_member_grace_ends_at: string | null;
 }
 
 export function useSubscription() {

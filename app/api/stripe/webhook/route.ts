@@ -1,6 +1,12 @@
 import { stripe, PLAN_TO_TIER } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
-import { sendCfoCallConfirmation, sendPaymentFailedEmail } from "@/lib/email";
+import {
+  sendCfoCallConfirmation,
+  sendPaymentFailedEmail,
+  sendFoundingMemberWelcomeEmail,
+  sendFoundingMemberRestoreEmail,
+  sendFoundingMemberCancelledEmail,
+} from "@/lib/email";
 import type { NextRequest } from "next/server";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -81,25 +87,6 @@ async function handleCheckoutCompleted(
     const subId = session.subscription as string;
     const stripeSub = await stripe.subscriptions.retrieve(subId);
 
-    let foundingMemberNumber: number | null = null;
-    let foundingMemberExpiresAt: string | null = null;
-
-    if (planKey === "founding_member") {
-      const { count } = await supabase
-        .from("subscriptions")
-        .select("*", { count: "exact", head: true })
-        .eq("plan", "founding_member");
-      foundingMemberNumber = (count ?? 0) + 1;
-      if (foundingMemberNumber > 50) {
-        console.warn(
-          `webhook:founding_member:cap_exceeded number=${foundingMemberNumber}`
-        );
-      }
-      const expiry = new Date();
-      expiry.setMonth(expiry.getMonth() + 24);
-      foundingMemberExpiresAt = expiry.toISOString();
-    }
-
     const row: Record<string, unknown> = {
       user_id: userId,
       plan: planKey,
@@ -116,9 +103,38 @@ async function handleCheckoutCompleted(
       ).toISOString(),
     };
 
+    let emailMemberNumber: number | null = null;
+    let isRestore = false;
+
     if (planKey === "founding_member") {
-      row.founding_member_number = foundingMemberNumber;
-      row.founding_member_expires_at = foundingMemberExpiresAt;
+      isRestore = session.metadata?.is_founding_member_restore === "true";
+      const originalNumber = session.metadata?.original_member_number
+        ? parseInt(session.metadata.original_member_number)
+        : null;
+
+      if (isRestore && originalNumber) {
+        // Restore: keep original member number, reset grace fields
+        row.founding_member_number = originalNumber;
+        row.founding_member_cancelled_at = null;
+        row.founding_member_grace_ends_at = null;
+        row.fm_grace_warning_sent = false;
+        row.fm_grace_expired_email_sent = false;
+        emailMemberNumber = originalNumber;
+      } else {
+        // New join: assign next member number (no expiry — Core features are permanent)
+        const { count } = await supabase
+          .from("subscriptions")
+          .select("*", { count: "exact", head: true })
+          .eq("plan", "founding_member");
+        const nextNumber = (count ?? 0) + 1;
+        if (nextNumber > 50) {
+          console.warn(
+            `webhook:founding_member:cap_exceeded number=${nextNumber}`
+          );
+        }
+        row.founding_member_number = nextNumber;
+        emailMemberNumber = nextNumber;
+      }
     }
 
     const { error: upsertError } = await supabase
@@ -126,6 +142,18 @@ async function handleCheckoutCompleted(
       .upsert(row, { onConflict: "user_id" });
     if (upsertError) {
       console.error("webhook:checkoutCompleted:upsert:error", upsertError);
+    }
+
+    // Send founding member email after successful upsert
+    if (planKey === "founding_member" && emailMemberNumber !== null) {
+      const customerEmail = session.customer_details?.email;
+      if (customerEmail) {
+        if (isRestore) {
+          await sendFoundingMemberRestoreEmail(customerEmail, emailMemberNumber);
+        } else {
+          await sendFoundingMemberWelcomeEmail(customerEmail, emailMemberNumber);
+        }
+      }
     }
   } else if (session.mode === "payment" && planKey === "cfo_call") {
     const { error: insertError } = await supabase.from("cfo_calls").insert({
@@ -155,10 +183,96 @@ async function handleSubscriptionUpdated(
   sub: Stripe.Subscription,
   supabase: SupabaseClient
 ) {
-  const userId = sub.metadata?.supabase_user_id;
-  if (!userId) return;
+  console.log("webhook:subscriptionUpdated", {
+    id: sub.id,
+    status: sub.status,
+    cancel_at_period_end: sub.cancel_at_period_end,
+    cancel_at: sub.cancel_at,
+    current_period_end: sub.items.data[0]?.current_period_end,
+    customer: sub.customer,
+    metadata_supabase_user_id: sub.metadata?.supabase_user_id,
+  });
 
-  const planKey = sub.metadata?.plan_key ?? "starter";
+  // Look up by stripe_customer_id — more reliable than subscription metadata
+  const { data: existing, error: lookupError } = await supabase
+    .from("subscriptions")
+    .select("user_id, plan, status, founding_member_number, founding_member_cancelled_at")
+    .eq("stripe_customer_id", sub.customer as string)
+    .maybeSingle();
+
+  if (lookupError || !existing) {
+    console.error("webhook:subscriptionUpdated:lookup:notFound", { customer: sub.customer, lookupError });
+    return;
+  }
+
+  const userId = existing.user_id;
+
+  // Case 1 — Cancellation scheduled at period end
+  if (sub.cancel_at_period_end) {
+    // Guard: only process once (idempotent against duplicate events)
+    if (existing.founding_member_cancelled_at) {
+      console.log("webhook:subscriptionUpdated:pendingCancellation:alreadyProcessed", { userId });
+      return;
+    }
+
+    const cancelAt = sub.cancel_at
+      ? new Date(sub.cancel_at * 1000)
+      : new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
+    const graceEnd = new Date(cancelAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    const { error: updateError } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "pending_cancellation",
+        cancelled_at: new Date().toISOString(),
+        billing_period_end: cancelAt.toISOString(),
+        ...(existing.plan === "founding_member" && {
+          founding_member_cancelled_at: new Date().toISOString(),
+          founding_member_grace_ends_at: graceEnd.toISOString(),
+        }),
+      })
+      .eq("user_id", userId);
+    if (updateError) {
+      console.error("webhook:subscriptionUpdated:pendingCancellation:error", updateError);
+    } else {
+      console.log("webhook:subscriptionUpdated:pendingCancellation:set", { userId, cancelAt, graceEnd });
+    }
+
+    if (existing.plan === "founding_member" && existing.founding_member_number) {
+      const email = await getCustomerEmail(sub.customer as string);
+      if (email) {
+        await sendFoundingMemberCancelledEmail(
+          email,
+          existing.founding_member_number,
+          cancelAt.toISOString(),
+          graceEnd.toISOString()
+        );
+      }
+    }
+    return;
+  }
+
+  // Case 2 — Cancellation reversed (reactivation via portal or reactivate endpoint)
+  if (!sub.cancel_at_period_end && existing.status === "pending_cancellation") {
+    const { error: reactivateError } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "active",
+        cancelled_at: null,
+        founding_member_cancelled_at: null,
+        founding_member_grace_ends_at: null,
+      })
+      .eq("user_id", userId);
+    if (reactivateError) {
+      console.error("webhook:subscriptionUpdated:reactivation:error", reactivateError);
+    } else {
+      console.log("webhook:subscriptionUpdated:reactivation:complete", { userId });
+    }
+    return;
+  }
+
+  // Case 3 — Normal update (plan change, renewal, billing period refresh)
+  const planKey = sub.metadata?.plan_key ?? existing.plan;
   const featureTier = PLAN_TO_TIER[planKey] ?? "starter";
 
   const { error: updateError } = await supabase
@@ -185,20 +299,84 @@ async function handleSubscriptionDeleted(
   sub: Stripe.Subscription,
   supabase: SupabaseClient
 ) {
-  const userId = sub.metadata?.supabase_user_id;
-  if (!userId) return;
-
-  const { error: deleteError } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("subscriptions")
-    .update({
-      status: "cancelled",
-      feature_tier: "starter",
-      plan: "starter",
-      cancelled_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
-  if (deleteError) {
-    console.error("webhook:subscriptionDeleted:error", deleteError);
+    .select("user_id, plan, status, billing_period_end, founding_member_number")
+    .eq("stripe_customer_id", sub.customer as string)
+    .maybeSingle();
+
+  if (lookupError || !existing) {
+    console.error("webhook:subscriptionDeleted:lookup:notFound", { customer: sub.customer, lookupError });
+    return;
+  }
+
+  const userId = existing.user_id;
+
+  if (existing?.plan === "founding_member") {
+    if (existing.status === "pending_cancellation") {
+      // Grace fields already set from subscription.updated — just flip to cancelled
+      const { error: cancelError } = await supabase
+        .from("subscriptions")
+        .update({ status: "cancelled" })
+        .eq("user_id", userId);
+      if (cancelError) {
+        console.error("webhook:subscriptionDeleted:foundingMember:pendingCancellation:error", cancelError);
+      }
+      // No email — already sent when pending_cancellation was set
+    } else {
+      // Immediate cancellation (no prior cancel_at_period_end event)
+      const billingEnd = existing.billing_period_end
+        ? new Date(existing.billing_period_end)
+        : new Date();
+      const graceEnd = new Date(billingEnd);
+      graceEnd.setDate(graceEnd.getDate() + 30);
+
+      const { error: cancelError } = await supabase
+        .from("subscriptions")
+        .update({
+          status: "cancelled",
+          founding_member_cancelled_at: new Date().toISOString(),
+          founding_member_grace_ends_at: graceEnd.toISOString(),
+        })
+        .eq("user_id", userId);
+      if (cancelError) {
+        console.error("webhook:subscriptionDeleted:foundingMember:error", cancelError);
+      }
+
+      const email = await getCustomerEmail(sub.customer as string);
+      if (email && existing.founding_member_number) {
+        await sendFoundingMemberCancelledEmail(
+          email,
+          existing.founding_member_number,
+          billingEnd.toISOString(),
+          graceEnd.toISOString()
+        );
+      }
+    }
+  } else {
+    // Standard plan: reset to starter
+    const { error: deleteError } = await supabase
+      .from("subscriptions")
+      .update({
+        status: "cancelled",
+        feature_tier: "starter",
+        plan: "starter",
+        cancelled_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId);
+    if (deleteError) {
+      console.error("webhook:subscriptionDeleted:error", deleteError);
+    }
+  }
+}
+
+async function getCustomerEmail(customerId: string): Promise<string> {
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if ((customer as { deleted?: boolean }).deleted) return "";
+    return (customer as Stripe.Customer).email ?? "";
+  } catch {
+    return "";
   }
 }
 
@@ -288,4 +466,3 @@ async function handlePaymentSucceeded(
       .lt("period_end", periodStart);
   }
 }
-

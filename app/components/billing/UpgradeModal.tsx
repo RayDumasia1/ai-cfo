@@ -50,6 +50,7 @@ const FEATURE_ICONS: Record<Feature, React.ElementType> = {
 };
 
 const TIER_HIGHLIGHTS: Record<FeatureTier, string[]> = {
+  suspended: [],
   starter: [],
   core: [
     "Ask your CFO financial questions with AI",

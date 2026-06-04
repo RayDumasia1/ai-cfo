@@ -13,7 +13,7 @@ export type Feature =
   | 'custom_reports'
   | 'bank_sync'
 
-export type FeatureTier = 'starter' | 'core' | 'growth' | 'advisory'
+export type FeatureTier = 'starter' | 'core' | 'growth' | 'advisory' | 'suspended'
 
 export type Plan = 'starter' | 'core' | 'growth' | 'advisory' | 'founding_member'
 
@@ -33,7 +33,8 @@ const FEATURE_TIERS: Record<Feature, FeatureTier> = {
   bank_sync:           'advisory',
 }
 
-const TIER_RANK: Record<FeatureTier, number> = {
+export const TIER_RANK: Record<FeatureTier, number> = {
+  suspended: -1,
   starter: 0,
   core: 1,
   growth: 2,
@@ -58,6 +59,11 @@ export function hasFeature(
 }
 
 export const USAGE_LIMITS: Record<FeatureTier, Record<string, number | null>> = {
+  suspended: {
+    ask_cfo_questions: 0,
+    ai_insight_runs: 0,
+    actions_active: 0,
+  },
   starter: {
     ask_cfo_questions: 0,
     ai_insight_runs: 0,

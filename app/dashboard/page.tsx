@@ -18,6 +18,9 @@ import RevenueBurnChart from "@/app/components/RevenueBurnChart";
 import ImportRefresher from "./ImportRefresher";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
 import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanner";
+import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
+import FoundingMemberGraceBanner from "@/app/components/billing/FoundingMemberGraceBanner";
+import PendingCancellationBanner from "@/app/components/billing/PendingCancellationBanner";
 
 export default async function DashboardPage({
   searchParams,
@@ -39,13 +42,9 @@ export default async function DashboardPage({
     user ? getSubscription(user.id, supabase) : null,
   ]);
 
-  // data_version lives on business_profiles — null until first import.
   const dataVersion = profile?.data_version ?? null;
-
-  // User's snooze preference — used for tooltip text in DismissibleAlert.
   const snoozeDuration = profile?.snooze_duration ?? "24h";
 
-  // Run alertEngine once, then filter out snoozed alerts.
   const allAlerts =
     profile && recentMonths.length > 0
       ? alertEngine(recentMonths, profile)
@@ -55,71 +54,114 @@ export default async function DashboardPage({
     (alert) => !isAlertSnoozed(alert.code, dismissedAlerts ?? [], dataVersion)
   );
 
+  const isFoundingMember = subscription?.plan === "founding_member";
+  const isActiveFM = isFoundingMember && subscription?.status === "active";
+  const isPendingCancellationFM =
+    isFoundingMember && subscription?.status === "pending_cancellation";
+  const isCancelledFM =
+    isFoundingMember &&
+    subscription?.status === "cancelled" &&
+    subscription?.founding_member_grace_ends_at !== null;
+
+  const successMessage =
+    checkoutSuccess && isActiveFM && subscription?.founding_member_number
+      ? `🎉 Welcome, Founding Member #${subscription.founding_member_number}! Your Core features are now active.`
+      : undefined;
+
   return (
     <div className="px-8 py-8">
-        {/* Checkout success banner — above page header, auto-dismisses after 5s */}
-        <CheckoutSuccessBanner show={checkoutSuccess} />
+      {/* Founding Member welcome banner — dismissible, shown until localStorage dismiss */}
+      {isActiveFM && subscription.founding_member_number && (
+        <FoundingMemberWelcomeBanner
+          memberNumber={subscription.founding_member_number}
+          userId={user!.id}
+        />
+      )}
 
-        {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
-          <p className="mt-1 text-sm font-light text-dim">
-            Your financial snapshot at a glance.
-          </p>
-        </div>
+      {/* Pending cancellation banner — subscription cancelled at period end, billing still active */}
+      {isPendingCancellationFM &&
+        subscription.billing_period_end &&
+        subscription.founding_member_grace_ends_at && (
+          <PendingCancellationBanner
+            memberNumber={subscription.founding_member_number ?? 1}
+            billingPeriodEnd={subscription.billing_period_end}
+            graceEndsAt={subscription.founding_member_grace_ends_at}
+          />
+        )}
 
-        {/* Top alerts — danger + warning only; renders nothing when all clear */}
-        <TopAlerts
+      {/* Grace period banner — subscription deleted, billing ended, grace still active */}
+      {isCancelledFM &&
+        subscription.founding_member_grace_ends_at &&
+        subscription.billing_period_end && (
+          <FoundingMemberGraceBanner
+            memberNumber={subscription.founding_member_number ?? 1}
+            graceEndsAt={subscription.founding_member_grace_ends_at}
+            billingPeriodEnd={subscription.billing_period_end}
+          />
+        )}
+
+      {/* Checkout success banner — above page header, auto-dismisses after 5s */}
+      <CheckoutSuccessBanner show={checkoutSuccess} message={successMessage} />
+
+      {/* Page header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
+        <p className="mt-1 text-sm font-light text-dim">
+          Your financial snapshot at a glance.
+        </p>
+      </div>
+
+      {/* Top alerts — danger + warning only; renders nothing when all clear */}
+      <TopAlerts
+        alerts={visibleAlerts}
+        dismissedAlerts={dismissedAlerts ?? []}
+        dataVersion={dataVersion}
+        snoozeDuration={snoozeDuration}
+      />
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
+        <CashPositionCard
+          initialData={cashPosition}
+          minCashReserve={profile?.min_cash_reserve}
+        />
+        <BurnRateCard months={recentMonths ?? []} />
+        <RunwayCard
+          cash={cashPosition?.cash ?? null}
+          months={recentMonths ?? []}
+          runwayWarningThreshold={profile?.runway_warning_threshold}
+        />
+        <CashOutCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
+      </div>
+
+      {/* Revenue vs Burn chart — always rendered; component handles empty state */}
+      <div className="mb-8">
+        <RevenueBurnChart months={recentMonths} />
+      </div>
+
+      {/* Bottom alerts — success only, or "everything healthy" when zero total */}
+      <div className="mb-8">
+        <BottomAlerts
           alerts={visibleAlerts}
           dismissedAlerts={dismissedAlerts ?? []}
           dataVersion={dataVersion}
           snoozeDuration={snoozeDuration}
         />
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
-          <CashPositionCard
-            initialData={cashPosition}
-            minCashReserve={profile?.min_cash_reserve}
-          />
-          <BurnRateCard months={recentMonths ?? []} />
-          <RunwayCard
-            cash={cashPosition?.cash ?? null}
-            months={recentMonths ?? []}
-            runwayWarningThreshold={profile?.runway_warning_threshold}
-          />
-          <CashOutCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
-        </div>
-
-        {/* Revenue vs Burn chart — always rendered; component handles empty state */}
-        <div className="mb-8">
-          <RevenueBurnChart months={recentMonths} />
-        </div>
-
-        {/* Bottom alerts — success only, or "everything healthy" when zero total */}
-        <div className="mb-8">
-          <BottomAlerts
-            alerts={visibleAlerts}
-            dismissedAlerts={dismissedAlerts ?? []}
-            dataVersion={dataVersion}
-            snoozeDuration={snoozeDuration}
-          />
-        </div>
-
-        {/* Two-column data row: Import | What-If Scenario */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          <div id="import-section">
-            <ImportRefresher hasData={recentMonths.length > 0} />
-          </div>
-
-          <ScenarioPanel hasData={recentMonths.length > 0} />
-        </div>
-
-        {/* Upgrade strip — Starter only */}
-        {subscription && (
-          <UpgradeStrip currentTier={subscription.feature_tier} />
-        )}
-
       </div>
+
+      {/* Two-column data row: Import | What-If Scenario */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        <div id="import-section">
+          <ImportRefresher hasData={recentMonths.length > 0} />
+        </div>
+
+        <ScenarioPanel hasData={recentMonths.length > 0} />
+      </div>
+
+      {/* Upgrade strip — Starter only */}
+      {subscription && (
+        <UpgradeStrip currentTier={subscription.feature_tier} />
+      )}
+    </div>
   );
 }

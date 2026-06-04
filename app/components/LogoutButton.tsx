@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface LogoutButtonProps {
-  variant: "sidebar" | "account";
+  variant: "sidebar" | "account" | "link";
 }
 
 export default function LogoutButton({ variant }: LogoutButtonProps) {
@@ -19,6 +19,25 @@ export default function LogoutButton({ variant }: LogoutButtonProps) {
     // Hard navigation clears Next.js's in-memory router cache so the back
     // button triggers a real server request (caught by the proxy auth check).
     window.location.href = "/auth?reason=logged_out";
+  }
+
+  if (variant === "link") {
+    return (
+      <button
+        onClick={handleLogout}
+        disabled={loading}
+        style={{
+          background: "none",
+          border: "none",
+          color: "#6B7A8D",
+          fontSize: 13,
+          cursor: loading ? "default" : "pointer",
+          padding: 0,
+        }}
+      >
+        {loading ? "Signing out…" : "Sign out"}
+      </button>
+    );
   }
 
   if (variant === "sidebar") {

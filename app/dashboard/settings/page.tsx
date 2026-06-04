@@ -9,6 +9,7 @@ import CurrentPlanCard from "@/app/components/billing/CurrentPlanCard";
 import UsageCard from "@/app/components/billing/UsageCard";
 import PlanComparisonCard from "@/app/components/billing/PlanComparisonCard";
 import BillingHistoryCard from "@/app/components/billing/BillingHistoryCard";
+import FoundingMemberCTA from "@/app/components/billing/FoundingMemberCTA";
 
 export default async function SettingsPage({
   searchParams,
@@ -71,13 +72,17 @@ export default async function SettingsPage({
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           <CurrentPlanCard billing={billing} />
 
-          {(billing.feature_tier === "core" || billing.feature_tier === "growth") && (
+          {(billing.feature_tier === "core" ||
+            billing.feature_tier === "growth" ||
+            billing.plan === "founding_member") && (
             <UsageCard
               periodStart={billing.billing_period_start}
               periodEnd={billing.billing_period_end}
-              tier={billing.feature_tier}
+              tier={billing.feature_tier === "suspended" ? "core" : billing.feature_tier}
             />
           )}
+
+          {billing.plan === "starter" && <FoundingMemberCTA />}
 
           <PlanComparisonCard
             currentPlan={billing.plan}

@@ -382,20 +382,27 @@ export interface SubscriptionResult {
   plan: Plan;
   feature_tier: FeatureTier;
   status: string;
+  billing_period_end: string | null;
+  /** @deprecated Founding Member benefits no longer expire. Column retained for schema compatibility only. */
   founding_member_expires_at: string | null;
   founding_member_number: number | null;
+  founding_member_cancelled_at: string | null;
+  founding_member_grace_ends_at: string | null;
 }
 
 const DEFAULT_STARTER: SubscriptionResult = {
   plan: "starter",
   feature_tier: "starter",
   status: "active",
+  billing_period_end: null,
   founding_member_expires_at: null,
   founding_member_number: null,
+  founding_member_cancelled_at: null,
+  founding_member_grace_ends_at: null,
 };
 
 /**
- * Returns the user's subscription row, handling founding_member expiry.
+ * Returns the user's subscription row.
  * Always call with the server client from utils/supabase/server.ts.
  */
 export async function getSubscription(
@@ -405,7 +412,7 @@ export async function getSubscription(
   const { data, error } = await client
     .from("subscriptions")
     .select(
-      "plan, feature_tier, status, founding_member_expires_at, founding_member_number"
+      "plan, feature_tier, status, billing_period_end, founding_member_expires_at, founding_member_number, founding_member_cancelled_at, founding_member_grace_ends_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -424,23 +431,7 @@ export async function getSubscription(
     return DEFAULT_STARTER;
   }
 
-  const row = data as SubscriptionResult;
-
-  if (
-    row.plan === "founding_member" &&
-    row.founding_member_expires_at !== null &&
-    new Date() > new Date(row.founding_member_expires_at)
-  ) {
-    const { error: updateError } = await client
-      .from("subscriptions")
-      .update({ feature_tier: "starter" })
-      .eq("user_id", userId);
-
-    if (updateError) throw updateError;
-    return { ...row, feature_tier: "starter" };
-  }
-
-  return row;
+  return data as SubscriptionResult;
 }
 
 export interface BillingDetails {
@@ -454,7 +445,10 @@ export interface BillingDetails {
   billing_period_end: string | null;
   cancelled_at: string | null;
   founding_member_number: number | null;
+  /** @deprecated Founding Member benefits no longer expire. Column retained for schema compatibility only. */
   founding_member_expires_at: string | null;
+  founding_member_cancelled_at: string | null;
+  founding_member_grace_ends_at: string | null;
 }
 
 export async function getBillingDetails(
@@ -464,7 +458,7 @@ export async function getBillingDetails(
   const { data, error } = await client
     .from("subscriptions")
     .select(
-      "plan, feature_tier, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, billing_period_start, billing_period_end, cancelled_at, founding_member_number, founding_member_expires_at"
+      "plan, feature_tier, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, billing_period_start, billing_period_end, cancelled_at, founding_member_number, founding_member_expires_at, founding_member_cancelled_at, founding_member_grace_ends_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -484,9 +478,22 @@ export async function getBillingDetails(
       cancelled_at: null,
       founding_member_number: null,
       founding_member_expires_at: null,
+      founding_member_cancelled_at: null,
+      founding_member_grace_ends_at: null,
     };
   }
   return data as BillingDetails;
+}
+
+export async function getFoundingMemberCount(
+  client: SupabaseClient
+): Promise<number> {
+  const { count, error } = await client
+    .from("subscriptions")
+    .select("*", { count: "exact", head: true })
+    .eq("plan", "founding_member");
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export interface UsageResult {

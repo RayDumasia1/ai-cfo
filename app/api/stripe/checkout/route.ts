@@ -1,13 +1,19 @@
 import { requireAuth } from "@/lib/apiAuth";
 import { stripe, STRIPE_PRICES } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
+import { getFoundingMemberCount } from "@/lib/db";
 import type { NextRequest } from "next/server";
 
 const VALID_PLAN_KEYS = new Set(Object.keys(STRIPE_PRICES));
 
 export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
   const body = await req.json();
-  const { planKey, mode } = body as { planKey: string; mode: string };
+  const { planKey, mode, isFoundingMemberRestore, originalMemberNumber } = body as {
+    planKey: string;
+    mode: string;
+    isFoundingMemberRestore?: boolean;
+    originalMemberNumber?: number;
+  };
 
   if (!planKey || !VALID_PLAN_KEYS.has(planKey)) {
     return Response.json({ error: "Invalid plan" }, { status: 400 });
@@ -53,13 +59,34 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
       );
     if (upsertError) {
       console.error("checkout:upsertCustomer:error", upsertError);
-      // Proceed anyway — customer exists in Stripe even if the DB write failed
     }
   }
 
   if (!customerId) {
     console.error("checkout:missingCustomerId", { userId });
     return Response.json({ error: "Could not resolve Stripe customer" }, { status: 500 });
+  }
+
+  // Founding member specific checks (new sign-up only; restores bypass)
+  if (planKey === "founding_member" && !isFoundingMemberRestore) {
+    const count = await getFoundingMemberCount(supabase);
+    if (count >= 50) {
+      return Response.json(
+        { error: "Founding Member spots are sold out.", sold_out: true, spots_remaining: 0 },
+        { status: 409 }
+      );
+    }
+    const { data: existingSub } = await supabase
+      .from("subscriptions")
+      .select("plan")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existingSub?.plan === "founding_member") {
+      return Response.json(
+        { error: "You are already a Founding Member.", already_member: true },
+        { status: 409 }
+      );
+    }
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -72,6 +99,13 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
   const cancelUrl = `${appUrl}/dashboard/settings?tab=billing&checkout=cancelled`;
   console.log("checkout:urls", { successUrl, cancelUrl, customerId, planKey, mode });
 
+  const sessionMetadata: Record<string, string> = {
+    supabase_user_id: userId,
+    plan_key: planKey,
+    is_founding_member_restore: isFoundingMemberRestore ? "true" : "false",
+    original_member_number: originalMemberNumber?.toString() ?? "",
+  };
+
   const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
     customer: customerId,
     mode: mode as "subscription" | "payment",
@@ -79,12 +113,12 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
     success_url: successUrl,
     cancel_url: cancelUrl,
     allow_promotion_codes: true,
-    metadata: { supabase_user_id: userId, plan_key: planKey },
+    metadata: sessionMetadata,
   };
 
   if (mode === "subscription") {
     sessionParams.subscription_data = {
-      metadata: { supabase_user_id: userId, plan_key: planKey },
+      metadata: sessionMetadata,
     };
   }
 

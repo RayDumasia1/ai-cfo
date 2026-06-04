@@ -6,9 +6,10 @@ import { CheckCircle2, X } from "lucide-react";
 
 interface CheckoutSuccessBannerProps {
   show: boolean;
+  message?: string;
 }
 
-export default function CheckoutSuccessBanner({ show }: CheckoutSuccessBannerProps) {
+export default function CheckoutSuccessBanner({ show, message }: CheckoutSuccessBannerProps) {
   const router = useRouter();
   const [visible, setVisible] = useState(show);
 
@@ -39,7 +40,7 @@ export default function CheckoutSuccessBanner({ show }: CheckoutSuccessBannerPro
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <CheckCircle2 size={18} color="#2CA6A4" style={{ flexShrink: 0 }} />
         <span style={{ fontSize: 13, fontWeight: 500, color: "#344150" }}>
-          Your plan has been upgraded. Welcome aboard!
+          {message ?? "Your plan has been upgraded. Welcome aboard!"}
         </span>
       </div>
       <button
