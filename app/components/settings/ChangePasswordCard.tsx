@@ -247,8 +247,8 @@ const cardStyle: React.CSSProperties = {
 };
 
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
+  fontSize: 16,
+  fontWeight: 500,
   color: "#0A1A2F",
   margin: 0,
 };
@@ -261,9 +261,9 @@ const cardDescStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 500,
   color: "#6B7A8D",
   textTransform: "uppercase",
-  letterSpacing: "0.06em",
+  letterSpacing: "0.08em",
 };

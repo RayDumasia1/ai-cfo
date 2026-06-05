@@ -166,7 +166,7 @@ const cardStyle: React.CSSProperties = {
   padding: 24,
 };
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: 0,
+  fontSize: 18, fontWeight: 500, color: "#0A1A2F", margin: 0,
 };
 const cardDescStyle: React.CSSProperties = {
   fontSize: 13, color: "#6B7A8D", marginTop: 4, marginBottom: 0,

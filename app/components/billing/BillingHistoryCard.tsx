@@ -70,8 +70,8 @@ export default function BillingHistoryCard() {
     >
       <h2
         style={{
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 16,
+          fontWeight: 500,
           color: "#0A1A2F",
           margin: "0 0 16px",
         }}
@@ -113,10 +113,10 @@ export default function BillingHistoryCard() {
                     style={{
                       padding: "0 8px 10px",
                       fontSize: 11,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       color: "#6B7A8D",
                       textTransform: "uppercase",
-                      letterSpacing: "0.05em",
+                      letterSpacing: "0.08em",
                     }}
                   >
                     {h}

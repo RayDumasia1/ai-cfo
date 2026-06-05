@@ -39,6 +39,15 @@ function formatSaved(field: keyof Values, raw: string): string {
   return raw;
 }
 
+const columnHeaderStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 500,
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  color: "#6B7A8D",
+  margin: "0 0 16px",
+};
+
 export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
   const [savedValues,    setSavedValues]    = useState<Values>(() => initValues(profile));
   const [currentValues,  setCurrentValues]  = useState<Values>(() => initValues(profile));
@@ -173,67 +182,76 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
         These thresholds control when alerts are triggered on your dashboard.
       </p>
 
-      <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 20 }}>
-        {(
-          [
-            {
-              field: "runway_warning_threshold" as const,
-              id: "runway-warning-threshold",
-              label: "Runway warning threshold (months)",
-              helper: "Amber alert when runway drops below this",
-              type: "number", min: 1,
-            },
-            {
-              field: "runway_danger_threshold" as const,
-              id: "runway-danger-threshold",
-              label: "Runway danger threshold (months)",
-              helper: "Red alert when runway drops below this",
-              type: "number", min: 1,
-            },
-            {
-              field: "min_cash_reserve" as const,
-              id: "min-cash-reserve",
-              label: "Minimum cash reserve ($)",
-              helper: "Alert when cash drops below this amount",
-              type: "number", min: 0, prefix: "$",
-            },
-            {
-              field: "burn_rate_warning_pct" as const,
-              id: "burn-rate-warning",
-              label: "Burn rate warning (%)",
-              helper: "Alert when monthly burn increases by more than this percentage",
-              type: "number", min: 1, suffix: "%",
-            },
-          ] as const
-        ).map(({ field, id, label, helper, type, min, ...rest }) => {
-          const indicator = fieldIndicator(field);
-          const prefix = "prefix" in rest ? rest.prefix : undefined;
-          const suffix = "suffix" in rest ? rest.suffix : undefined;
-          return (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 16 }}>
+        {/* Left column — Runway */}
+        <div>
+          <p style={columnHeaderStyle}>Runway</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <Field
-              key={id}
-              id={id}
-              name={field}
-              label={label}
-              helper={helper}
-              value={currentValues[field]}
-              indicator={indicator}
-              savedDisplay={formatSaved(field, savedValues[field])}
-              previousDisplay={
-                previousValues[field] !== undefined
-                  ? formatSaved(field, previousValues[field]!)
-                  : ""
-              }
-              onChange={(v) => handleChange(field, v)}
-              onReset={() => resetField(field)}
-              onResetToPrevious={() => resetToPrevious(field)}
-              type={type}
-              min={min}
-              prefix={prefix}
-              suffix={suffix}
+              id="runway-warning-threshold"
+              name="runway_warning_threshold"
+              label="Runway warning threshold (months)"
+              helper="Amber alert when runway drops below this"
+              value={currentValues.runway_warning_threshold}
+              indicator={fieldIndicator("runway_warning_threshold")}
+              savedDisplay={formatSaved("runway_warning_threshold", savedValues.runway_warning_threshold)}
+              previousDisplay={previousValues.runway_warning_threshold !== undefined ? formatSaved("runway_warning_threshold", previousValues.runway_warning_threshold!) : ""}
+              onChange={(v) => handleChange("runway_warning_threshold", v)}
+              onReset={() => resetField("runway_warning_threshold")}
+              onResetToPrevious={() => resetToPrevious("runway_warning_threshold")}
+              type="number" min={1}
             />
-          );
-        })}
+            <Field
+              id="runway-danger-threshold"
+              name="runway_danger_threshold"
+              label="Runway danger threshold (months)"
+              helper="Red alert when runway drops below this"
+              value={currentValues.runway_danger_threshold}
+              indicator={fieldIndicator("runway_danger_threshold")}
+              savedDisplay={formatSaved("runway_danger_threshold", savedValues.runway_danger_threshold)}
+              previousDisplay={previousValues.runway_danger_threshold !== undefined ? formatSaved("runway_danger_threshold", previousValues.runway_danger_threshold!) : ""}
+              onChange={(v) => handleChange("runway_danger_threshold", v)}
+              onReset={() => resetField("runway_danger_threshold")}
+              onResetToPrevious={() => resetToPrevious("runway_danger_threshold")}
+              type="number" min={1}
+            />
+          </div>
+        </div>
+
+        {/* Right column — Cash & Burn */}
+        <div style={{ borderLeft: "1px solid #D8E2EC", paddingLeft: 24 }}>
+          <p style={columnHeaderStyle}>Cash & Burn</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <Field
+              id="min-cash-reserve"
+              name="min_cash_reserve"
+              label="Minimum cash reserve ($)"
+              helper="Alert when cash drops below this amount"
+              value={currentValues.min_cash_reserve}
+              indicator={fieldIndicator("min_cash_reserve")}
+              savedDisplay={formatSaved("min_cash_reserve", savedValues.min_cash_reserve)}
+              previousDisplay={previousValues.min_cash_reserve !== undefined ? formatSaved("min_cash_reserve", previousValues.min_cash_reserve!) : ""}
+              onChange={(v) => handleChange("min_cash_reserve", v)}
+              onReset={() => resetField("min_cash_reserve")}
+              onResetToPrevious={() => resetToPrevious("min_cash_reserve")}
+              type="number" min={0} prefix="$"
+            />
+            <Field
+              id="burn-rate-warning"
+              name="burn_rate_warning_pct"
+              label="Burn rate warning (%)"
+              helper="Alert when monthly burn increases by more than this percentage"
+              value={currentValues.burn_rate_warning_pct}
+              indicator={fieldIndicator("burn_rate_warning_pct")}
+              savedDisplay={formatSaved("burn_rate_warning_pct", savedValues.burn_rate_warning_pct)}
+              previousDisplay={previousValues.burn_rate_warning_pct !== undefined ? formatSaved("burn_rate_warning_pct", previousValues.burn_rate_warning_pct!) : ""}
+              onChange={(v) => handleChange("burn_rate_warning_pct", v)}
+              onReset={() => resetField("burn_rate_warning_pct")}
+              onResetToPrevious={() => resetToPrevious("burn_rate_warning_pct")}
+              type="number" min={1} suffix="%"
+            />
+          </div>
+        </div>
       </div>
 
       {validationError && (
@@ -305,7 +323,7 @@ function Field({
       <label htmlFor={id} style={labelStyle}>{label}</label>
       {/* Row 2 — input + indicator side by side */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
-        <div style={{ position: "relative", flex: 1, maxWidth: 220 }}>
+        <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
           {prefix && (
             <span style={{
               position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
@@ -393,8 +411,8 @@ const cardStyle: React.CSSProperties = {
 };
 
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 600,
+  fontSize: 18,
+  fontWeight: 500,
   color: "#0A1A2F",
   margin: 0,
 };
@@ -407,10 +425,12 @@ const cardDescStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 11,
   fontWeight: 500,
   color: "#344150",
   display: "block",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
 };
 
 const helperStyle: React.CSSProperties = {

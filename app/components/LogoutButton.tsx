@@ -59,15 +59,18 @@ export default function LogoutButton({ variant }: LogoutButtonProps) {
       disabled={loading}
       style={{
         backgroundColor: "transparent",
-        color: loading ? "#9CA3AF" : "#344150",
-        border: "1.5px solid #D8E2EC",
-        borderRadius: 6,
-        padding: "8px 16px",
-        fontSize: 13,
-        fontWeight: 500,
+        border: "none",
+        color: loading ? "#9CA3AF" : "#6B7A8D",
+        fontSize: 14,
+        fontWeight: 400,
+        padding: "8px 0",
         cursor: loading ? "not-allowed" : "pointer",
+        textAlign: "left",
         opacity: loading ? 0.7 : 1,
+        transition: "color 0.15s",
       }}
+      onMouseEnter={(e) => { if (!loading) (e.currentTarget as HTMLButtonElement).style.color = "#E84545"; }}
+      onMouseLeave={(e) => { if (!loading) (e.currentTarget as HTMLButtonElement).style.color = "#6B7A8D"; }}
     >
       {loading ? "Signing out…" : "Sign out"}
     </button>

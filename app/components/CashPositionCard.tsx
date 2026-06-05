@@ -16,13 +16,6 @@ function formatCurrency(n: number): string {
   }).format(n);
 }
 
-function formatMonthLabel(iso: string): string {
-  const [year, month] = iso.split("-");
-  return new Date(Number(year), Number(month) - 1, 1).toLocaleDateString(
-    "en-US",
-    { month: "short", year: "numeric" }
-  );
-}
 
 export default function CashPositionCard({
   initialData,
@@ -43,49 +36,47 @@ export default function CashPositionCard({
   // Colour logic
   let borderColor = "var(--teal)";
   if (minCashReserve != null && minCashReserve > 0) {
-    if (cash >= minCashReserve) {
-      borderColor = "#22c55e";
-    } else if (cash >= minCashReserve * 0.8) {
-      borderColor = "#f59e0b";
-    } else {
-      borderColor = "#ef4444";
-    }
+    borderColor = cash > minCashReserve ? "#22C55E" : "#E84545";
   }
 
-  // MoM change subtext
-  let subtext = formatMonthLabel(month);
+  // MoM change subtext — only shown when previous month data exists
+  let subtext: string | undefined;
   if (previousCash !== null) {
     const delta = cash - previousCash;
     const deltaStr = formatCurrency(Math.abs(delta));
     const prefix = delta >= 0 ? `+${deltaStr}` : `-${deltaStr}`;
-    subtext = `${prefix} vs last month · ${formatMonthLabel(month)}`;
+    subtext = `${prefix} vs last month`;
   }
 
   return (
     <div
       className="bg-surface flex flex-col"
       style={{
-        borderRadius: "var(--radius-md)",
-        border: `1px solid ${borderColor}`,
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid #D8E2EC",
+        borderLeft: `3px solid ${borderColor}`,
         boxShadow: "var(--shadow-sm)",
         padding: "1.25rem 1.5rem",
+        height: "100%",
+        minHeight: 120,
+        justifyContent: "space-between",
       }}
     >
       <p
-        className="text-[11px] font-medium uppercase tracking-[0.08em]"
+        className="text-[10px] font-medium uppercase tracking-[0.14em]"
         style={{ color: "var(--dim)" }}
       >
         Cash Position
       </p>
       <p
-        className="mt-3 text-[1.65rem] font-medium leading-none"
-        style={{ color: "var(--ink)" }}
+        className="mt-3 font-medium leading-none"
+        style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
       >
         {formatCurrency(cash)}
       </p>
       <p
         className="mt-2 text-xs font-light"
-        style={{ color: "var(--dim)" }}
+        style={{ color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}
       >
         {subtext}
       </p>

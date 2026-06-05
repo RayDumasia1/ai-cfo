@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import type { Plan, FeatureTier } from "@/lib/featureGates";
 import { GROWTH_AVAILABLE, ADVISORY_AVAILABLE } from "@/lib/launchConfig";
 
@@ -10,66 +10,11 @@ interface PlanComparisonCardProps {
   currentTier: FeatureTier;
 }
 
-interface PlanDef {
-  key: Plan;
-  tier: FeatureTier;
-  name: string;
-  price: string;
-  features: string[];
-}
-
-const PLANS: PlanDef[] = [
-  {
-    key: "starter",
-    tier: "starter",
-    name: "Starter",
-    price: "$49 / mo",
-    features: [
-      "Financial dashboard",
-      "Data import (Excel/CSV)",
-      "Up to 10 active actions",
-    ],
-  },
-  {
-    key: "core",
-    tier: "core",
-    name: "Core",
-    price: "$99 / mo",
-    features: [
-      "Everything in Starter",
-      "Ask your CFO (20 questions/mo)",
-      "AI insights (3 runs/mo)",
-      "QuickBooks & Xero sync",
-      "Up to 50 active actions",
-    ],
-  },
-  {
-    key: "growth",
-    tier: "growth",
-    name: "Growth",
-    price: "$199 / mo",
-    features: [
-      "Everything in Core",
-      "Unlimited Ask CFO",
-      "Unlimited AI insights",
-      "12-month cash flow forecast",
-      "Scenario comparison",
-      "AI-recommended actions",
-      "Unlimited active actions",
-    ],
-  },
-  {
-    key: "advisory",
-    tier: "advisory",
-    name: "Advisory",
-    price: "$599 / mo",
-    features: [
-      "Everything in Growth",
-      "Monthly CFO call",
-      "Team seats (3 users)",
-      "Custom reports",
-    ],
-  },
+const PLAN_ROWS: { key: Plan; tier: FeatureTier; name: string; price: string; features: string }[] = [
+  { key: "starter",  tier: "starter",  name: "Starter",  price: "$49 / mo",  features: "Dashboard · Excel import · Alerts" },
+  { key: "core",     tier: "core",     name: "Core",     price: "$99 / mo",  features: "Ask CFO · AI insights · QB & Xero sync" },
+  { key: "growth",   tier: "growth",   name: "Growth",   price: "$199 / mo", features: "Unlimited AI · Forecasting · Scenarios" },
+  { key: "advisory", tier: "advisory", name: "Advisory", price: "$599 / mo", features: "Monthly CFO call · Team seats · Reports" },
 ];
 
 const TIER_RANK: Record<FeatureTier, number> = {
@@ -114,55 +59,26 @@ function UpgradeButton({ planKey }: { planKey: Plan }) {
         onClick={handleUpgrade}
         disabled={loading}
         style={{
-          width: "100%",
-          padding: "8px 0",
+          padding: "6px 14px",
           fontSize: 13,
           fontWeight: 500,
           color: "#FFFFFF",
-          background: loading ? "#6B7A8D" : "#2CA6A4",
+          backgroundColor: loading ? "#6B7A8D" : "#2CA6A4",
           border: "none",
-          borderRadius: 8,
+          borderRadius: 6,
           cursor: loading ? "not-allowed" : "pointer",
-          display: "flex",
+          display: "inline-flex",
           alignItems: "center",
-          justifyContent: "center",
           gap: 6,
+          whiteSpace: "nowrap",
         }}
       >
-        {loading && (
-          <Loader2
-            size={13}
-            style={{ animation: "spin 1s linear infinite" }}
-          />
-        )}
+        {loading && <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />}
         {loading ? "Redirecting..." : "Upgrade →"}
       </button>
-      {error && (
-        <p style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>{error}</p>
-      )}
+      {error && <p style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>{error}</p>}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
-  );
-}
-
-function ComingSoonButton() {
-  return (
-    <button
-      disabled
-      style={{
-        width: "100%",
-        padding: "8px 0",
-        fontSize: 13,
-        fontWeight: 500,
-        color: "#6B7A8D",
-        background: "#F4F7FA",
-        border: "1px solid #D8E2EC",
-        borderRadius: 8,
-        cursor: "not-allowed",
-      }}
-    >
-      Coming soon
-    </button>
   );
 }
 
@@ -190,31 +106,111 @@ function DowngradeButton() {
         onClick={handlePortal}
         disabled={loading}
         style={{
-          width: "100%",
-          padding: "8px 0",
+          padding: "6px 14px",
           fontSize: 13,
           fontWeight: 400,
           color: "#6B7A8D",
-          background: "transparent",
+          backgroundColor: "transparent",
           border: "1px solid #D8E2EC",
-          borderRadius: 8,
+          borderRadius: 6,
           cursor: loading ? "not-allowed" : "pointer",
+          whiteSpace: "nowrap",
         }}
       >
         {loading ? "Opening..." : "Downgrade"}
       </button>
-      {error && (
-        <p style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>{error}</p>
+      {error && <p style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>{error}</p>}
+    </div>
+  );
+}
+
+function DisabledDowngradeButton() {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button
+        disabled
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          padding: "6px 14px",
+          fontSize: 13,
+          fontWeight: 400,
+          color: "#6B7A8D",
+          backgroundColor: "transparent",
+          border: "1px solid #D8E2EC",
+          borderRadius: 6,
+          cursor: "not-allowed",
+          whiteSpace: "nowrap",
+          opacity: 0.4,
+        }}
+      >
+        Downgrade
+      </button>
+      {hovered && (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            backgroundColor: "#0A1A2F",
+            color: "#FFFFFF",
+            fontSize: 12,
+            borderRadius: 6,
+            padding: "6px 10px",
+            whiteSpace: "nowrap",
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        >
+          To change your plan, contact us at hello@elidan.ai
+        </div>
       )}
     </div>
   );
 }
 
-export default function PlanComparisonCard({
-  currentPlan,
-  currentTier,
-}: PlanComparisonCardProps) {
+const comingSoonBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "4px 10px",
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 500,
+  backgroundColor: "#F4F7FA",
+  color: "#6B7A8D",
+  border: "1px solid #D8E2EC",
+  whiteSpace: "nowrap",
+};
+
+const currentBadge: React.CSSProperties = {
+  display: "inline-block",
+  padding: "4px 10px",
+  borderRadius: 6,
+  fontSize: 12,
+  fontWeight: 500,
+  backgroundColor: "rgba(44,166,164,0.10)",
+  color: "#2CA6A4",
+  border: "1px solid rgba(44,166,164,0.30)",
+  whiteSpace: "nowrap",
+};
+
+const STORAGE_KEY = "elidan_plans_collapsed";
+
+export default function PlanComparisonCard({ currentPlan, currentTier }: PlanComparisonCardProps) {
+  const [collapsed, setCollapsed] = useState(true);
   const currentRank = TIER_RANK[currentTier];
+  const isFoundingMember = currentPlan === "founding_member";
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) setCollapsed(stored === "true");
+  }, []);
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem(STORAGE_KEY, String(next));
+  }
 
   return (
     <section
@@ -226,136 +222,100 @@ export default function PlanComparisonCard({
         padding: 24,
       }}
     >
-      <h2
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: "#0A1A2F",
-          margin: "0 0 20px",
-        }}
-      >
-        Plans
-      </h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: 0 }}>
+          Available Plans
+        </h2>
+        <button
+          onClick={toggle}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: 13,
+            color: "#2CA6A4",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          Compare plans {collapsed ? "▾" : "▴"}
+        </button>
+      </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-        }}
-      >
-        {PLANS.map((plan) => {
-          const isCurrent =
-            currentPlan === plan.key ||
-            (currentPlan === "founding_member" && plan.key === "core");
-          const planRank = TIER_RANK[plan.tier];
-          const isHigher = planRank > currentRank;
-          const isLower = planRank < currentRank;
-          const isComingSoon = isHigher && !isTierAvailable(plan.tier);
+      {!collapsed && (
+        <div style={{ marginTop: 20 }}>
+          {PLAN_ROWS.map((plan, i) => {
+            const isCurrent =
+              currentPlan === plan.key ||
+              (isFoundingMember && plan.key === "core");
+            const planRank = TIER_RANK[plan.tier];
+            const isHigher = planRank > currentRank;
+            const isLower = planRank < currentRank;
+            const isComingSoon = isHigher && !isTierAvailable(plan.tier);
+            const isLast = i === PLAN_ROWS.length - 1;
 
-          return (
-            <div
-              key={plan.key}
+            return (
+              <div
+                key={plan.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "16px 0",
+                  borderBottom: isLast ? "none" : "1px solid #F4F7FA",
+                }}
+              >
+                {/* Left — name + price */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 2px" }}>
+                    {plan.name}
+                  </p>
+                  <p style={{ fontSize: 13, color: "#6B7A8D", margin: 0 }}>
+                    {plan.price}
+                  </p>
+                </div>
+
+                {/* Middle — 3 key features */}
+                <div style={{ flex: 2, padding: "0 24px", minWidth: 0 }}>
+                  <p style={{ fontSize: 13, color: "#6B7A8D", margin: 0 }}>
+                    {plan.features}
+                  </p>
+                </div>
+
+                {/* Right — status/action */}
+                <div style={{ flexShrink: 0 }}>
+                  {isCurrent ? (
+                    <span style={currentBadge}>Your features</span>
+                  ) : isHigher ? (
+                    isComingSoon ? (
+                      <span style={comingSoonBadge}>Coming soon</span>
+                    ) : (
+                      <UpgradeButton planKey={plan.key} />
+                    )
+                  ) : isLower ? (
+                    isFoundingMember ? <DisabledDowngradeButton /> : <DowngradeButton />
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+
+          {isFoundingMember && (
+            <p
               style={{
-                borderRadius: 10,
-                border: isCurrent
-                  ? "1px solid rgba(44,166,164,0.40)"
-                  : "1px solid #D8E2EC",
-                backgroundColor: isCurrent
-                  ? "rgba(44,166,164,0.04)"
-                  : "#FAFBFC",
-                padding: "16px 14px",
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
+                fontSize: 12,
+                color: "#6B7A8D",
+                fontStyle: "italic",
+                marginTop: 12,
+                marginBottom: 0,
               }}
             >
-              <div>
-                <p
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: "#0A1A2F",
-                    margin: "0 0 2px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  {plan.name}
-                  {isComingSoon && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 600,
-                        color: "#6B7A8D",
-                        background: "#F4F7FA",
-                        border: "1px solid #D8E2EC",
-                        borderRadius: 4,
-                        padding: "1px 5px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      Coming soon
-                    </span>
-                  )}
-                </p>
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "#6B7A8D",
-                    margin: 0,
-                  }}
-                >
-                  {plan.price}
-                </p>
-              </div>
-
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, flex: 1 }}>
-                {plan.features.map((f) => (
-                  <li
-                    key={f}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 6,
-                      fontSize: 11,
-                      color: "#344150",
-                      marginBottom: 5,
-                    }}
-                  >
-                    <Check size={11} color="#2CA6A4" style={{ marginTop: 2, flexShrink: 0 }} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <div>
-                {isCurrent ? (
-                  <div
-                    style={{
-                      textAlign: "center",
-                      padding: "8px 0",
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: "#2CA6A4",
-                      background: "rgba(44,166,164,0.08)",
-                      borderRadius: 8,
-                    }}
-                  >
-                    Current plan
-                  </div>
-                ) : isHigher ? (
-                  isComingSoon ? <ComingSoonButton /> : <UpgradeButton planKey={plan.key} />
-                ) : isLower ? (
-                  <DowngradeButton />
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              You&apos;re billed as Founding Member at $49/month — Core features included permanently.
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

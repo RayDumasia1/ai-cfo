@@ -77,6 +77,9 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
         borderRadius: 16,
         boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
         padding: 24,
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
       }}
     >
       {billing.status === "past_due" && (
@@ -174,12 +177,14 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
       </p>
 
       {isPendingCancellationFM && billing.billing_period_end ? (
-        <FoundingMemberPendingCancellationSection
-          memberNumber={billing.founding_member_number ?? 1}
-          billingPeriodEnd={billing.billing_period_end}
-        />
+        <div style={{ marginTop: "auto" }}>
+          <FoundingMemberPendingCancellationSection
+            memberNumber={billing.founding_member_number ?? 1}
+            billingPeriodEnd={billing.billing_period_end}
+          />
+        </div>
       ) : (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: "auto" }}>
           {isActiveFoundingMember && billing.billing_period_end ? (
             <FoundingMemberManageButton
               customerId={billing.stripe_customer_id ?? ""}

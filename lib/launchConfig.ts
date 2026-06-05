@@ -37,3 +37,8 @@ export const FOUNDING_MEMBER_SPOTS = 50;
  */
 export const GROWTH_AVAILABLE = false;
 export const ADVISORY_AVAILABLE = false;
+
+const COMING_SOON_FEATURES = new Set(["cfo_call"]);
+export function isFeatureComingSoon(feature: string): boolean {
+  return COMING_SOON_FEATURES.has(feature);
+}

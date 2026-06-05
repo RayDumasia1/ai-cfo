@@ -95,7 +95,9 @@ export default async function DashboardPage({
       <div className="mb-8">
         <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
         <p className="mt-1 text-sm font-light text-dim">
-          Your financial snapshot at a glance.
+          {profile?.business_name
+            ? `${profile.business_name} · Financial snapshot`
+            : "Your financial snapshot at a glance."}
         </p>
       </div>
 
@@ -108,7 +110,7 @@ export default async function DashboardPage({
       />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
+      <div className="mb-8" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "stretch" }}>
         <CashPositionCard
           initialData={cashPosition}
           minCashReserve={profile?.min_cash_reserve}

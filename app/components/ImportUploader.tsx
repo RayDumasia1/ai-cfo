@@ -114,7 +114,7 @@ export default function ImportUploader({
       <div
         className="bg-surface px-6 py-5"
         style={{
-          borderRadius: "var(--radius-md)",
+          borderRadius: "var(--radius-lg)",
           border: "1px solid #ef4444",
           boxShadow: "var(--shadow-sm)",
         }}
@@ -159,7 +159,7 @@ export default function ImportUploader({
       <div
         className="flex items-center gap-4 bg-surface px-6 py-5"
         style={{
-          borderRadius: "var(--radius-md)",
+          borderRadius: "var(--radius-lg)",
           border: "1px solid var(--line)",
           boxShadow: "var(--shadow-sm)",
         }}
@@ -181,7 +181,7 @@ export default function ImportUploader({
       <div
         className="flex items-center gap-4 bg-surface px-6 py-5"
         style={{
-          borderRadius: "var(--radius-md)",
+          borderRadius: "var(--radius-lg)",
           border: "1px solid var(--line)",
           boxShadow: "var(--shadow-sm)",
         }}
@@ -204,7 +204,7 @@ export default function ImportUploader({
       <div
         className="bg-surface px-6 py-5"
         style={{
-          borderRadius: "var(--radius-md)",
+          borderRadius: "var(--radius-lg)",
           border: "1px solid var(--line)",
           borderLeft: "3px solid var(--teal)",
           boxShadow: "var(--shadow-sm)",
@@ -259,7 +259,7 @@ export default function ImportUploader({
       <div
         className="bg-surface px-6 py-5"
         style={{
-          borderRadius: "var(--radius-md)",
+          borderRadius: "var(--radius-lg)",
           border: "1px solid var(--line)",
           borderLeft: "3px solid #ef4444",
           boxShadow: "var(--shadow-sm)",
@@ -287,8 +287,9 @@ export default function ImportUploader({
     <div
       className="bg-surface px-6 py-6"
       style={{
-        borderRadius: "var(--radius-md)",
-        border: "2px dashed var(--line)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid #D8E2EC",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <input

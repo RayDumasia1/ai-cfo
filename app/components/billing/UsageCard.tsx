@@ -47,16 +47,16 @@ function UsageBar({ count, limit }: { count: number; limit: number | null }) {
     );
   }
   const pct = limit === 0 ? 0 : Math.min((count / limit) * 100, 100);
-  const isWarning = pct > 80;
+  const barColor = pct >= 100 ? "#E84545" : pct >= 80 ? "#F59E0B" : "#2CA6A4";
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <div
         style={{
           flex: 1,
-          height: 6,
+          height: 8,
           backgroundColor: "#D8E2EC",
-          borderRadius: 3,
+          borderRadius: 4,
           overflow: "hidden",
         }}
       >
@@ -64,14 +64,14 @@ function UsageBar({ count, limit }: { count: number; limit: number | null }) {
           style={{
             height: "100%",
             width: `${pct}%`,
-            backgroundColor: isWarning ? "#D97706" : "#2CA6A4",
-            borderRadius: 3,
+            backgroundColor: barColor,
+            borderRadius: 4,
             transition: "width 0.3s ease",
           }}
         />
       </div>
-      <span style={{ fontSize: 12, color: "#6B7A8D", minWidth: 60, textAlign: "right" }}>
-        {count} / {limit}
+      <span style={{ fontSize: 12, color: "#6B7A8D", minWidth: 72, textAlign: "right" }}>
+        {count} of {limit} used
       </span>
     </div>
   );
@@ -89,7 +89,7 @@ function SkeletonRow() {
           marginBottom: 8,
         }}
       />
-      <div style={{ height: 6, backgroundColor: "#D8E2EC", borderRadius: 3 }} />
+      <div style={{ height: 8, backgroundColor: "#D8E2EC", borderRadius: 4 }} />
     </div>
   );
 }
@@ -148,7 +148,7 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
           marginBottom: 4,
         }}
       >
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: 0 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: 0 }}>
           Usage this period
         </h2>
         <button
@@ -194,8 +194,15 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
         </>
       ) : (
         <div style={{ marginTop: lastUpdated ? 0 : 16 }}>
-          {usage.map((item) => (
-            <div key={item.metric} style={{ marginBottom: 16 }}>
+          {usage.map((item, i) => (
+            <div
+              key={item.metric}
+              style={{
+                paddingBottom: 16,
+                marginBottom: i < usage.length - 1 ? 4 : 0,
+                borderBottom: i < usage.length - 1 ? "1px solid #F4F7FA" : "none",
+              }}
+            >
               <p
                 style={{
                   fontSize: 13,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Star } from "lucide-react";
 
 interface Availability {
   available: boolean;
@@ -94,7 +94,7 @@ export default function FoundingMemberCTA() {
             margin: "0 0 8px",
           }}
         >
-          ✦ Founding Member
+          <Star size={16} fill="#D4AF7F" color="#D4AF7F" style={{ verticalAlign: "middle", marginRight: 4 }} /> Founding Member
         </p>
         <h3
           style={{
@@ -153,7 +153,7 @@ export default function FoundingMemberCTA() {
           margin: "0 0 8px",
         }}
       >
-        ✦ Limited Availability
+        <Star size={16} fill="#D4AF7F" color="#D4AF7F" style={{ verticalAlign: "middle", marginRight: 4 }} /> Limited Availability
       </p>
       <h3
         style={{

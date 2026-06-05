@@ -2,10 +2,10 @@
 
 import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import LogoutButton from "./LogoutButton";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useSubscription } from "@/hooks/useSubscription";
 import { hasFeature } from "@/lib/featureGates";
+import { isFeatureComingSoon } from "@/lib/launchConfig";
 import { createClient } from "@/lib/supabase/browser";
 
 function RisingColumnMark({ className }: { className?: string }) {
@@ -90,7 +90,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               return null;
             if (
               item.href === "/dashboard/cfo-call" &&
-              (userTier === "starter" || userTier === "suspended")
+              isFeatureComingSoon("cfo_call")
             )
               return null;
             const isActive = pathname === item.href ||
@@ -116,23 +116,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        {/* Footer — Sign Out */}
-        <div
-          className="px-5 py-4 flex flex-col gap-3"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <LogoutButton variant="sidebar" />
-          <p
-            className="text-[11px] font-light"
-            style={{ color: "rgba(255,255,255,0.25)" }}
-          >
-            v0.1 · Concept
-          </p>
-        </div>
       </aside>
 
       {/* ── Main content ────────────────────────────────────────── */}
-      <main className="flex-1 bg-cloud overflow-auto">{children}</main>
+      <main className="flex-1 bg-cloud overflow-auto">
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>{children}</div>
+      </main>
 
       {/* ── Session timeout warning modal ───────────────────────── */}
       {showWarning && (

@@ -46,7 +46,7 @@ export default function CfoCallButton({ userTier, userEmail }: CfoCallButtonProp
   if (userTier === "suspended") {
     return (
       <section style={cardStyle}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: "0 0 4px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 4px" }}>
           CFO Call
         </h2>
         <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 16px" }}>
@@ -81,7 +81,7 @@ export default function CfoCallButton({ userTier, userEmail }: CfoCallButtonProp
   if (userTier === "starter") {
     return (
       <section style={cardStyle}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: "0 0 4px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 4px" }}>
           CFO Call
         </h2>
         <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 16px" }}>
@@ -121,7 +121,7 @@ export default function CfoCallButton({ userTier, userEmail }: CfoCallButtonProp
   if (userTier === "advisory") {
     return (
       <section style={cardStyle}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: "0 0 4px" }}>
+        <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 4px" }}>
           CFO Call
         </h2>
         <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 16px" }}>
@@ -156,7 +156,7 @@ export default function CfoCallButton({ userTier, userEmail }: CfoCallButtonProp
   // Core / Growth: paid one-time call ($150)
   return (
     <section style={cardStyle}>
-      <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: "0 0 4px" }}>
+      <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 4px" }}>
         CFO Call
       </h2>
       <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 16px" }}>

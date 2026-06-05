@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, Star } from "lucide-react";
 
 interface FoundingMemberWelcomeBannerProps {
   memberNumber: number;
@@ -43,7 +43,7 @@ export default function FoundingMemberWelcomeBanner({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 20, color: "#D4AF7F", flexShrink: 0 }}>✦</span>
+        <Star size={16} fill="#D4AF7F" color="#D4AF7F" style={{ flexShrink: 0 }} />
         <div>
           <p
             style={{

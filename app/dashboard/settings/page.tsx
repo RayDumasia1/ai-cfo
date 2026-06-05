@@ -5,6 +5,7 @@ import AlertPreferencesCard from "@/app/components/settings/AlertPreferencesCard
 import ThresholdsCard from "@/app/components/settings/ThresholdsCard";
 import ChangePasswordCard from "@/app/components/settings/ChangePasswordCard";
 import AccountCard from "@/app/components/settings/AccountCard";
+import PrivacyLegalCard from "@/app/components/settings/PrivacyLegalCard";
 import CurrentPlanCard from "@/app/components/billing/CurrentPlanCard";
 import UsageCard from "@/app/components/billing/UsageCard";
 import PlanComparisonCard from "@/app/components/billing/PlanComparisonCard";
@@ -41,7 +42,7 @@ export default async function SettingsPage({
   });
 
   return (
-    <div className="px-8 py-8" style={{ maxWidth: 640 }}>
+    <div className="px-8 py-8" style={{ maxWidth: 860, width: "100%" }}>
       {/* Page header */}
       <div className="mb-6">
         <h1 className="text-2xl font-medium text-ink">Settings</h1>
@@ -69,17 +70,21 @@ export default async function SettingsPage({
       </div>
 
       {tab === "billing" && billing ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          <CurrentPlanCard billing={billing} />
-
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Top row — Current Plan + Usage side by side */}
           {(billing.feature_tier === "core" ||
             billing.feature_tier === "growth" ||
-            billing.plan === "founding_member") && (
-            <UsageCard
-              periodStart={billing.billing_period_start}
-              periodEnd={billing.billing_period_end}
-              tier={billing.feature_tier === "suspended" ? "core" : billing.feature_tier}
-            />
+            billing.plan === "founding_member") ? (
+            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 16, alignItems: "stretch" }}>
+              <CurrentPlanCard billing={billing} />
+              <UsageCard
+                periodStart={billing.billing_period_start}
+                periodEnd={billing.billing_period_end}
+                tier={billing.feature_tier === "suspended" ? "core" : billing.feature_tier}
+              />
+            </div>
+          ) : (
+            <CurrentPlanCard billing={billing} />
           )}
 
           {billing.plan === "starter" && <FoundingMemberCTA />}
@@ -97,10 +102,13 @@ export default async function SettingsPage({
             <AccountCard
               email={user.email ?? "—"}
               memberSince={user.created_at}
+              businessName={profile?.business_name ?? null}
             />
           )}
 
           <ChangePasswordCard />
+
+          {user && <PrivacyLegalCard email={user.email ?? ""} />}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>

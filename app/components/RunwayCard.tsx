@@ -45,9 +45,9 @@ export default function RunwayCard({
   // ── Border colour ──────────────────────────────────────────────────────────
   let borderColor = "var(--line)";
   if (runway != null) {
-    if (runway > 6) borderColor = "#22c55e";
-    else if (runway >= 3) borderColor = "#f59e0b";
-    else borderColor = "#ef4444";
+    if (runway > 6) borderColor = "#22C55E";
+    else if (runway >= 3) borderColor = "#F59E0B";
+    else borderColor = "#E84545";
   }
 
   // ── No data ────────────────────────────────────────────────────────────────
@@ -56,21 +56,25 @@ export default function RunwayCard({
       <div
         className="bg-surface flex flex-col"
         style={{
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--line)",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid #D8E2EC",
+          borderLeft: "3px solid var(--line)",
           boxShadow: "var(--shadow-sm)",
           padding: "1.25rem 1.5rem",
+          height: "100%",
+          minHeight: 120,
+          justifyContent: "space-between",
         }}
       >
         <p
-          className="text-[11px] font-medium uppercase tracking-[0.08em]"
+          className="text-[10px] font-medium uppercase tracking-[0.14em]"
           style={{ color: "var(--dim)" }}
         >
           Runway
         </p>
         <p
-          className="mt-3 text-[1.65rem] font-medium leading-none"
-          style={{ color: "var(--ink)" }}
+          className="mt-3 font-medium leading-none"
+          style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
         >
           —
         </p>
@@ -87,21 +91,25 @@ export default function RunwayCard({
       <div
         className="bg-surface flex flex-col"
         style={{
-          borderRadius: "var(--radius-md)",
-          border: "1px solid #22c55e",
+          borderRadius: "var(--radius-lg)",
+          border: "1px solid #D8E2EC",
+          borderLeft: "3px solid #22C55E",
           boxShadow: "var(--shadow-sm)",
           padding: "1.25rem 1.5rem",
+          height: "100%",
+          minHeight: 120,
+          justifyContent: "space-between",
         }}
       >
         <p
-          className="text-[11px] font-medium uppercase tracking-[0.08em]"
+          className="text-[10px] font-medium uppercase tracking-[0.14em]"
           style={{ color: "var(--dim)" }}
         >
           Runway
         </p>
         <p
-          className="mt-3 text-[1.65rem] font-medium leading-none"
-          style={{ color: "var(--ink)" }}
+          className="mt-3 font-medium leading-none"
+          style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
         >
           Stable
         </p>
@@ -134,21 +142,22 @@ export default function RunwayCard({
     <div
       className="bg-surface flex flex-col"
       style={{
-        borderRadius: "var(--radius-md)",
-        border: `1px solid ${borderColor}`,
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid #D8E2EC",
+        borderLeft: `3px solid ${borderColor}`,
         boxShadow: "var(--shadow-sm)",
         padding: "1.25rem 1.5rem",
       }}
     >
       <p
-        className="text-[11px] font-medium uppercase tracking-[0.08em]"
+        className="text-[10px] font-medium uppercase tracking-[0.14em]"
         style={{ color: "var(--dim)" }}
       >
         Runway
       </p>
       <p
-        className="mt-3 text-[1.65rem] font-medium leading-none"
-        style={{ color: "var(--ink)" }}
+        className="mt-3 font-medium leading-none"
+        style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
       >
         {runway.toFixed(1)} months
       </p>
@@ -156,7 +165,7 @@ export default function RunwayCard({
       {/* Line 1 — target progress */}
       <p
         className="mt-2 text-xs font-light"
-        style={{ color: meetsTarget ? "var(--teal)" : "var(--dim)" }}
+        style={{ color: meetsTarget ? "var(--teal)" : "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}
       >
         {targetLabel}
       </p>
