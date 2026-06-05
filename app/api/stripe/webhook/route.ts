@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient();
 
+  console.log("webhook:event", event.type);
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -184,9 +186,7 @@ async function handleSubscriptionUpdated(
     status: sub.status,
     cancel_at_period_end: sub.cancel_at_period_end,
     cancel_at: sub.cancel_at,
-    current_period_end: sub.items.data[0]?.current_period_end,
     customer: sub.customer,
-    metadata_supabase_user_id: sub.metadata?.supabase_user_id,
   });
 
   // Look up by stripe_customer_id — more reliable than subscription metadata
@@ -203,8 +203,9 @@ async function handleSubscriptionUpdated(
 
   const userId = existing.user_id;
 
-  // Case 1 — Cancellation scheduled at period end
-  if (sub.cancel_at_period_end) {
+  // Case 1 — Cancellation scheduled (portal uses cancel_at, not cancel_at_period_end)
+  const isCancelScheduled = sub.cancel_at_period_end || (typeof sub.cancel_at === "number" && sub.cancel_at > 0);
+  if (isCancelScheduled) {
     // Guard: only process once (idempotent against duplicate events)
     if (existing.status === "pending_cancellation") {
       console.log("webhook:subscriptionUpdated:pendingCancellation:alreadyProcessed", { userId });
@@ -243,7 +244,8 @@ async function handleSubscriptionUpdated(
   }
 
   // Case 2 — Cancellation reversed (reactivation via portal or reactivate endpoint)
-  if (!sub.cancel_at_period_end && existing.status === "pending_cancellation") {
+  const isCancelCleared = !sub.cancel_at_period_end && !sub.cancel_at && existing.status === "pending_cancellation";
+  if (isCancelCleared) {
     const { error: reactivateError } = await supabase
       .from("subscriptions")
       .update({
@@ -438,7 +440,10 @@ async function handlePaymentSucceeded(
         billing_period_end: periodEnd,
       }),
     })
-    .eq("user_id", data.user_id);
+    .eq("user_id", data.user_id)
+    // Never overwrite a scheduled cancellation — pending_cancellation means
+    // cancel_at is still set in Stripe; the subscription is active until period end
+    .neq("status", "pending_cancellation");
   if (renewError) {
     console.error("webhook:paymentSucceeded:update:error", renewError);
   }

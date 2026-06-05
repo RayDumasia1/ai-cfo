@@ -1,10 +1,13 @@
 import { requireAuth } from "@/lib/apiAuth";
 import { stripe } from "@/lib/stripe";
+import { createServiceClient } from "@/utils/supabase/service";
 
 export const dynamic = "force-dynamic";
 
-export const POST = requireAuth(async (_req, { userId, supabase }) => {
-  const { data: sub } = await supabase
+export const POST = requireAuth(async (_req, { userId }) => {
+  const serviceSupabase = createServiceClient();
+
+  const { data: sub } = await serviceSupabase
     .from("subscriptions")
     .select("stripe_subscription_id, plan, status")
     .eq("user_id", userId)
@@ -22,15 +25,16 @@ export const POST = requireAuth(async (_req, { userId, supabase }) => {
   }
 
   try {
+    // Portal schedules via cancel_at — clear it directly (cannot send both params)
     await stripe.subscriptions.update(sub.stripe_subscription_id, {
-      cancel_at_period_end: false,
+      cancel_at: "" as unknown as number,
     });
   } catch (err) {
     console.error("reactivate:stripe:error", err);
     return Response.json({ error: "Failed to reactivate subscription" }, { status: 500 });
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await serviceSupabase
     .from("subscriptions")
     .update({
       status: "active",
