@@ -1,341 +1,552 @@
-# Elidan AI — Component Patterns
-
-Reference for all UI components in this project. Follow these patterns exactly when
-building new components. Do not deviate without updating this file first.
+# Elidan AI — UI Component Patterns & Design System
+**Version 1.2 · June 2026 · Internal**
 
 ---
 
-## Brand Tokens
+## 01 Brand Tokens
 
-All tokens are CSS custom properties defined in `app/globals.css` and mapped into
-Tailwind v4's `@theme inline` block. Always use the variable names — never hardcode
-the hex values except where CSS variables are not available (e.g. inside inline style
-objects that need a literal colour for a third-party library like Recharts).
+All design values are defined once here. Never hardcode a colour, size, or spacing value — always use the token.
 
-### Colour palette
-
-| Token | Hex | Usage |
-|---|---|---|
-| `--navy` | `#0A1A2F` | Primary dark — page headings, card titles |
-| `--teal` | `#2CA6A4` | Brand accent — CTA buttons, links, positive indicators, success borders |
-| `--cloud` | `#F4F7FA` | Page background |
-| `--ink` | `#344150` | Body text, card values |
-| `--gold` | `#D4AF7F` | Secondary accent — cash-out date card border, neutral highlights |
-| `--line` | `#D8E2EC` | Borders, dividers, skeleton/placeholder icon colour |
-| `--dim` | `#6B7A8D` | Muted text — labels, sub-labels, empty state copy, legend text |
-| `--surface` | `#FFFFFF` | Card backgrounds |
-
-Semantic colours (not tokenised, use hex directly):
-
-| Purpose | Hex |
-|---|---|
-| Danger / high risk | `#ef4444` |
-| Warning / medium risk | `#f59e0b` |
-| Healthy / positive | `#22c55e` |
-| Danger red (chart) | `#E84545` |
-
-### Radius
+### 1.1 Colour Palette
 
 | Token | Value | Usage |
 |---|---|---|
-| `--radius-sm` | `6px` | Buttons, small chips |
-| `--radius-md` | `10px` | Stat cards, form inputs |
-| `--radius-lg` | `16px` | Chart cards, large surface panels |
+| `--navy` | `#0A1A2F` | Sidebar, nav, hero backgrounds, headings |
+| `--slate` | `#344150` | Body text, subheadings, mid-tone elements |
+| `--teal` | `#2CA6A4` | CTAs, active states, links, AI indicators, success |
+| `--teal-light` | `#3DBFBD` | Hover state for teal interactive elements |
+| `--teal-dark` | `#1E7B79` | Pressed state, dark teal text on light backgrounds |
+| `--white` | `#F4F7FA` | Page background — Cloud White, not pure white |
+| `--surface` | `#FFFFFF` | Card backgrounds, input fields, modals |
+| `--gold` | `#D4AF7F` | Premium signal only. **Once per screen maximum.** |
+| `--border` | `#D8E2EC` | All borders, dividers, table lines |
+| `--muted` | `#6B7A8D` | Placeholder text, sub-labels, secondary info |
+| `--danger` | `#E84545` | Error states, danger alerts, critical indicators |
+| `--warning` | `#F59E0B` | Warning alerts, amber runway indicator |
+| `--success` | `#22C55E` | Positive variance, completed states |
 
-### Shadow
+### 1.2 Typography
+
+| Scale | Value | Usage |
+|---|---|---|
+| Font family | Inter (Google Fonts) | Weights 300/400/500 ONLY. Never 600+ in UI. |
+| Display | 48px / weight 500 | Hero headlines, major stat values |
+| H1 | 36px / weight 500 | Page titles. Letter-spacing: -1px |
+| H2 | 28px / weight 500 | Section titles. Letter-spacing: -0.5px |
+| H3 | 22px / weight 500 | Subsection titles |
+| H4 | 17px / weight 500 | Card titles, sidebar labels |
+| Body | 14px / weight 400 | Standard body text. Line-height: 1.6 |
+| Caption | 12px / weight 500 | Sub-labels, stat card meta |
+| Overline | 11px / weight 500 | Section labels. Uppercase. Letter-spacing: 0.14em |
+| Monospace | 13px / Courier New | Financial values in tables |
+
+### 1.3 Spacing (8px grid)
 
 | Token | Value | Usage |
 |---|---|---|
-| `--shadow-sm` | `0 1px 3px rgba(10,26,47,0.08)` | All cards |
-| `--shadow-md` | `0 4px 16px rgba(10,26,47,0.10)` | Modals, tooltips |
+| `--space-1` | 4px | Icon padding, tight gaps |
+| `--space-2` | 8px | Between icon and label |
+| `--space-3` | 12px | Button padding, form field gap |
+| `--space-4` | 16px | Card padding (small) |
+| `--space-5` | 24px | Card padding (standard) |
+| `--space-6` | 32px | Between cards in grid |
+| `--space-8` | 48px | Page horizontal padding |
+| `--space-12` | 80px | Major section breaks |
 
-### Typography
+### 1.4 Border Radius
 
-Font: **Inter** (variable font, loaded via `next/font/google`).
-Weights in use: 300 (light), 400 (regular), 500 (medium), 600 (semibold).
-No bold (700+) is used anywhere — heaviness comes from size, not weight.
-
-| Element | Size | Weight | Colour |
-|---|---|---|---|
-| Page heading | `text-2xl` (24px) | 500 | `--ink` |
-| Section heading | `text-base` (16px) | 500 | `--ink` |
-| Card label (uppercase) | 11px | 500 | `--dim`, `letter-spacing: 0.08em` |
-| Card value (primary) | 1.65rem | 500 | `--ink` |
-| Card sub-label | 12px | 300 | `--dim` |
-| Chart title | 13px | 600 | `--navy` |
-| Chart sub-label / insight | 12px | 400 | varies by state |
-| Body / description | `text-sm` (14px) | 300 | `--ink` or `--dim` |
-| Micro text / labels | 11px | 400–500 | `--dim` |
-
----
-
-## Empty State Pattern
-
-**Standing rule: never hide a component because it has no data.** Always show the
-component shell with an empty state inside. Layout must not shift between empty and
-populated states — the component must occupy the same space in both cases.
-
-### Stat cards
-
-Stat cards always render. When no data is available:
-
-- Value: `—`
-- Sub-label: `"No data imported yet"` (or context-specific equivalent)
-- Border colour: `var(--line)` — no risk colour until data exists
-- No MoM delta shown
-
-Do not change this behaviour. It is already correctly implemented.
-
-### Chart components
-
-Chart cards always render at full size. When `getXxxChartData()` returns `null`
-(zero months of data), render the empty state inside the same card shell:
-
-```tsx
-// Shared card shell — same style object for both empty and populated
-const CARD_STYLE: React.CSSProperties = {
-  backgroundColor: "#FFFFFF",
-  border: "1px solid #D8E2EC",
-  borderRadius: "var(--radius-lg, 16px)",
-  boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
-  padding: "24px",
-  minHeight: 316,   // pin to populated height to prevent layout shift
-};
-
-// Empty state body (inside the card, below the title row)
-<div style={{ display:"flex", flexDirection:"column", alignItems:"center",
-              justifyContent:"center", flex:1, minHeight:200, gap:12, paddingTop:16 }}>
-  <RelevantLucideIcon size={32} color="#D8E2EC" strokeWidth={1.5} />
-  <p style={{ fontSize:13, color:"#6B7A8D", textAlign:"center",
-              maxWidth:280, margin:0, lineHeight:1.5 }}>
-    Upload your financial data to see your [chart description].
-  </p>
-  <a href="#import-section" onClick={smoothScrollHandler}
-     style={{ fontSize:13, color:"#2CA6A4", textDecoration:"none" }}>
-    Upload data →
-  </a>
-</div>
-```
-
-Card title in empty state: `"[Chart Name]  ·  No data yet"` — same font/position as
-the populated title.
-
-**Minimum card height:** `200px` for the placeholder body area. The outer card
-`minHeight` should match the natural height of the populated card so there is no
-layout shift on first import.
-
-**Icon selection:** use a Lucide icon semantically related to the chart type.
-- Line/trend chart → `TrendingUp`
-- Bar chart → `BarChart2`
-- Pie/composition chart → `PieChart`
-- Table/list → `Table2`
-
-### Alerts panel
-
-The panel always renders. When the alerts array is empty:
-
-```tsx
-<p className="text-sm font-light" style={{ color: "var(--dim)" }}>
-  ✓ No alerts — all metrics are within healthy ranges.
-</p>
-```
-
-Never hide the panel. Already correctly implemented in `AlertsPanel.tsx`.
-
-### Tables and lists (future components)
-
-Always render the container. When the list is empty:
-
-```tsx
-<div style={{ display:"flex", flexDirection:"column", alignItems:"center",
-              justifyContent:"center", minHeight:200, gap:12 }}>
-  <RelevantLucideIcon size={32} color="#D8E2EC" strokeWidth={1.5} />
-  <p style={{ fontSize:13, color:"#6B7A8D", textAlign:"center", maxWidth:280 }}>
-    No [data type] to show yet.
-  </p>
-  {/* action link if relevant */}
-</div>
-```
-
----
-
-## Alert Severity
-
-Defined in `lib/types.ts` as `AlertSeverity = "danger" | "warning" | "success"`.
-Produced by `alertEngine()` in `lib/calculations.ts`.
-
-### Colours and icons
-
-| Severity | Left border | Title colour | Icon |
-|---|---|---|---|
-| `danger` | `#ef4444` | `#ef4444` | `✕` |
-| `warning` | `#f59e0b` | `#f59e0b` | `⚠` |
-| `success` | `#22c55e` | `#22c55e` | `✓` |
-
-### Sort order
-
-Always render: danger → warning → success (most urgent first).
-
-### Alert codes and trigger conditions
-
-| Code | Severity | Triggers when |
+| Token | Value | Usage |
 |---|---|---|
-| `RUNWAY_DANGER` | danger | `runway < runway_danger_threshold` (default 3 mo) |
-| `RUNWAY_WARNING` | warning | `danger_threshold ≤ runway < warning_threshold` (default 6 mo) |
-| `BURN_RATE_SPIKE` | warning | MoM expense increase > `burn_rate_warning_pct × 100` (default 10%) |
-| `CASH_BELOW_RESERVE` | danger | `closing_cash < min_cash_reserve` |
-| `HIGH_AR` | warning | `ar_outstanding > closing_cash` |
-| `REVENUE_GROWTH` | success | MoM revenue growth > 5% |
+| `--radius-sm` | 6px | Badges, tags, chips |
+| `--radius-md` | 10px | Buttons, inputs, alerts |
+| `--radius-lg` | 16px | Cards, panels, modals |
+| `--radius-xl` | 24px | Hero cards, large feature blocks |
 
-`RUNWAY_DANGER` and `RUNWAY_WARNING` are mutually exclusive — only one fires per render.
+### 1.5 Shadows
 
----
-
-## Stat Card Anatomy
-
-All stat cards share this visual structure. Implemented individually (no shared
-`StatCard` base component — each card owns its full JSX for clarity).
-
-```
-┌─────────────────────────────────────┐  ← border: 1px solid [risk colour or --line]
-│  LABEL           (11px, uppercase)  │  ← color: --dim
-│                                     │
-│  Value           (1.65rem, medium)  │  ← color: --ink
-│                                     │
-│  Sub-label line 1  (12px, light)    │  ← color: --dim or risk colour
-│  Sub-label line 2  (12px, light)    │  ← color: semantic (green/red for MoM)
-└─────────────────────────────────────┘
-  padding: 1.25rem 1.5rem
-  border-radius: --radius-md
-  box-shadow: --shadow-sm
-  background: --surface
-```
-
-### Border colour by risk level (RunwayCard)
-
-| Runway | Border |
-|---|---|
-| > 6 months | `#22c55e` (green) |
-| 3–6 months | `#f59e0b` (amber) |
-| < 3 months | `#ef4444` (red) |
-| No data | `var(--line)` |
-
-### Border colour by cash reserve (CashPositionCard)
-
-| Cash level | Border |
-|---|---|
-| `cash ≥ min_cash_reserve` | `#22c55e` (green) |
-| `cash ≥ min_cash_reserve × 0.8` | `#f59e0b` (amber) |
-| `cash < min_cash_reserve × 0.8` | `#ef4444` (red) |
-| No reserve set or no data | `var(--line)` |
-
-### MoM delta formatting
-
-```tsx
-// Positive (improved) → green ↑
-<span style={{ color: "#22c55e" }}>↑ {abs} months vs last month</span>
-
-// Negative (declined) → red ↓
-<span style={{ color: "#ef4444" }}>↓ {abs} months vs last month</span>
-
-// No prior month → muted
-<span style={{ color: "var(--dim)" }}>— vs last month</span>
-```
+| Token | Value | Usage |
+|---|---|---|
+| `--shadow-sm` | `0 1px 3px rgba(10,26,47,0.08)` | Cards, form fields |
+| `--shadow-md` | `0 4px 16px rgba(10,26,47,0.10)` | Elevated cards, CTAs |
+| `--shadow-lg` | `0 8px 32px rgba(10,26,47,0.12)` | Modals, dropdowns |
 
 ---
 
-## Chart Card Anatomy (RevenueBurnChart)
+## 02 Empty State Pattern (Standing Rule)
 
-```
-┌──────────────────────────────────────────────────────┐
-│  Chart Name · Period label          (13px, 600)      │
-│  Insight line                       (12px, teal/red) │
-│                                                      │
-│  [Recharts ResponsiveContainer, height=200]          │
-│                                                      │
-│  ■ Revenue   ■ Burn Rate            (12px, #6B7A8D)  │
-└──────────────────────────────────────────────────────┘
-  padding: 24px
-  border: 1px solid #D8E2EC
-  border-radius: --radius-lg (16px)
-  box-shadow: --shadow-sm
-  background: #FFFFFF
-  min-height: 316px
-```
+> **STANDING RULE: Never hide a component because it has no data. Always render the component shell with a meaningful empty state.**
 
-### Chart line styles
-
-| Series | Stroke | Fill area | Dot |
+| Component | Has Data | No Data | Rule |
 |---|---|---|---|
-| Revenue | `#2CA6A4` (teal) | `rgba(44,166,164,0.08)` | r=3, filled teal |
-| Burn Rate | `#E84545` (red) | `rgba(232,69,69,0.06)` | r=3, filled red |
+| Stat Cards | Real value with colour indicators | Show `—`, show "Import data to calculate" | Never hide. `—` always visible. |
+| Chart Components | Full chart | Card shell + icon + message + action link | Maintain same height. Never collapse. |
+| Alerts Panel | Alerts sorted by severity | "✓ Everything looks healthy" | Never hide panel. |
+| Tables & Lists | Data rows | Icon + "No [items] yet" | Same dimensions maintained. |
+| AI Insights | Insight cards | "Insights will appear after data import" | Never hide section. |
+| Action List | Action rows | "No actions yet. Create one to get started." | Empty state is the CTA. |
 
-### Axis styles
+### Chart Empty State Specification
 
-- No axis lines (`axisLine={false}`)
-- No tick marks (`tickLine={false}`)
-- Font: 11px, `#6B7A8D`
-- Grid: horizontal only, `#D8E2EC` at 40% opacity
-- Y-axis formatter: `$XXK` / `$X.XM`
+```
+Card at full size (same border, shadow, radius)
+Title: "[Chart Name] · No data yet"
+Min height: 200px
+Centred content:
+  - Lucide icon 32px, colour #D8E2EC
+  - One-line description, 13px, #6B7A8D, max-width 280px
+  - Teal link "Upload data →", 13px, #2CA6A4
+```
 
-### Tooltip
+### Stat Card Empty State
 
-Custom component, not Recharts default. White card, `#D8E2EC` border, 8px radius,
-`0 2px 8px rgba(10,26,47,0.10)` shadow. Shows "—" for null values instead of $0.
+```
+Value: — (em dash), colour #6B7A8D
+Sub-label: "Import data to calculate", 12px, #6B7A8D
+Border: neutral 1px solid #D8E2EC (no colour border)
+```
 
-### Period label rules
+### Empty State Icons
 
-| Data available | Title suffix |
+| Component | Icon (Lucide) |
 |---|---|
-| 0 months | `· No data yet` |
-| 1 month | `· Last month` |
-| N months (2–5) | `· Last N months` |
-| 6 months | `· Last 6 months` |
+| Revenue vs Burn chart | BarChart2 |
+| Alerts panel | Bell |
+| Cash flow forecast | TrendingUp |
+| Ask CFO | MessageSquare |
+| AI Insights | Sparkles |
+| Action list | CheckSquare |
 
 ---
 
-## Import Flow
+## 03 Core Component Patterns
 
-Upload states: `idle → uploading → success | error`
-Clear states: `idle → confirming → clearing → idle`
+### 3.1 Card Wrapper
 
-### Import strategy: replace, not append
+All surface cards use this exact wrapper:
 
-Every upload is a clean slate. The import route (`app/api/import/route.ts`):
-1. Counts existing `financial_months` for the user
-2. If any exist: deletes all `financial_months` and `expense_categories` first
-3. Inserts the new months from the uploaded file
-4. Returns `replaced: true | false` so the UI can say "Replaced with" vs "Imported"
-
-### Success message verb
-
-```
-replaced === true  → "✓ Replaced with N months of data"
-replaced === false → "✓ Imported N months of data"
+```css
+background:    #FFFFFF
+border:        1px solid #D8E2EC
+border-radius: 16px
+box-shadow:    0 1px 3px rgba(10,26,47,0.08)
+padding:       24px
 ```
 
-### Clear all data
+### 3.2 Stat Cards
 
-`DELETE /api/data` — deletes `financial_months`, `expense_categories`, resets
-profile financial settings to defaults, logs the action to `data_imports`.
+**Structure (top to bottom):**
+- Overline label: 10px, weight 500, uppercase, letter-spacing 0.14em, `#6B7A8D`
+- Value: 32px, weight 500, letter-spacing -1px, `#0A1A2F`
+- Sub-label: 13px, weight 400, with trend indicator
 
-"Clear all financial data" link is shown only when `hasData === true`. It renders
-an inline confirmation card (not a browser `confirm()` dialog) before executing.
+**Left border colour rules:**
+- No data: no colour border — `1px solid #D8E2EC` only
+- Runway > warning threshold: `3px solid #22C55E` (green)
+- Runway between danger/warning: `3px solid #F59E0B` (amber)
+- Runway < danger threshold: `3px solid #E84545` (red)
+- Cash below reserve: `3px solid #E84545` (red)
+
+**Trend indicators:**
+- `↑ X%` in teal if positive for metric
+- `↓ X%` in red if negative for metric
+- Note: burn rate increase = negative (red ↑). Revenue increase = positive (teal ↑).
+
+### 3.3 Alert Components
+
+**Severity colours:**
+- `danger`: border `#E84545`, bg `rgba(232,69,69,0.06)`, icon ✕
+- `warning`: border `#F59E0B`, bg `rgba(245,158,11,0.06)`, icon ⚠
+- `success`: border `#2CA6A4`, bg `rgba(44,166,164,0.06)`, icon ✓
+- `info`: border `#2CA6A4`, bg `rgba(44,166,164,0.06)`, icon ◈
+
+**Alert structure:**
+- Left border: 3px solid severity colour
+- Border radius: 10px
+- Padding: 14px 16px
+- Title: 13px, weight 600, severity colour
+- Message: 13px, weight 400, `#344150`
+- Action link (optional): 12px, teal, right-aligned
+- Sort order: danger → warning → success → info
+
+**Dismiss behaviour:**
+- `danger` alerts (RUNWAY_DANGER, CASH_BELOW_RESERVE): no X button, cannot be dismissed
+- `warning` and `success`: X button visible, dismissible with snooze
+- Snooze options: `data_reload` | `24h` | `7d` (set in Settings)
+- Optimistic UI: alert disappears immediately, restores on API failure
+- `data_reload` snooze: alert reappears when user imports new data (data_version changes)
+
+**Alert panel layout:**
+- Top position (above stat cards): danger + warning only
+- Bottom position (below chart): success + info only
+- Top panel collapsible with count badge: "Alerts [2]"
+- Collapse state persists in localStorage: `elidan_alerts_collapsed`
+- Resets to expanded when new data is imported
+
+### 3.4 Sidebar Navigation
+
+```
+Container:
+  background: #0A1A2F
+  width: 220px fixed
+  border-right: 1px solid rgba(44,166,164,0.2)
+
+Nav items:
+  default:  13px, #8FA3B8
+  hover:    #F4F7FA, bg rgba(255,255,255,0.05)
+  active:   #2CA6A4, bg rgba(44,166,164,0.10), 
+            left border 2px solid #2CA6A4
+  
+Current nav items (in order):
+  Dashboard   → /dashboard
+  [Scenarios] → hidden pending UX review
+  Settings    → /dashboard/settings
+  Reports     → hidden (Advisory only, not built)
+```
+
+Active state detection: `usePathname()` — exact match for `/dashboard`, prefix match for all other routes.
+
+### 3.5 Buttons
+
+**Primary:**
+```css
+background: #2CA6A4
+color: white, 14px, weight 500
+border: 1.5px solid #2CA6A4
+border-radius: 10px
+hover: background #3DBFBD
+disabled: opacity 0.5, cursor not-allowed
+```
+
+**Secondary:**
+```css
+background: transparent
+color: #0A1A2F, 14px, weight 500
+border: 1.5px solid #0A1A2F
+hover: background #0A1A2F, color white
+```
+
+**Ghost/text:**
+```css
+background: transparent
+color: #2CA6A4, 14px, weight 400
+border: none
+hover: color #1E7B79, underline
+```
+
+**Danger:**
+```css
+background: #E84545
+color: white, 14px, weight 500
+border: 1.5px solid #E84545
+hover: background #CC3030
+Use ONLY for destructive actions
+```
 
 ---
 
-## Architecture Rules
+## 04 Settings Page Patterns
 
-- **Pure functions in `lib/calculations.ts`** — no React, no Supabase, no side effects.
-  Every derived metric is a standalone testable function.
-- **DB functions in `lib/db.ts`** — all write helpers accept an optional `SupabaseClient`
-  parameter (default = browser singleton). Server route handlers always pass the
-  authenticated server client so RLS resolves correctly.
-- **Server components fetch, client components display** — the dashboard page
-  (`app/dashboard/page.tsx`) fetches all data once and passes it down as props.
-  No client-side fetching for initial render.
-- **No extra DB calls for derived metrics** — all stat cards and the alerts panel
-  reuse the `recentMonths` array (6 months, newest-first) fetched once by the
-  dashboard server component.
-- **`lib/excelParser.ts` is server-only** — `import "server-only"` at the top.
-  Never import it in client components or `lib/calculations.ts`.
+### 4.1 Settings Tab Navigation
+
+Settings page has three tabs driven by `?tab=` query param:
+- `general` (default): Alert Preferences, Financial Thresholds
+- `billing`: Billing page (plan, usage, comparison, CFO call)
+- `account`: Account card, Change Password card
+
+Tab styling:
+```
+Tab row: border-bottom 1px solid #D8E2EC
+Active tab: colour #2CA6A4, border-bottom 2px solid #2CA6A4
+Default tab: colour #6B7A8D
+```
+
+### 4.2 ThresholdsCard — Saved/Previous Value Pattern
+
+Three-state indicator per field:
+
+**State 1 — Clean** (current === saved):
+- No indicator, input full width
+
+**State 2 — Dirty** (current ≠ saved):
+- Input gets teal focus ring: `border: 1.5px solid #2CA6A4`, `box-shadow: 0 0 0 3px rgba(44,166,164,0.12)`
+- "Saved: X ↺" appears inline right of input
+- Reset icon (RotateCcw, 11px) resets field to saved value (does NOT save to DB)
+- "N unsaved changes" count appears next to Save button
+
+**State 3 — Just saved** (current === saved, previousValues[field] exists):
+- "Previous: X ↺" appears inline right of input
+- Session-only — clears on page reload
+- Reset icon restores previous value AND saves to DB (one-click restore)
+
+Value formatting:
+- Threshold fields: plain number "Saved: 6"
+- Cash reserve: currency "Saved: $25,000"
+- Burn rate: percentage "Saved: 10%"
+
+### 4.3 AlertPreferencesCard
+
+Snooze duration radio group:
+- Options: `data_reload` | `24h` (default) | `7d`
+- Stored in Supabase `business_profiles.snooze_duration`
+- Migrated from localStorage to Supabase
+- "Danger alerts cannot be snoozed" helper text always visible
+
+### 4.4 ChangePasswordCard
+
+Position: between AlertPreferencesCard and AccountCard.
+- Current password, new password, confirm new password
+- Show/hide toggle (Eye/EyeOff) on each field
+- `aria-label` updates: "Show password" / "Hide password"
+- Client-side validation: min 8 chars, passwords match
+- Server-side: re-authenticates with current password before updating
+- Success: "Password updated ✓", fields cleared, fades after 3s
+
+---
+
+## 05 Billing Component Patterns
+
+### 5.1 UpgradeModal
+
+Triggered when a user hits a feature gate or clicks an upgrade CTA.
+
+```
+Overlay: rgba(10,26,47,0.6), backdrop-blur(4px)
+Modal: white, 480px max-width, 90vw, border-radius 16px
+       padding 32px, shadow-lg
+```
+
+**Content structure:**
+1. Close button (X, top-right, absolute)
+2. Teal icon circle (56px, bg rgba(44,166,164,0.12))
+3. Feature title (20px, weight 500, centred)
+4. Message (14px, #6B7A8D, centred)
+5. Tier comparison strip (current → required)
+6. Feature highlights (3 bullets, CheckCircle2 14px teal)
+7. CTA button "Upgrade to [Tier]" or "Coming Soon" state
+8. "Maybe later" link
+
+**Coming Soon state** (when `isFeatureComingSoon(feature)` returns true):
+- Replace CTA with "Coming Soon" badge + notify me email input
+- POST to `/api/notify-me` → sends email to hello@elidan.ai
+- Show "You'll be notified ✓" on success
+
+**Escape key + click outside = close modal.**
+
+### 5.2 UpgradeStrip
+
+Slim banner shown at bottom of dashboard for Starter users.
+
+```
+background: rgba(44,166,164,0.06)
+border: 1px solid rgba(44,166,164,0.20)
+border-left: 3px solid #2CA6A4
+border-radius: 10px
+padding: 14px 20px
+```
+
+Content:
+- If Founding Member spots available: "✦ Founding Member spots available — Core features at $49/month. [N] spots remaining." → "Become a Founding Member →"
+- If sold out: "Upgrade to Core to unlock AI Insights, Ask your CFO, and more" → "View plans →"
+
+Hidden for Core and above.
+
+### 5.3 FoundingMemberBadge
+
+```
+Gold pill: "✦ Founding Member #[n]"
+background: #FBF5EC
+border: 1px solid #D4AF7F
+border-radius: 6px
+padding: 4px 10px
+font: 12px, weight 500, #7D4E00
+```
+
+Sub-text below badge:
+- Active: "Core features · Locked forever" (12px, #6B7A8D)
+- Suspended: "Account suspended" (12px, #F59E0B)
+
+### 5.4 PendingCancellationBanner
+
+Shown on dashboard when `status === 'pending_cancellation'`.
+
+```
+Amber styling:
+background: rgba(245,158,11,0.08)
+border: 1px solid rgba(245,158,11,0.30)
+border-left: 3px solid #F59E0B
+border-radius: 10px
+padding: 14px 20px
+```
+
+Content:
+- "Your subscription is cancelled — access continues until [date]. Changed your mind?"
+- "Undo cancellation →" button → calls `/api/stripe/reactivate`
+
+### 5.5 Suspended State
+
+When `feature_tier === 'suspended'` or `status === 'cancelled'` and billing ended:
+
+Simple full-page message replacing dashboard content:
+```
+Title: "Your subscription has ended"
+Sub-text: "Contact us at hello@elidan.ai to restore 
+  your Founding Member access or subscribe to a new plan."
+Button 1: "Email us" → mailto:hello@elidan.ai (navy)
+Button 2: "View plans" → /dashboard/settings?tab=billing (teal)
+```
+
+No countdown timers. No automated restore. Manual CS process.
+
+### 5.6 FoundingMemberCTA
+
+Dark navy/gold card shown on Billing tab for Starter users.
+
+```
+background: linear-gradient(135deg, #0A1A2F 0%, #1A2E44 100%)
+border: 1px solid #D4AF7F
+border-radius: 16px
+padding: 24px
+```
+
+CTA button: gold background `#D4AF7F`, navy text, 44px height.
+
+Sold out state: neutral card with "Join the waitlist" secondary button.
+
+### 5.7 Plan Badge Colours
+
+| Plan | Border | Background | Text | Label |
+|---|---|---|---|---|
+| starter | `#D4AF7F` | `#FBF5EC` | `#7D4E00` | Starter |
+| core | `#2CA6A4` | `#E8F7F7` | `#1A6B69` | Core |
+| growth | `#6366F1` | `#EEEDFE` | `#3C3489` | Growth |
+| advisory | `#0A1A2F` | `#E8ECF0` | `#0A1A2F` | Advisory |
+| founding_member | `#D4AF7F` | `#FBF5EC` | `#7D4E00` | Founding Member |
+
+---
+
+## 06 Launch Configuration
+
+`lib/launchConfig.ts` controls what's visible at launch. When a feature is ready, remove it from `coming_soon_features` and it automatically appears everywhere.
+
+**Currently live:**
+- Dashboard, alerts, Excel import, settings, billing, What-If scenario
+
+**Coming soon (hidden from users):**
+- `ask_cfo`, `ai_insights`, `weekly_summary`, `quickbooks_sync`, `xero_sync`
+- `forecasting`, `scenario_comparison`, `action_tracker_v2`, `action_tracker_v3`
+- `team_seats`, `cfo_call`, `custom_reports`, `bank_sync`
+
+**Hidden from nav:**
+- Scenarios page: hidden pending UX review
+- Reports: Advisory only, not yet built
+
+---
+
+## 07 Soft Gold — Usage Rules
+
+> Gold (`#D4AF7F`) is a premium signal. **Maximum once per screen composition.**
+
+**Approved uses:**
+- Rising Column logo mark diagonal line
+- Founding Member badge and CTA
+- Premium tier indicators
+- Single decorative accent on CTA section
+
+**Prohibited:**
+- Gold as background fill
+- Gold as body text
+- More than one gold element per screen
+- Gold for standard UI chrome
+
+---
+
+## 08 Standing Rules for Claude Code
+
+### Always
+- Use CSS variables for colours — never hardcode hex values
+- Use Inter weights 300/400/500 only — never 600+ in UI
+- Render empty states — never hide components
+- Keep calculations in `lib/calculations.ts`
+- Keep DB calls in `lib/db.ts` or API routes
+- Use Lucide React for all icons
+- Respect `prefers-reduced-motion`
+- Test against Scenario A and Scenario C minimum
+- Run `npm test` before committing
+- Follow card wrapper pattern (Section 3.1)
+- Check `lib/launchConfig.ts` before building new feature UI
+
+### Never
+- Hide a component — always show empty state
+- Hardcode financial data in components
+- Use Gold more than once per screen
+- Make DB calls inside React components
+- Use font weights above 500
+- Add calculation logic to presentation components
+- Trust `business_id` from client — always derive server-side
+- Use `limit` as a column name in PostgreSQL (reserved word — use `usage_limit`)
+
+### File Structure
+
+```
+lib/calculations.ts    — pure calculation functions
+lib/types.ts           — TypeScript interfaces
+lib/db.ts              — database queries
+lib/featureGates.ts    — feature gate logic
+lib/usageGate.ts       — usage tracking middleware
+lib/stripe.ts          — Stripe client and price map
+lib/excelParser.ts     — Excel/CSV parsing
+lib/launchConfig.ts    — launch feature flags
+lib/apiGate.ts         — checkFeatureGate helper
+app/components/        — reusable UI components
+app/components/billing/— billing-specific components
+app/dashboard/         — dashboard pages
+app/api/               — API routes
+app/api/stripe/        — Stripe checkout, webhook, portal, reactivate
+app/api/cron/          — scheduled jobs
+__tests__/             — test files
+__tests__/fixtures/    — test data (Excel template)
+public/downloads/      — user-downloadable files
+docs/                  — project documentation
+```
+
+### Commit Conventions
+
+```
+feat:     new feature or component
+fix:      bug fix
+test:     test validation or test data
+docs:     documentation updates
+refactor: no behaviour change
+style:    UI/visual changes only
+```
+
+---
+
+## 09 Key Architectural Decisions
+
+| Decision | Rule |
+|---|---|
+| Xero + QuickBooks tier | Both at Core — not split |
+| Bank sync | Deferred to Phase 4 |
+| Founding Member | Core forever at $49, no 24-month expiry |
+| FM cancellation | Manual CS process — no automated grace period |
+| FM spots | 50 total issued, never return to pool |
+| Suspended state | Simple message + email us — no automated restore |
+| Scenarios page | Hidden pending UX review |
+| Growth/Advisory | Hidden — coming soon |
+| `usage_limit` | Not `limit` — PostgreSQL reserved word |
+| One subscription per user | Enforced — updates not new checkouts |
+| feature_tier vs plan | Decoupled — feature access independent of billing price |
+| `business_id` | Always derived server-side, never trusted from client |
+| Stripe webhooks | Always return 200 — log errors, never throw |
+| Service role client | Only in webhooks, cron jobs, admin routes |
+
+---
+
+## 10 Document History
+
+| Version | Date | Changes |
+|---|---|---|
+| 1.0 | April 2026 | Initial version — brand tokens, empty states, component patterns, standing rules |
+| 1.1 | April 2026 | Action Tracker additions — status badges, action list, create modal, recommendations widget |
+| 1.2 | June 2026 | Billing components — UpgradeModal, UpgradeStrip, FoundingMemberBadge, PendingCancellationBanner, suspended state, plan badges. Settings patterns — ThresholdsCard saved/previous indicators, AlertPreferencesCard, ChangePasswordCard. Launch config pattern. Alert dismiss/snooze pattern. Sidebar updates — Scenarios hidden, Reports gated. Architectural decisions table. Removed grace period components (manual CS process). |
