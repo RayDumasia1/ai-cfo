@@ -19,8 +19,8 @@ import ImportRefresher from "./ImportRefresher";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
 import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanner";
 import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
-import FoundingMemberGraceBanner from "@/app/components/billing/FoundingMemberGraceBanner";
 import PendingCancellationBanner from "@/app/components/billing/PendingCancellationBanner";
+import SubscriptionEndedBanner from "@/app/components/billing/SubscriptionEndedBanner";
 
 export default async function DashboardPage({
   searchParams,
@@ -58,10 +58,12 @@ export default async function DashboardPage({
   const isActiveFM = isFoundingMember && subscription?.status === "active";
   const isPendingCancellationFM =
     isFoundingMember && subscription?.status === "pending_cancellation";
-  const isCancelledFM =
-    isFoundingMember &&
-    subscription?.status === "cancelled" &&
-    subscription?.founding_member_grace_ends_at !== null;
+
+  if (subscription?.feature_tier === "suspended") {
+    return (
+      <SubscriptionEndedBanner memberNumber={subscription.founding_member_number} />
+    );
+  }
 
   const successMessage =
     checkoutSuccess && isActiveFM && subscription?.founding_member_number
@@ -79,26 +81,12 @@ export default async function DashboardPage({
       )}
 
       {/* Pending cancellation banner — subscription cancelled at period end, billing still active */}
-      {isPendingCancellationFM &&
-        subscription.billing_period_end &&
-        subscription.founding_member_grace_ends_at && (
-          <PendingCancellationBanner
-            memberNumber={subscription.founding_member_number ?? 1}
-            billingPeriodEnd={subscription.billing_period_end}
-            graceEndsAt={subscription.founding_member_grace_ends_at}
-          />
-        )}
-
-      {/* Grace period banner — subscription deleted, billing ended, grace still active */}
-      {isCancelledFM &&
-        subscription.founding_member_grace_ends_at &&
-        subscription.billing_period_end && (
-          <FoundingMemberGraceBanner
-            memberNumber={subscription.founding_member_number ?? 1}
-            graceEndsAt={subscription.founding_member_grace_ends_at}
-            billingPeriodEnd={subscription.billing_period_end}
-          />
-        )}
+      {isPendingCancellationFM && subscription.billing_period_end && (
+        <PendingCancellationBanner
+          memberNumber={subscription.founding_member_number ?? 1}
+          billingPeriodEnd={subscription.billing_period_end}
+        />
+      )}
 
       {/* Checkout success banner — above page header, auto-dismisses after 5s */}
       <CheckoutSuccessBanner show={checkoutSuccess} message={successMessage} />

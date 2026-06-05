@@ -188,36 +188,27 @@ function formatDateLong(iso: string): string {
 export async function sendFoundingMemberCancelledEmail(
   to: string,
   memberNumber: number,
-  billingPeriodEnd: string,
-  graceEndDate: string
+  billingPeriodEnd: string
 ): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const billingEndFormatted = formatDateLong(billingPeriodEnd);
-  const graceEndFormatted = formatDateLong(graceEndDate);
   const body = `
-    <h2 style="font-size:20px;font-weight:600;color:#0A1A2F;margin:0 0 8px;">
-      We're sorry to see you go.
-    </h2>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your Core features remain active until <strong>${billingEndFormatted}</strong> — you've paid for this period.
+      Your subscription has been cancelled.
     </p>
-    <p style="font-size:13px;font-weight:600;color:#344150;margin:0 0 8px;">After that date:</p>
-    <ul style="margin:0 0 20px;padding-left:20px;">
-      <li style="font-size:13px;color:#344150;padding:3px 0;">Your account will be suspended</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">You have 30 days to resubscribe and restore your <strong>Founding Member #${memberNumber}</strong> status and $49/month permanently locked rate</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">After <strong>${graceEndFormatted}</strong>, your Founding Member status is permanently and irreversibly lost</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">You will not be able to rejoin as a Founding Member — all 50 spots are claimed and none return to the pool</li>
-    </ul>
-    <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard"
-         style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
-        Restore my Founding Member access &rarr;
-      </a>
+    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
+      Your Core features remain active until <strong>${billingEndFormatted}</strong>.
+      After that date your account access will end.
     </p>
-    <p style="font-size:13px;color:#6B7A8D;margin:0;">
-      If you're experiencing any issues with Elidan, reply to this email — we'd love the chance to make it right before you leave.
+    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 24px;">
+      Changed your mind? If you'd like to restore your
+      <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> status,
+      email us at <a href="mailto:hello@elidan.ai" style="color:#2CA6A4;text-decoration:none;">hello@elidan.ai</a>
+      within 30 days of your billing period ending and we'll take care of it manually.
     </p>
-    <p style="font-size:13px;color:#344150;margin:16px 0 0;">
+    <p style="font-size:13px;color:#344150;line-height:1.6;margin:0 0 8px;">
+      Thank you for being a Founding Member.
+    </p>
+    <p style="font-size:13px;color:#344150;margin:0;">
       Rayan Dumasia<br>Founder, Elidan AI
     </p>
   `;
@@ -230,132 +221,6 @@ export async function sendFoundingMemberCancelledEmail(
     });
   } catch (err) {
     console.error("email:sendFoundingMemberCancelledEmail:error", err);
-  }
-}
-
-export async function sendFoundingMemberSuspendedEmail(
-  to: string,
-  memberNumber: number,
-  graceEndDate: string
-): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const graceEndFormatted = formatDateLong(graceEndDate);
-  const daysRemaining = Math.max(
-    0,
-    Math.ceil((new Date(graceEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-  );
-  const body = `
-    <h2 style="font-size:20px;font-weight:600;color:#0A1A2F;margin:0 0 8px;">
-      Your Elidan account has been suspended.
-    </h2>
-    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your billing period has ended and your account has been suspended.
-    </p>
-    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 24px;">
-      You have until <strong>${graceEndFormatted}</strong> (${daysRemaining} days) to resubscribe and restore your
-      <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> status and $49/month permanently locked rate.<br><br>
-      This is your only chance to restore your status — once the grace period ends, Founding Member #${memberNumber} is permanently released. All 50 spots are claimed and do not return to the pool.
-    </p>
-    <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard/suspended"
-         style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
-        Restore my access &rarr;
-      </a>
-    </p>
-  `;
-  try {
-    await resend.emails.send({
-      from: FROM,
-      to,
-      subject: `Your Elidan access has been suspended — ${daysRemaining} days to restore Founding Member status`,
-      html: wrapEmail(body, "Your Elidan access has been suspended"),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMemberSuspendedEmail:error", err);
-  }
-}
-
-export async function sendFoundingMember5DayWarningEmail(
-  to: string,
-  memberNumber: number,
-  graceEndDate: string
-): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const graceEndFormatted = formatDateLong(graceEndDate);
-  const body = `
-    <h2 style="font-size:20px;font-weight:600;color:#0A1A2F;margin:0 0 8px;">
-      This is your final warning.
-    </h2>
-    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> grace period ends in 5 days — on <strong>${graceEndFormatted}</strong>.
-    </p>
-    <p style="font-size:13px;font-weight:600;color:#344150;margin:0 0 8px;">After that date:</p>
-    <ul style="margin:0 0 20px;padding-left:20px;">
-      <li style="font-size:13px;color:#344150;padding:3px 0;">Your Founding Member status is permanently and irreversibly released</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">Your $49/month locked rate is gone</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">All 50 Founding Member spots are claimed and none return to the pool</li>
-      <li style="font-size:13px;color:#344150;padding:3px 0;">You cannot rejoin as a Founding Member</li>
-    </ul>
-    <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard/suspended"
-         style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
-        Restore my access now &rarr;
-      </a>
-    </p>
-    <p style="font-size:13px;color:#344150;margin:0;">
-      Rayan Dumasia<br>Founder, Elidan AI
-    </p>
-  `;
-  try {
-    await resend.emails.send({
-      from: FROM,
-      to,
-      subject: `5 days left — your Founding Member status will be permanently released on ${graceEndFormatted}`,
-      html: wrapEmail(body, "5 days left — Founding Member status"),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMember5DayWarningEmail:error", err);
-  }
-}
-
-export async function sendFoundingMemberExpiredEmail(
-  to: string,
-  memberNumber: number
-): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const body = `
-    <h2 style="font-size:20px;font-weight:600;color:#0A1A2F;margin:0 0 8px;">
-      Your Founding Member status has been permanently released.
-    </h2>
-    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your 30-day grace period has ended. Your <strong>Founding Member #${memberNumber}</strong> status
-      has been permanently released and cannot be recovered.
-    </p>
-    <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 24px;">
-      You're welcome to subscribe to Elidan as a regular customer at standard pricing.
-    </p>
-    <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard/settings?tab=billing"
-         style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
-        View subscription plans &rarr;
-      </a>
-    </p>
-    <p style="font-size:13px;color:#6B7A8D;margin:0 0 16px;">
-      Thank you for being one of our first members. Your early support helped shape what Elidan is today.
-    </p>
-    <p style="font-size:13px;color:#344150;margin:0;">
-      Rayan Dumasia<br>Founder, Elidan AI
-    </p>
-  `;
-  try {
-    await resend.emails.send({
-      from: FROM,
-      to,
-      subject: "Your Founding Member status has been permanently released",
-      html: wrapEmail(body, "Your Founding Member status has been permanently released"),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMemberExpiredEmail:error", err);
   }
 }
 

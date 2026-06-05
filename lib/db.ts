@@ -387,6 +387,7 @@ export interface SubscriptionResult {
   founding_member_expires_at: string | null;
   founding_member_number: number | null;
   founding_member_cancelled_at: string | null;
+  /** @deprecated Grace period handled manually via CS. Column retained for schema compatibility only. */
   founding_member_grace_ends_at: string | null;
 }
 
@@ -448,6 +449,7 @@ export interface BillingDetails {
   /** @deprecated Founding Member benefits no longer expire. Column retained for schema compatibility only. */
   founding_member_expires_at: string | null;
   founding_member_cancelled_at: string | null;
+  /** @deprecated Grace period handled manually via CS. Column retained for schema compatibility only. */
   founding_member_grace_ends_at: string | null;
 }
 

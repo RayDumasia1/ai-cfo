@@ -8,7 +8,6 @@ interface FoundingMemberCancelWarningProps {
   onContinue: () => void;
   memberNumber: number;
   billingPeriodEnd: string;
-  graceEndDate: string;
 }
 
 function formatDateLong(iso: string): string {
@@ -25,7 +24,6 @@ export default function FoundingMemberCancelWarning({
   onContinue,
   memberNumber,
   billingPeriodEnd,
-  graceEndDate,
 }: FoundingMemberCancelWarningProps) {
   if (!isOpen) return null;
 
@@ -95,10 +93,9 @@ export default function FoundingMemberCancelWarning({
           </p>
           <ul style={{ margin: 0, paddingLeft: 16, listStyle: "disc" }}>
             {[
-              `Core features stay active until ${formatDateLong(billingPeriodEnd)} — you've paid for this period`,
-              `After ${formatDateLong(billingPeriodEnd)} your account will be suspended`,
-              `You have 30 days from ${formatDateLong(billingPeriodEnd)} to resubscribe and permanently restore your Founding Member #${memberNumber} status (grace period ends: ${formatDateLong(graceEndDate)})`,
-              `After ${formatDateLong(graceEndDate)}, your Founding Member #${memberNumber} status is permanently and irreversibly lost — all 50 spots are claimed and none return to the pool`,
+              `Core features stay active until ${formatDateLong(billingPeriodEnd)}`,
+              `After that date your account access will end`,
+              `To restore your Founding Member status, email us at hello@elidan.ai within 30 days of your billing period ending`,
             ].map((item) => (
               <li
                 key={item}

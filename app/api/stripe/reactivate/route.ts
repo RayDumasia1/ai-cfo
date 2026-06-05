@@ -35,8 +35,6 @@ export const POST = requireAuth(async (_req, { userId, supabase }) => {
     .update({
       status: "active",
       cancelled_at: null,
-      founding_member_cancelled_at: null,
-      founding_member_grace_ends_at: null,
     })
     .eq("user_id", userId);
 

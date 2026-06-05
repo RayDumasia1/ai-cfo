@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 interface PendingCancellationBannerProps {
   memberNumber: number;
   billingPeriodEnd: string;
-  graceEndsAt: string;
 }
 
 function formatDateLong(iso: string): string {
@@ -21,7 +20,6 @@ function formatDateLong(iso: string): string {
 export default function PendingCancellationBanner({
   memberNumber,
   billingPeriodEnd,
-  graceEndsAt,
 }: PendingCancellationBannerProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -78,9 +76,7 @@ export default function PendingCancellationBanner({
               Your subscription is cancelled
             </p>
             <p style={{ fontSize: 12, color: "#6B7A8D", margin: 0 }}>
-              Access continues until {formatDateLong(billingPeriodEnd)}. After
-              that date you have 30 days to restore your Founding Member #
-              {memberNumber} status (until {formatDateLong(graceEndsAt)}).
+              Access continues until {formatDateLong(billingPeriodEnd)}. Changed your mind?
             </p>
           </div>
         </div>
@@ -109,7 +105,7 @@ export default function PendingCancellationBanner({
               Restoring access...
             </>
           ) : (
-            "Restore access →"
+            "Undo cancellation →"
           )}
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </button>

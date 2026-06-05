@@ -173,13 +173,10 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
         {renewalLine}
       </p>
 
-      {isPendingCancellationFM &&
-        billing.billing_period_end &&
-        billing.founding_member_grace_ends_at ? (
+      {isPendingCancellationFM && billing.billing_period_end ? (
         <FoundingMemberPendingCancellationSection
           memberNumber={billing.founding_member_number ?? 1}
           billingPeriodEnd={billing.billing_period_end}
-          graceEndsAt={billing.founding_member_grace_ends_at}
         />
       ) : (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

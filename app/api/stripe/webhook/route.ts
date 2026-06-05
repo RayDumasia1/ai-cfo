@@ -113,12 +113,8 @@ async function handleCheckoutCompleted(
         : null;
 
       if (isRestore && originalNumber) {
-        // Restore: keep original member number, reset grace fields
         row.founding_member_number = originalNumber;
         row.founding_member_cancelled_at = null;
-        row.founding_member_grace_ends_at = null;
-        row.fm_grace_warning_sent = false;
-        row.fm_grace_expired_email_sent = false;
         emailMemberNumber = originalNumber;
       } else {
         // New join: assign next member number (no expiry — Core features are permanent)
@@ -196,7 +192,7 @@ async function handleSubscriptionUpdated(
   // Look up by stripe_customer_id — more reliable than subscription metadata
   const { data: existing, error: lookupError } = await supabase
     .from("subscriptions")
-    .select("user_id, plan, status, founding_member_number, founding_member_cancelled_at")
+    .select("user_id, plan, status, founding_member_number")
     .eq("stripe_customer_id", sub.customer as string)
     .maybeSingle();
 
@@ -210,7 +206,7 @@ async function handleSubscriptionUpdated(
   // Case 1 — Cancellation scheduled at period end
   if (sub.cancel_at_period_end) {
     // Guard: only process once (idempotent against duplicate events)
-    if (existing.founding_member_cancelled_at) {
+    if (existing.status === "pending_cancellation") {
       console.log("webhook:subscriptionUpdated:pendingCancellation:alreadyProcessed", { userId });
       return;
     }
@@ -218,7 +214,6 @@ async function handleSubscriptionUpdated(
     const cancelAt = sub.cancel_at
       ? new Date(sub.cancel_at * 1000)
       : new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
-    const graceEnd = new Date(cancelAt.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     const { error: updateError } = await supabase
       .from("subscriptions")
@@ -226,16 +221,12 @@ async function handleSubscriptionUpdated(
         status: "pending_cancellation",
         cancelled_at: new Date().toISOString(),
         billing_period_end: cancelAt.toISOString(),
-        ...(existing.plan === "founding_member" && {
-          founding_member_cancelled_at: new Date().toISOString(),
-          founding_member_grace_ends_at: graceEnd.toISOString(),
-        }),
       })
       .eq("user_id", userId);
     if (updateError) {
       console.error("webhook:subscriptionUpdated:pendingCancellation:error", updateError);
     } else {
-      console.log("webhook:subscriptionUpdated:pendingCancellation:set", { userId, cancelAt, graceEnd });
+      console.log("webhook:subscriptionUpdated:pendingCancellation:set", { userId, cancelAt });
     }
 
     if (existing.plan === "founding_member" && existing.founding_member_number) {
@@ -244,8 +235,7 @@ async function handleSubscriptionUpdated(
         await sendFoundingMemberCancelledEmail(
           email,
           existing.founding_member_number,
-          cancelAt.toISOString(),
-          graceEnd.toISOString()
+          cancelAt.toISOString()
         );
       }
     }
@@ -259,8 +249,6 @@ async function handleSubscriptionUpdated(
       .update({
         status: "active",
         cancelled_at: null,
-        founding_member_cancelled_at: null,
-        founding_member_grace_ends_at: null,
       })
       .eq("user_id", userId);
     if (reactivateError) {
@@ -314,10 +302,10 @@ async function handleSubscriptionDeleted(
 
   if (existing?.plan === "founding_member") {
     if (existing.status === "pending_cancellation") {
-      // Grace fields already set from subscription.updated — just flip to cancelled
+      // Billing ended — suspend access
       const { error: cancelError } = await supabase
         .from("subscriptions")
-        .update({ status: "cancelled" })
+        .update({ status: "cancelled", feature_tier: "suspended" })
         .eq("user_id", userId);
       if (cancelError) {
         console.error("webhook:subscriptionDeleted:foundingMember:pendingCancellation:error", cancelError);
@@ -328,15 +316,13 @@ async function handleSubscriptionDeleted(
       const billingEnd = existing.billing_period_end
         ? new Date(existing.billing_period_end)
         : new Date();
-      const graceEnd = new Date(billingEnd);
-      graceEnd.setDate(graceEnd.getDate() + 30);
 
       const { error: cancelError } = await supabase
         .from("subscriptions")
         .update({
           status: "cancelled",
-          founding_member_cancelled_at: new Date().toISOString(),
-          founding_member_grace_ends_at: graceEnd.toISOString(),
+          feature_tier: "suspended",
+          cancelled_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
       if (cancelError) {
@@ -348,8 +334,7 @@ async function handleSubscriptionDeleted(
         await sendFoundingMemberCancelledEmail(
           email,
           existing.founding_member_number,
-          billingEnd.toISOString(),
-          graceEnd.toISOString()
+          billingEnd.toISOString()
         );
       }
     }

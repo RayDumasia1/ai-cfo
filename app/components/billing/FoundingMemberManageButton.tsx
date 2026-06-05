@@ -17,12 +17,6 @@ export default function FoundingMemberManageButton({
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const graceEndDate = (() => {
-    const d = new Date(billingPeriodEnd);
-    d.setDate(d.getDate() + 30);
-    return d.toISOString();
-  })();
-
   async function handleContinue() {
     setModalOpen(false);
     setLoading(true);
@@ -73,7 +67,6 @@ export default function FoundingMemberManageButton({
         onContinue={handleContinue}
         memberNumber={memberNumber}
         billingPeriodEnd={billingPeriodEnd}
-        graceEndDate={graceEndDate}
       />
     </>
   );
