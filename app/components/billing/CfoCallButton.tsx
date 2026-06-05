@@ -42,6 +42,41 @@ export default function CfoCallButton({ userTier, userEmail }: CfoCallButtonProp
     }
   }
 
+  // Suspended: account ended — no booking allowed
+  if (userTier === "suspended") {
+    return (
+      <section style={cardStyle}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0A1A2F", margin: "0 0 4px" }}>
+          CFO Call
+        </h2>
+        <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 16px" }}>
+          CFO call booking is not available on a cancelled account. Email us at{" "}
+          <a href="mailto:hello@elidan.ai" style={{ color: "#2CA6A4" }}>hello@elidan.ai</a>{" "}
+          to restore your access.
+        </p>
+        <button
+          disabled
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            height: 44,
+            padding: "0 20px",
+            backgroundColor: "#F4F7FA",
+            border: "1px solid #D8E2EC",
+            borderRadius: 10,
+            fontSize: 14,
+            color: "#6B7A8D",
+            cursor: "not-allowed",
+          }}
+        >
+          <Phone size={14} />
+          Book a CFO Call · $150
+        </button>
+      </section>
+    );
+  }
+
   // Starter: locked — opens UpgradeModal to prompt upgrade
   if (userTier === "starter") {
     return (

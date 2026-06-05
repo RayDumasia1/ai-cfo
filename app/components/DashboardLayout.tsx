@@ -27,7 +27,6 @@ function RisingColumnMark({ className }: { className?: string }) {
 
 const navItems = [
   { label: "Dashboard",       href: "/dashboard" },
-  { label: "Scenarios",       href: "/dashboard/scenarios" },
   { label: "Reports",         href: "/reports" },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call" },
   { label: "Settings",        href: "/dashboard/settings" },
@@ -91,7 +90,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               return null;
             if (
               item.href === "/dashboard/cfo-call" &&
-              userTier === "starter"
+              (userTier === "starter" || userTier === "suspended")
             )
               return null;
             const isActive = pathname === item.href ||
