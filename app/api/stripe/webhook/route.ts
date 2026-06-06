@@ -125,7 +125,7 @@ async function handleCheckoutCompleted(
           .select("*", { count: "exact", head: true })
           .eq("plan", "founding_member");
         const nextNumber = (count ?? 0) + 1;
-        if (nextNumber > 50) {
+        if (nextNumber > 25) {
           console.warn(
             `webhook:founding_member:cap_exceeded number=${nextNumber}`
           );

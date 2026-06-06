@@ -93,7 +93,7 @@ Starter:          $49/mo — dashboard only
 Core:             $99/mo — AI features + QB sync
 Growth:           $199/mo — unlimited AI + forecast
 Advisory:         $499/mo — human CFO layer
-Founding Member:  $49/mo — Core forever (first 50)
+Founding Member:  $49/mo — Core forever (first 25)
 
 ## Test Accounts
 ray@elidan.ai          — superuser, Advisory tier

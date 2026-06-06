@@ -104,7 +104,7 @@ export default function FoundingMemberCTA() {
             margin: "0 0 8px",
           }}
         >
-          All 50 Founding Member spots have been claimed
+          All 25 Founding Member spots have been claimed
         </h3>
         <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 20px" }}>
           Join our waitlist to be notified of future offers.
@@ -175,7 +175,7 @@ export default function FoundingMemberCTA() {
           "$49/month — permanently locked",
           "Founding Member badge",
           "Direct roadmap input",
-          `${spotsText} of 50`,
+          `${spotsText} of 25`,
         ].map((item) => (
           <div
             key={item}

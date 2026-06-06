@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import StatCard from "./StatCard";
+import { useState, useEffect } from "react";
 import { calculateFinancials } from "@/lib/calculations";
+import { isFeatureComingSoon } from "@/lib/launchConfig";
 import type { FinancialSnapshot } from "@/lib/types";
 
 function formatCurrency(value: number): string {
@@ -13,222 +13,305 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-const riskColors = {
-  High:    "bg-red-50     text-red-600     border-red-200",
-  Medium:  "bg-amber-50   text-amber-600   border-amber-200",
-  Low:     "bg-emerald-50 text-emerald-600 border-emerald-200",
-  Healthy: "bg-teal/10    text-teal         border-teal/20",
-} as const;
+function runwayColor(months: number | null): string {
+  if (months === null) return "#22C55E";
+  if (months > 6) return "#22C55E";
+  if (months >= 3) return "#F59E0B";
+  return "#E84545";
+}
 
-function CalculatorForm({
-  cash, setCash,
-  revenue, setRevenue,
-  expenses, setExpenses,
-  submitted, snapshot,
-  onSubmit,
-}: {
-  cash: string; setCash: (v: string) => void;
-  revenue: string; setRevenue: (v: string) => void;
-  expenses: string; setExpenses: (v: string) => void;
-  submitted: boolean; snapshot: FinancialSnapshot | null;
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+function MiniStatCard({ label, value, valueColor = "#0A1A2F" }: {
+  label: string;
+  value: string;
+  valueColor?: string;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div>
-        <label htmlFor="mc-cash" className="block text-xs font-medium text-ink mb-1.5">
-          Current cash balance
-        </label>
-        <input
-          id="mc-cash"
-          type="number"
-          min="0"
-          step="any"
-          placeholder="50000"
-          value={cash}
-          onChange={(e) => setCash(e.target.value)}
-          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-          style={{ borderRadius: "var(--radius-sm)" }}
-        />
-      </div>
-
-      <div>
-        <label htmlFor="mc-revenue" className="block text-xs font-medium text-ink mb-1.5">
-          Average monthly revenue
-        </label>
-        <input
-          id="mc-revenue"
-          type="number"
-          min="0"
-          step="any"
-          placeholder="25000"
-          value={revenue}
-          onChange={(e) => setRevenue(e.target.value)}
-          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-          style={{ borderRadius: "var(--radius-sm)" }}
-        />
-      </div>
-
-      <div>
-        <label htmlFor="mc-expenses" className="block text-xs font-medium text-ink mb-1.5">
-          Average monthly expenses
-        </label>
-        <input
-          id="mc-expenses"
-          type="number"
-          min="0"
-          step="any"
-          placeholder="30000"
-          value={expenses}
-          onChange={(e) => setExpenses(e.target.value)}
-          className="w-full border border-line px-4 py-2.5 text-sm text-ink bg-cloud outline-none transition focus:border-teal"
-          style={{ borderRadius: "var(--radius-sm)" }}
-        />
-      </div>
-
-      {submitted && !snapshot && (
-        <p className="text-xs text-red-500">
-          Please enter valid positive numbers in all three fields.
-        </p>
-      )}
-
-      <button
-        type="submit"
-        className="w-full px-5 py-2.5 text-sm font-medium text-white bg-teal transition hover:bg-teal/90"
-        style={{ borderRadius: "var(--radius-sm)" }}
-      >
-        Calculate My Runway
-      </button>
-    </form>
+    <div style={{
+      backgroundColor: "#F4F7FA",
+      border: "1px solid #D8E2EC",
+      borderRadius: 10,
+      padding: 12,
+      minWidth: 0,
+      overflow: "hidden",
+    }}>
+      <p style={{
+        fontSize: 9,
+        fontWeight: 500,
+        textTransform: "uppercase",
+        letterSpacing: "0.1em",
+        color: "#6B7A8D",
+        margin: "0 0 4px",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        {label}
+      </p>
+      <p style={{
+        fontSize: 16,
+        fontWeight: 500,
+        color: valueColor,
+        margin: 0,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>
+        {value}
+      </p>
+    </div>
   );
+}
+
+function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; onReset: () => void }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const cashDisplay = formatCurrency(snapshot.cashPosition);
+  const burnDisplay =
+    snapshot.riskLevel === "Healthy" && snapshot.burnRate < 0
+      ? `+${formatCurrency(Math.abs(snapshot.burnRate))}`
+      : formatCurrency(snapshot.burnRate);
+  const runwayDisplay =
+    snapshot.runwayMonths !== null ? `${snapshot.runwayMonths.toFixed(1)} mo` : "Stable";
+  const cashOutDisplay = snapshot.runoutDate ?? "Stable";
+
+  return (
+    <div style={{
+      marginTop: 20,
+      opacity: visible ? 1 : 0,
+      transform: visible ? "translateY(0)" : "translateY(8px)",
+      transition: "opacity 300ms ease-out, transform 300ms ease-out",
+    }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: 8,
+        width: "100%",
+      }}>
+        <MiniStatCard label="Cash Position" value={cashDisplay} />
+        <MiniStatCard label="Monthly Burn" value={burnDisplay} />
+        <MiniStatCard
+          label="Runway"
+          value={runwayDisplay}
+          valueColor={runwayColor(snapshot.runwayMonths)}
+        />
+        <MiniStatCard label="Cash-Out Date" value={cashOutDisplay} />
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        style={{
+          background: "none",
+          border: "none",
+          fontSize: 13,
+          color: "#6B7A8D",
+          cursor: "pointer",
+          padding: "8px 0 0",
+          display: "block",
+        }}
+      >
+        Clear results
+      </button>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  height: 40,
+  border: "1.5px solid #D8E2EC",
+  borderRadius: 10,
+  padding: "0 12px",
+  fontSize: 14,
+  color: "#0A1A2F",
+  backgroundColor: "#FFFFFF",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 500,
+  color: "#6B7A8D",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  display: "block",
+  marginBottom: 6,
+};
+
+function focusInput(e: React.FocusEvent<HTMLInputElement>) {
+  e.currentTarget.style.borderColor = "#2CA6A4";
+  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(44,166,164,0.12)";
+}
+
+function blurInput(e: React.FocusEvent<HTMLInputElement>) {
+  e.currentTarget.style.borderColor = "#D8E2EC";
+  e.currentTarget.style.boxShadow = "none";
 }
 
 export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
   const [cash, setCash] = useState("");
   const [revenue, setRevenue] = useState("");
   const [expenses, setExpenses] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [snapshot, setSnapshot] = useState<FinancialSnapshot | null>(null);
+  const [calcKey, setCalcKey] = useState(0);
+  const [validationError, setValidationError] = useState(false);
 
-  const snapshot = useMemo<FinancialSnapshot | null>(() => {
-    if (!submitted) return null;
+  function handleSubmit(e: { preventDefault(): void }) {
+    e.preventDefault();
 
     const cashValue = Number(cash);
     const revenueValue = Number(revenue);
     const expenseValue = Number(expenses);
 
-    if (
-      cash.trim() === "" ||
-      revenue.trim() === "" ||
-      expenses.trim() === "" ||
-      Number.isNaN(cashValue) ||
-      Number.isNaN(revenueValue) ||
-      Number.isNaN(expenseValue) ||
-      cashValue < 0 ||
-      revenueValue < 0 ||
-      expenseValue < 0
-    ) {
-      return null;
+    const valid =
+      cash.trim() !== "" &&
+      revenue.trim() !== "" &&
+      expenses.trim() !== "" &&
+      !Number.isNaN(cashValue) &&
+      !Number.isNaN(revenueValue) &&
+      !Number.isNaN(expenseValue) &&
+      cashValue >= 0 &&
+      revenueValue >= 0 &&
+      expenseValue >= 0;
+
+    if (!valid) {
+      setValidationError(true);
+      setSnapshot(null);
+      return;
     }
 
-    return calculateFinancials({
+    setValidationError(false);
+    const result = calculateFinancials({
       cashBalance: cashValue,
       monthlyRevenue: revenueValue,
       monthlyExpenses: expenseValue,
     });
-  }, [cash, revenue, expenses, submitted]);
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSubmitted(true);
+    setSnapshot(result);
+    setCalcKey((k) => k + 1);
   }
 
-  const cashDisplay = snapshot ? formatCurrency(snapshot.cashPosition) : "—";
-  const burnDisplay = snapshot
-    ? snapshot.riskLevel === "Healthy" && snapshot.burnRate < 0
-      ? `+${formatCurrency(Math.abs(snapshot.burnRate))}`
-      : formatCurrency(snapshot.burnRate)
-    : "—";
-  const runwayDisplay = snapshot
-    ? snapshot.runwayMonths !== null
-      ? `${snapshot.runwayMonths.toFixed(1)} mo`
-      : "Stable"
-    : "—";
-  const cashOutDisplay = snapshot ? (snapshot.runoutDate ?? "Stable") : "—";
+  function handleReset() {
+    setSnapshot(null);
+    setCash("");
+    setRevenue("");
+    setExpenses("");
+    setValidationError(false);
+  }
+
+  const form = (
+    <form onSubmit={handleSubmit}>
+      {/* Section A — Inputs */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div>
+          <label htmlFor="mc-cash" style={labelStyle}>Current cash balance</label>
+          <input
+            id="mc-cash"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="50000"
+            value={cash}
+            onChange={(e) => setCash(e.target.value)}
+            style={inputStyle}
+            onFocus={focusInput}
+            onBlur={blurInput}
+          />
+        </div>
+        <div>
+          <label htmlFor="mc-revenue" style={labelStyle}>Average monthly revenue</label>
+          <input
+            id="mc-revenue"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="25000"
+            value={revenue}
+            onChange={(e) => setRevenue(e.target.value)}
+            style={inputStyle}
+            onFocus={focusInput}
+            onBlur={blurInput}
+          />
+        </div>
+        <div>
+          <label htmlFor="mc-expenses" style={labelStyle}>Average monthly expenses</label>
+          <input
+            id="mc-expenses"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="30000"
+            value={expenses}
+            onChange={(e) => setExpenses(e.target.value)}
+            style={inputStyle}
+            onFocus={focusInput}
+            onBlur={blurInput}
+          />
+        </div>
+      </div>
+
+      {validationError && (
+        <p style={{ fontSize: 12, color: "#E84545", marginTop: 8, marginBottom: 0 }}>
+          Please enter valid positive numbers in all three fields.
+        </p>
+      )}
+
+      <button
+        type="submit"
+        style={{
+          width: "100%",
+          height: 44,
+          backgroundColor: "#2CA6A4",
+          color: "#FFFFFF",
+          border: "none",
+          borderRadius: 10,
+          fontSize: 14,
+          fontWeight: 500,
+          cursor: "pointer",
+          marginTop: 16,
+        }}
+      >
+        Calculate My Runway →
+      </button>
+    </form>
+  );
+
+  const resultsSection = snapshot ? (
+    <ResultsSection key={calcKey} snapshot={snapshot} onReset={handleReset} />
+  ) : null;
+
+  if (bare) {
+    return (
+      <div>
+        {form}
+        {resultsSection}
+      </div>
+    );
+  }
 
   return (
-    <div>
-      {snapshot && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
-          <StatCard label="Cash Position" value={cashDisplay} />
-          <StatCard label="Monthly Burn" value={burnDisplay} />
-          <StatCard label="Runway" value={runwayDisplay} />
-          <StatCard label="Cash-Out Date" value={cashOutDisplay} highlight />
-        </div>
-      )}
-
-      {snapshot && (
-        <div
-          className="mb-6 bg-surface"
-          style={{
-            borderRadius: "var(--radius-md)",
-            border: "1px solid var(--line)",
-            boxShadow: "var(--shadow-sm)",
-            padding: "1.25rem 1.5rem",
-          }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <p
-              className="text-[11px] font-medium uppercase tracking-[0.08em]"
-              style={{ color: "var(--dim)" }}
-            >
-              AI CFO Insight
-            </p>
-            <span
-              className={`text-[11px] font-medium px-2 py-0.5 border ${riskColors[snapshot.riskLevel]}`}
-              style={{ borderRadius: "var(--radius-sm)" }}
-            >
-              {snapshot.riskLevel} risk
-            </span>
-          </div>
-          <p className="text-sm font-light leading-relaxed text-ink">
-            {snapshot.summary}
-          </p>
-        </div>
-      )}
-
-      {bare ? (
-        <CalculatorForm
-          cash={cash} setCash={setCash}
-          revenue={revenue} setRevenue={setRevenue}
-          expenses={expenses} setExpenses={setExpenses}
-          submitted={submitted} snapshot={snapshot}
-          onSubmit={handleSubmit}
-        />
-      ) : (
-        <section
-          className="bg-surface max-w-lg"
-          style={{
-            borderRadius: "var(--radius-lg)",
-            border: "1px solid var(--line)",
-            boxShadow: "var(--shadow-sm)",
-            padding: "1.5rem",
-          }}
-        >
-          <h2 className="text-base font-medium text-ink">What-If Scenario</h2>
-          <p className="mt-1 text-sm font-light text-dim">
-            Enter numbers manually to explore scenarios.
-          </p>
-          <div className="mt-6">
-            <CalculatorForm
-              cash={cash} setCash={setCash}
-              revenue={revenue} setRevenue={setRevenue}
-              expenses={expenses} setExpenses={setExpenses}
-              submitted={submitted} snapshot={snapshot}
-              onSubmit={handleSubmit}
-            />
-          </div>
-        </section>
-      )}
-    </div>
+    <section
+      style={{
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        border: "1px solid #D8E2EC",
+        boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
+        padding: 24,
+        maxWidth: 640,
+      }}
+    >
+      <h2 style={{ fontSize: 16, fontWeight: 500, color: "#0A1A2F", margin: "0 0 4px" }}>
+        What-If Scenario
+      </h2>
+      <p style={{ fontSize: 13, color: "#6B7A8D", margin: "0 0 20px" }}>
+        Enter numbers manually to explore scenarios.
+      </p>
+      {form}
+      {resultsSection}
+    </section>
   );
 }

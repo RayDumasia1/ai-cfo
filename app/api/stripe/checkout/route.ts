@@ -70,7 +70,7 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
   // Founding member specific checks (new sign-up only; restores bypass)
   if (planKey === "founding_member" && !isFoundingMemberRestore) {
     const count = await getFoundingMemberCount(supabase);
-    if (count >= 50) {
+    if (count >= 25) {
       return Response.json(
         { error: "Founding Member spots are sold out.", sold_out: true, spots_remaining: 0 },
         { status: 409 }

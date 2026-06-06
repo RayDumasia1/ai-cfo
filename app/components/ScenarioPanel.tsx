@@ -1,32 +1,54 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ManualCalculator from "./ManualCalculator";
 
+const STORAGE_KEY = "elidan_whatif_collapsed";
+
 export default function ScenarioPanel({ hasData }: { hasData: boolean }) {
-  const [expanded, setExpanded] = useState(!hasData);
+  const [collapsed, setCollapsed] = useState(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored !== null) setCollapsed(stored === "true");
+  }, []);
+
+  function toggle() {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem(STORAGE_KEY, String(next));
+  }
 
   return (
     <div
-      className="bg-surface"
       style={{
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--line)",
-        boxShadow: "var(--shadow-sm)",
+        backgroundColor: "#FFFFFF",
+        borderRadius: 16,
+        border: "1px solid #D8E2EC",
+        boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
       }}
     >
-      {/* Header row — always visible */}
-      <div className="flex items-center justify-between px-6 py-4">
+      {/* Header — always visible */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px" }}>
         <div>
-          <p className="text-sm font-medium text-ink">What-If Scenario</p>
-          <p className="mt-0.5 text-xs font-light text-dim">Model a scenario to plan ahead</p>
+          <p style={{ fontSize: 14, fontWeight: 500, color: "#0A1A2F", margin: 0 }}>What-If Scenario</p>
+          <p style={{ fontSize: 12, fontWeight: 300, color: "#6B7A8D", margin: "2px 0 0" }}>
+            Model a scenario to plan ahead
+          </p>
         </div>
         <button
-          onClick={() => setExpanded((prev) => !prev)}
-          className="text-sm font-medium transition-opacity hover:opacity-75"
-          style={{ color: "var(--teal)" }}
+          onClick={toggle}
+          style={{
+            background: "none",
+            border: "none",
+            fontSize: 13,
+            fontWeight: 500,
+            color: "#2CA6A4",
+            cursor: "pointer",
+            padding: 0,
+          }}
         >
-          {expanded ? "Collapse ▴" : "Expand ▾"}
+          {collapsed ? "Expand ▾" : "Collapse ▴"}
         </button>
       </div>
 
@@ -34,14 +56,11 @@ export default function ScenarioPanel({ hasData }: { hasData: boolean }) {
       <div
         style={{
           overflow: "hidden",
-          maxHeight: expanded ? "1200px" : "0",
+          maxHeight: collapsed ? "0" : "800px",
           transition: "max-height 250ms ease-in-out",
         }}
       >
-        <div
-          className="px-6 pb-6 pt-5"
-          style={{ borderTop: "1px solid var(--line)" }}
-        >
+        <div style={{ borderTop: "1px solid #D8E2EC", padding: "20px 24px 24px" }}>
           <ManualCalculator bare />
         </div>
       </div>

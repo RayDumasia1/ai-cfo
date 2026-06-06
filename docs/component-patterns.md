@@ -530,7 +530,7 @@ style:    UI/visual changes only
 | Bank sync | Deferred to Phase 4 |
 | Founding Member | Core forever at $49, no 24-month expiry |
 | FM cancellation | Manual CS process — no automated grace period |
-| FM spots | 50 total issued, never return to pool |
+| FM spots | 25 total issued, never return to pool |
 | Suspended state | Simple message + email us — no automated restore |
 | Scenarios page | Hidden pending UX review |
 | Growth/Advisory | Hidden — coming soon |

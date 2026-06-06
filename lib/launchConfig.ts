@@ -1,7 +1,7 @@
 /**
  * FOUNDING MEMBER POLICY (confirmed May 2026)
  *
- * First 50 subscribers receive:
+ * First 25 subscribers receive:
  * - Core features at $49/month
  * - Rate locked permanently (never increases)
  * - No expiry on Core features — benefits are indefinite while subscribed
@@ -25,10 +25,10 @@
  * Grace period columns (founding_member_grace_ends_at, fm_grace_warning_sent,
  * fm_grace_expired_email_sent) are retained in the DB schema but no longer populated.
  *
- * Spots do NOT return to pool (hard cap: 50 total issued).
+ * Spots do NOT return to pool (hard cap: 25 total issued).
  * Do not add expiry logic without explicit approval from the founder.
  */
-export const FOUNDING_MEMBER_SPOTS = 50;
+export const FOUNDING_MEMBER_SPOTS = 25;
 
 /**
  * Tier availability gates — set to true when the tier's features are built and ready to ship.
@@ -38,7 +38,27 @@ export const FOUNDING_MEMBER_SPOTS = 50;
 export const GROWTH_AVAILABLE = false;
 export const ADVISORY_AVAILABLE = false;
 
-const COMING_SOON_FEATURES = new Set(["cfo_call"]);
+// SCENARIOS — Phase 2 vision
+//
+// Phase 1 (now): Simple What-If calculator
+//   on dashboard. Single variable adjustment.
+//   No AI, no saved scenarios.
+//
+// Phase 2 scope:
+//   - Variable adjustment (Type 1)
+//   - Event modelling (Type 2)
+//   - Goal seeking with AI (Type 3)
+//   - Saved + named scenarios
+//   - Side-by-side comparison (up to 3)
+//   - Scenario sharing via link
+//   - Ask CFO integration for narrative
+//   - Promote to /dashboard/scenarios page
+//
+// The current What-If card is a placeholder
+// for this vision. Keep it simple until
+// Phase 2 engineering begins.
+
+const COMING_SOON_FEATURES = new Set(["cfo_call", "ai_insights"]);
 export function isFeatureComingSoon(feature: string): boolean {
   return COMING_SOON_FEATURES.has(feature);
 }
