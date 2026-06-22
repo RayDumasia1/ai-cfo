@@ -250,6 +250,20 @@ function AuthForm() {
           </div>
         </form>
 
+        <div style={{ borderTop: "1px solid #D8E2EC", marginTop: 20, paddingTop: 16, textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "#6B7A8D", margin: 0 }}>
+            New to Elidan?{" "}
+            <a
+              href="/auth/signup"
+              style={{ color: "#2CA6A4", textDecoration: "none", fontWeight: 500 }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+            >
+              Create an account →
+            </a>
+          </p>
+        </div>
+
         <div style={{ marginTop: 20, textAlign: "center" }}>
           <p style={{ fontSize: 12, color: "#6B7A8D", margin: 0 }}>
             Not sure which email you used?{" "}
