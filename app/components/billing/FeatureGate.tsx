@@ -41,6 +41,7 @@ export default function FeatureGate({
       onClose={() => setModalOpen(false)}
       feature={feature}
       currentTier={userTier}
+      userEmail={userEmail}
       upgradeMessage={upgradeMessage}
     />
   );
