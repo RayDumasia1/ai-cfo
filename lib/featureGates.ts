@@ -3,7 +3,6 @@ export type Feature =
   | 'ai_insights'
   | 'weekly_summary'
   | 'quickbooks_sync'
-  | 'xero_sync'
   | 'bank_sync'
   | 'forecasting'
   | 'scenario_comparison'
@@ -23,7 +22,6 @@ const FEATURE_TIERS: Record<Feature, FeatureTier> = {
   ai_insights:            'core',
   weekly_summary:         'starter',   // moved from 'core' — all tiers receive weekly CFO email
   quickbooks_sync:        'core',
-  xero_sync:              'core',
   bank_sync:              'advisory',  // Phase 4 — deferred
   forecasting:            'growth',
   scenario_comparison:    'growth',
@@ -109,12 +107,7 @@ export const UPGRADE_MESSAGES: Record<
   },
   quickbooks_sync: {
     title: 'Connect your accounting system',
-    message: 'Connect QuickBooks or Xero for automatic daily sync — upgrade to Core from $99/month',
-    upgrade_to: 'core',
-  },
-  xero_sync: {
-    title: 'Connect your accounting system',
-    message: 'Connect QuickBooks or Xero for automatic daily sync — upgrade to Core from $99/month',
+    message: 'Connect QuickBooks for automatic daily sync — upgrade to Core from $99/month',
     upgrade_to: 'core',
   },
   forecasting: {

@@ -432,7 +432,7 @@ Sold out state: neutral card with "Join the waitlist" secondary button.
 - Dashboard, alerts, Excel import, settings, billing, What-If scenario
 
 **Coming soon (hidden from users):**
-- `ask_cfo`, `ai_insights`, `weekly_summary`, `quickbooks_sync`, `xero_sync`
+- `ask_cfo`, `ai_insights`, `weekly_summary`, `quickbooks_sync`
 - `forecasting`, `scenario_comparison`, `action_tracker_v2`, `action_tracker_v3`
 - `team_seats`, `cfo_call`, `custom_reports`, `bank_sync`
 
@@ -526,7 +526,7 @@ style:    UI/visual changes only
 
 | Decision | Rule |
 |---|---|
-| Xero + QuickBooks tier | Both at Core — not split |
+| Accounting integrations | QuickBooks only at launch (Core) — Xero and others deferred |
 | Bank sync | Deferred to Phase 4 |
 | Founding Member | Core forever at $49, no 24-month expiry |
 | FM cancellation | Manual CS process — no automated grace period |

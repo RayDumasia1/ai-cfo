@@ -96,7 +96,7 @@ export async function sendFoundingMemberWelcomeEmail(
     </p>
     <p style="font-size:13px;font-weight:600;color:#344150;margin:16px 0 8px;">Here's what's included:</p>
     <table cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
-      <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Core features — AI Insights, Ask your CFO, QuickBooks + Xero sync, Weekly CFO summary</td></tr>
+      <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Core features — AI Insights, Ask your CFO, QuickBooks sync, Weekly CFO summary</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#7D4E00;font-weight:600;">$49/month — locked permanently, forever, regardless of future price increases</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Founding Member #${memberNumber} badge on your account</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Direct input into our product roadmap</td></tr>

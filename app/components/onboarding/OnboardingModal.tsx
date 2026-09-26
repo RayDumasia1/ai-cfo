@@ -39,7 +39,7 @@ const NEEDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Receipt,
     title: "Revenue and expenses",
-    body: "Total cash collected and total cash paid out each month. QuickBooks or Xero users: run a Cash Flow Statement — it has everything.",
+    body: "Total cash collected and total cash paid out each month. QuickBooks users: run a Cash Flow Statement — it has everything.",
   },
   {
     icon: Users,

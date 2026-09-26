@@ -116,7 +116,7 @@ refactor: no behaviour change
 style:    UI/visual only
 
 ## Key Decisions
-- Xero and QuickBooks both at Core tier
+- QuickBooks only at launch (Core tier); Xero and other integrations deferred
 - Bank sync (Plaid) deferred to Phase 4
 - Founding Member = Core forever at $49
 - Cancel → CS handles manually (no automated grace)

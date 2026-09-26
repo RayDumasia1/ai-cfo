@@ -13,7 +13,6 @@ describe('hasFeature', () => {
     it('ask_cfo → true', () => expect(hasFeature('core', 'ask_cfo')).toBe(true))
     it('ai_insights → true', () => expect(hasFeature('core', 'ai_insights')).toBe(true))
     it('quickbooks_sync → true', () => expect(hasFeature('core', 'quickbooks_sync')).toBe(true))
-    it('xero_sync → true', () => expect(hasFeature('core', 'xero_sync')).toBe(true))
     it('forecasting → false', () => expect(hasFeature('core', 'forecasting')).toBe(false))
     it('cfo_call → false', () => expect(hasFeature('core', 'cfo_call')).toBe(false))
   })
@@ -21,7 +20,6 @@ describe('hasFeature', () => {
   describe('growth tier', () => {
     it('ask_cfo → true', () => expect(hasFeature('growth', 'ask_cfo')).toBe(true))
     it('forecasting → true', () => expect(hasFeature('growth', 'forecasting')).toBe(true))
-    it('xero_sync → true', () => expect(hasFeature('growth', 'xero_sync')).toBe(true))
     it('cfo_call → false', () => expect(hasFeature('growth', 'cfo_call')).toBe(false))
   })
 

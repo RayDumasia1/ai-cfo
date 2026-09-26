@@ -16,7 +16,7 @@ const FOUNDING_FEATURES: Feature[] = [
   { label: "Excel & CSV data import" },
   { label: "Ask your CFO (AI Q&A)", comingSoon: true },
   { label: "AI Insights & recommendations", comingSoon: true },
-  { label: "QuickBooks & Xero sync", comingSoon: true },
+  { label: "QuickBooks sync", comingSoon: true },
   { label: "Weekly CFO email summary" },
   { label: "Priority support & early access" },
 ];

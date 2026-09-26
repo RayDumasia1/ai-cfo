@@ -46,7 +46,6 @@ const featureNames: Record<string, string> = {
   ask_cfo: "Ask your CFO",
   ai_insights: "AI Insights",
   quickbooks_sync: "QuickBooks Sync",
-  xero_sync: "Xero Sync",
   forecasting: "Cash Flow Forecasting",
   weekly_summary: "Weekly CFO Email",
   cfo_call: "CFO Call",
@@ -62,7 +61,6 @@ const FEATURE_ICONS: Record<Feature, React.ElementType> = {
   ai_insights: Sparkles,
   weekly_summary: Mail,
   quickbooks_sync: RefreshCw,
-  xero_sync: RefreshCw,
   forecasting: TrendingUp,
   scenario_comparison: GitCompare,
   action_prefill: Zap,
@@ -79,7 +77,7 @@ const TIER_HIGHLIGHTS: Record<FeatureTier, string[]> = {
   starter: [],
   core: [
     "Ask your CFO financial questions with AI",
-    "Connect QuickBooks or Xero automatically",
+    "Connect QuickBooks automatically",
   ],
   growth: [
     "Unlimited AI insights and Ask CFO",
