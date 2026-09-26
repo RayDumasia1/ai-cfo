@@ -133,6 +133,20 @@ export function monthlyBurnRate(
 }
 
 /**
+ * Current runway in months from closing cash and recent expenses (newest-first).
+ * Mirrors RunwayCard: 3-month average burn, null when cash is unknown or
+ * there is no positive burn to divide by.
+ */
+export function currentRunway(
+  cash: number | null,
+  expensesNewestFirst: (number | null)[]
+): number | null {
+  const burn = monthlyBurnRate(expensesNewestFirst);
+  if (cash == null || burn == null || burn <= 0) return null;
+  return runwayMonths(cash, burn);
+}
+
+/**
  * Month-over-month percentage change in burn rate.
  * Positive → burn increased. Negative → burn decreased.
  * Returns 0 when previousExpenses is 0 to avoid division-by-zero.

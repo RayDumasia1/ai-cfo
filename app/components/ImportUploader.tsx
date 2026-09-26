@@ -1,21 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useImportUpload } from "./useImportUpload";
 
-type UploadState = "idle" | "uploading" | "success" | "error";
 type ClearState = "idle" | "confirming" | "clearing";
-
-interface SuccessPayload {
-  replaced: boolean;
-  monthsImported: number;
-  dateRange: { from: string; to: string };
-  currentCash: number | null;
-  warnings: string[];
-}
 
 interface ImportUploaderProps {
   /** Whether the user already has financial data imported. */
   hasData?: boolean;
+  /** New users (onboarding not completed) get a pulsing ring on "Choose file". */
+  isNewUser?: boolean;
   onSuccess?: () => void;
 }
 
@@ -37,58 +31,33 @@ function formatMonthLabel(iso: string): string {
 
 export default function ImportUploader({
   hasData = false,
+  isNewUser = false,
   onSuccess,
 }: ImportUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [state, setState] = useState<UploadState>("idle");
-  const [success, setSuccess] = useState<SuccessPayload | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [clearState, setClearState] = useState<ClearState>("idle");
   // Track whether the user HAS data locally (may change after clear)
   const [localHasData, setLocalHasData] = useState(hasData);
-
-  async function handleFile(file: File) {
-    setState("uploading");
-    setErrorMsg(null);
-    setSuccess(null);
-
-    const form = new FormData();
-    form.append("file", file);
-
-    try {
-      const res = await fetch("/api/import", { method: "POST", body: form });
-      const json = await res.json();
-
-      if (!res.ok || !json.success) {
-        const msg =
-          (json.errors as string[] | undefined)?.[0] ??
-          json.error ??
-          "Upload failed.";
-        setErrorMsg(msg);
-        setState("error");
-        return;
-      }
-
-      setSuccess(json as SuccessPayload);
-      setLocalHasData(true);
-      setState("success");
-      onSuccess?.();
-    } catch {
-      setErrorMsg("Network error. Please try again.");
-      setState("error");
-    }
-  }
+  const {
+    state,
+    success,
+    errorMsg,
+    upload,
+    fail,
+    reset: resetUpload,
+  } = useImportUpload(() => {
+    setLocalHasData(true);
+    onSuccess?.();
+  });
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) handleFile(file);
+    if (file) upload(file);
     e.target.value = "";
   }
 
   function reset() {
-    setState("idle");
-    setSuccess(null);
-    setErrorMsg(null);
+    resetUpload();
     setClearState("idle");
   }
 
@@ -99,12 +68,11 @@ export default function ImportUploader({
       if (!res.ok) throw new Error("Server error");
       setLocalHasData(false);
       setClearState("idle");
-      setState("idle");
+      resetUpload();
       onSuccess?.();
     } catch {
       setClearState("idle");
-      setErrorMsg("Failed to clear data. Please try again.");
-      setState("error");
+      fail("Failed to clear data. Please try again.");
     }
   }
 
@@ -313,7 +281,9 @@ export default function ImportUploader({
         <div className="flex items-center gap-4">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 text-sm font-medium text-white transition hover:opacity-90"
+            className={`px-4 py-2 text-sm font-medium text-white transition hover:opacity-90${
+              isNewUser && !localHasData ? " pulse-ring" : ""
+            }`}
             style={{
               borderRadius: "var(--radius-sm)",
               backgroundColor: "var(--teal)",

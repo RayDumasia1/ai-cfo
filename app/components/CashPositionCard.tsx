@@ -6,6 +6,8 @@ import type { CashPositionResult } from "@/lib/db";
 interface CashPositionCardProps {
   initialData: CashPositionResult | null;
   minCashReserve?: number | null;
+  /** New users see a setup prompt in the empty state. */
+  isNewUser?: boolean;
 }
 
 function formatCurrency(n: number): string {
@@ -20,13 +22,14 @@ function formatCurrency(n: number): string {
 export default function CashPositionCard({
   initialData,
   minCashReserve,
+  isNewUser = false,
 }: CashPositionCardProps) {
   if (!initialData) {
     return (
       <StatCard
         label="Cash Position"
         value="—"
-        subtext="No data imported yet"
+        subtext={isNewUser ? "Complete setup to see this" : "No data imported yet"}
       />
     );
   }

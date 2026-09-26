@@ -11,12 +11,21 @@
   --dim:     #6B7A8D;
   --surface: #FFFFFF;
 
+  --navy-light:  #1A2E44;
+  --teal-light:  #3DBFBD;
+  --on-navy-dim: #8FA3B8;
+  --row-alt:     #FAFBFC;
+  --danger:      #E84545;
+  --warning:     #F59E0B;
+  --success:     #22C55E;
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
 
   --shadow-sm: 0 1px 3px  rgba(10, 26, 47, 0.08);
   --shadow-md: 0 4px 16px rgba(10, 26, 47, 0.10);
+  --shadow-lg: 0 8px 32px rgba(10, 26, 47, 0.12);
 }
 
 /* Map CSS vars into Tailwind's token system */
@@ -29,10 +38,35 @@
   --color-line:    var(--line);
   --color-dim:     var(--dim);
   --color-surface: var(--surface);
+  --color-navy-light:  var(--navy-light);
+  --color-teal-light:  var(--teal-light);
+  --color-on-navy-dim: var(--on-navy-dim);
+  --color-row-alt:     var(--row-alt);
+  --color-danger:      var(--danger);
+  --color-warning:     var(--warning);
+  --color-success:     var(--success);
   --font-sans:     var(--font-inter);
 }
 
 body {
   background-color: var(--cloud);
   color: var(--ink);
+}
+
+/* ─── Onboarding: pulsing ring on the import CTA for new users ─── */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0   rgba(44, 166, 164, 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(44, 166, 164, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(44, 166, 164, 0); }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(44, 166, 164, 0.25);
+  }
 }

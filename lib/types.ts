@@ -41,6 +41,8 @@ export type BusinessProfile = {
   data_version: string | null;
   /** User's preferred snooze duration for dismissed alerts. */
   snooze_duration: SnoozeType;
+  /** Set when the user completes or dismisses onboarding. Null = not yet onboarded. */
+  onboarding_completed_at: string | null;
   created_at: string;
   updated_at: string;
 };

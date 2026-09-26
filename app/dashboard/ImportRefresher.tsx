@@ -5,11 +5,16 @@ import ImportUploader from "@/app/components/ImportUploader";
 
 interface ImportRefresherProps {
   hasData?: boolean;
+  isNewUser?: boolean;
 }
 
-export default function ImportRefresher({ hasData }: ImportRefresherProps) {
+export default function ImportRefresher({ hasData, isNewUser }: ImportRefresherProps) {
   const router = useRouter();
   return (
-    <ImportUploader hasData={hasData} onSuccess={() => router.refresh()} />
+    <ImportUploader
+      hasData={hasData}
+      isNewUser={isNewUser}
+      onSuccess={() => router.refresh()}
+    />
   );
 }

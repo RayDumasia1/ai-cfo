@@ -6,7 +6,8 @@ import {
   getDismissedAlerts,
   getSubscription,
 } from "@/lib/db";
-import { alertEngine, isAlertSnoozed } from "@/lib/calculations";
+import { alertEngine, isAlertSnoozed, currentRunway } from "@/lib/calculations";
+import { isNewUser as isNewUserCheck, parseSuperuserEmails } from "@/lib/onboarding";
 import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
@@ -16,6 +17,7 @@ import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
 import RevenueBurnChart from "@/app/components/RevenueBurnChart";
 import ImportRefresher from "./ImportRefresher";
+import OnboardingController from "./OnboardingController";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
 import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanner";
 import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
@@ -52,6 +54,18 @@ export default async function DashboardPage({
 
   const visibleAlerts = allAlerts.filter(
     (alert) => !isAlertSnoozed(alert.code, dismissedAlerts ?? [], dataVersion)
+  );
+
+  const isNewUser = isNewUserCheck({
+    monthsCount: recentMonths.length,
+    onboardingCompletedAt: profile?.onboarding_completed_at,
+    email: user?.email,
+    superuserEmails: parseSuperuserEmails(process.env.SUPERUSER_EMAILS),
+  });
+
+  const calculatedRunway = currentRunway(
+    cashPosition?.cash ?? null,
+    recentMonths.map((m) => m.total_expenses)
   );
 
   const isFoundingMember = subscription?.plan === "founding_member";
@@ -91,6 +105,13 @@ export default async function DashboardPage({
       {/* Checkout success banner — above page header, auto-dismisses after 5s */}
       <CheckoutSuccessBanner show={checkoutSuccess} message={successMessage} />
 
+      {/* Onboarding — welcome banner, setup modal, post-import celebration */}
+      <OnboardingController
+        isNewUser={isNewUser}
+        businessName={profile?.business_name ?? null}
+        currentRunway={calculatedRunway}
+      />
+
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-medium text-ink">Dashboard</h1>
@@ -114,14 +135,20 @@ export default async function DashboardPage({
         <CashPositionCard
           initialData={cashPosition}
           minCashReserve={profile?.min_cash_reserve}
+          isNewUser={isNewUser}
         />
-        <BurnRateCard months={recentMonths ?? []} />
+        <BurnRateCard months={recentMonths ?? []} isNewUser={isNewUser} />
         <RunwayCard
           cash={cashPosition?.cash ?? null}
           months={recentMonths ?? []}
           runwayWarningThreshold={profile?.runway_warning_threshold}
+          isNewUser={isNewUser}
         />
-        <CashOutCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} />
+        <CashOutCard
+          cash={cashPosition?.cash ?? null}
+          months={recentMonths ?? []}
+          isNewUser={isNewUser}
+        />
       </div>
 
       {/* Revenue vs Burn chart — always rendered; component handles empty state */}
@@ -142,7 +169,7 @@ export default async function DashboardPage({
       {/* Two-column data row: Import | What-If Scenario */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
         <div id="import-section">
-          <ImportRefresher hasData={recentMonths.length > 0} />
+          <ImportRefresher hasData={recentMonths.length > 0} isNewUser={isNewUser} />
         </div>
 
         <ScenarioPanel hasData={recentMonths.length > 0} />

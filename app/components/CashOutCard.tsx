@@ -8,6 +8,8 @@ interface CashOutCardProps {
   cash: number | null;
   /** Recent financial months, newest-first. */
   months: FinancialMonth[];
+  /** New users see a setup prompt in the empty state. */
+  isNewUser?: boolean;
 }
 
 function formatCurrency(n: number): string {
@@ -27,7 +29,7 @@ const cardBase: React.CSSProperties = {
   justifyContent: "space-between",
 };
 
-export default function CashOutCard({ cash, months }: CashOutCardProps) {
+export default function CashOutCard({ cash, months, isNewUser = false }: CashOutCardProps) {
   const expenses = months.map((m) => m.total_expenses);
   const avgBurn = monthlyBurnRate(expenses);
 
@@ -68,7 +70,9 @@ export default function CashOutCard({ cash, months }: CashOutCardProps) {
         <p className="mt-2 text-xs font-light" style={{ color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>
           {avgBurn !== null && avgBurn <= 0
             ? "Not burning cash"
-            : "No data imported yet"}
+            : isNewUser
+              ? "Complete setup to see this"
+              : "No data imported yet"}
         </p>
       </div>
     );

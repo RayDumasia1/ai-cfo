@@ -17,12 +17,15 @@ interface RunwayCardProps {
    * Defaults to 6 when not set.
    */
   runwayWarningThreshold?: number | null;
+  /** New users see a setup prompt in the empty state. */
+  isNewUser?: boolean;
 }
 
 export default function RunwayCard({
   cash,
   months,
   runwayWarningThreshold,
+  isNewUser = false,
 }: RunwayCardProps) {
   const threshold = runwayWarningThreshold ?? 6;
 
@@ -79,7 +82,7 @@ export default function RunwayCard({
           —
         </p>
         <p className="mt-2 text-xs font-light" style={{ color: "var(--dim)" }}>
-          No data imported yet
+          {isNewUser ? "Complete setup to see this" : "No data imported yet"}
         </p>
       </div>
     );

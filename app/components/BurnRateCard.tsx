@@ -6,6 +6,8 @@ import type { FinancialMonth } from "@/lib/types";
 interface BurnRateCardProps {
   /** Recent financial months, newest-first. Minimum 1 required for a value; 2 for MoM change. */
   months: FinancialMonth[];
+  /** New users see a setup prompt in the empty state. */
+  isNewUser?: boolean;
 }
 
 function formatBurnRate(n: number): string {
@@ -18,7 +20,7 @@ function formatBurnRate(n: number): string {
   );
 }
 
-export default function BurnRateCard({ months }: BurnRateCardProps) {
+export default function BurnRateCard({ months, isNewUser = false }: BurnRateCardProps) {
   // Extract expenses newest-first (nulls preserved — monthlyBurnRate skips them).
   const expenses = months.map((m) => m.total_expenses);
   const avgBurn = monthlyBurnRate(expenses);
@@ -59,7 +61,7 @@ export default function BurnRateCard({ months }: BurnRateCardProps) {
           —
         </p>
         <p className="mt-2 text-xs font-light" style={{ color: "var(--dim)" }}>
-          No data imported yet
+          {isNewUser ? "Complete setup to see this" : "No data imported yet"}
         </p>
       </div>
     );
