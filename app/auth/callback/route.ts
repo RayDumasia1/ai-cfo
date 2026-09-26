@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getSubscription } from "@/lib/db";
+import { hasPaidSubscription } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL("/auth?error=Email+link+expired", req.url));
   }
 
-  const subscription = await getSubscription(data.user.id, supabase);
-
-  if (subscription.status !== "active" && subscription.status !== "pending_cancellation") {
+  if (!(await hasPaidSubscription(data.user.id, supabase))) {
     return NextResponse.redirect(new URL("/welcome", req.url));
   }
 

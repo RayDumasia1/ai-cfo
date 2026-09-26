@@ -435,6 +435,33 @@ export async function getSubscription(
   return data as SubscriptionResult;
 }
 
+/**
+ * True when the user has completed a plan checkout (or was granted a paid plan).
+ *
+ * `status` alone is not enough: getSubscription() and the checkout route both
+ * insert a default `starter / active` row for users who have never paid. A
+ * genuine subscription either carries a Stripe subscription ID (set by the
+ * webhook) or is on a non-starter plan (e.g. set manually via SQL).
+ *
+ * Read-only — never inserts a row. Safe to call from proxy.ts.
+ */
+export async function hasPaidSubscription(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<boolean> {
+  const { data, error } = await client
+    .from("subscriptions")
+    .select("plan, status, stripe_subscription_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return false;
+
+  const isActive = data.status === "active" || data.status === "pending_cancellation";
+  return isActive && (!!data.stripe_subscription_id || data.plan !== "starter");
+}
+
 export interface BillingDetails {
   plan: Plan;
   feature_tier: FeatureTier;
