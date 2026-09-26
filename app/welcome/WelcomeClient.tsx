@@ -30,6 +30,54 @@ const STARTER_FEATURES: Feature[] = [
   { label: "Weekly CFO email summary" },
 ];
 
+type ComingSoonTierKey = "tier_core" | "tier_growth" | "tier_advisory";
+
+interface ComingSoonTier {
+  key: ComingSoonTierKey;
+  name: string;
+  price: number;
+  features: Feature[];
+}
+
+const COMING_SOON_TIERS: ComingSoonTier[] = [
+  {
+    key: "tier_core",
+    name: "Core",
+    price: 99,
+    features: [
+      { label: "QuickBooks & accounting sync" },
+      { label: "Ask your CFO (AI Q&A)" },
+      { label: "AI-powered insights" },
+      { label: "Smart action pre-fill" },
+      { label: "Everything in Starter" },
+    ],
+  },
+  {
+    key: "tier_growth",
+    name: "Growth",
+    price: 199,
+    features: [
+      { label: "AI recommendations engine" },
+      { label: "12-month cash flow forecast" },
+      { label: "Unlimited AI usage" },
+      { label: "Scenario comparison" },
+      { label: "Everything in Core" },
+    ],
+  },
+  {
+    key: "tier_advisory",
+    name: "Advisory",
+    price: 599,
+    features: [
+      { label: "Dedicated human CFO" },
+      { label: "Monthly 60-min strategy call" },
+      { label: "Custom board-ready reports" },
+      { label: "Team seats & collaboration" },
+      { label: "Everything in Growth" },
+    ],
+  },
+];
+
 const CSS = `
 .welcome-cards {
   display: flex;
@@ -61,8 +109,39 @@ const CSS = `
 .welcome-cta--outline:hover:not(:disabled) { background: var(--navy); color: #FFFFFF; }
 .welcome-link { color: var(--teal); text-decoration: none; }
 .welcome-link:hover { text-decoration: underline; }
+.welcome-soon-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+.welcome-soon-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  opacity: 0.75;
+}
+.welcome-notify {
+  margin-top: auto;
+  padding-top: 20px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: left;
+}
+.welcome-notify:hover:not(:disabled) { color: var(--navy); }
+.welcome-notify:disabled { cursor: default; }
 @media (max-width: 639px) {
   .welcome-cards { flex-direction: column; max-width: 400px; }
+  .welcome-soon-grid { grid-template-columns: 1fr; max-width: 400px; }
 }
 `;
 
@@ -113,11 +192,11 @@ function FeatureList({ features, dark }: { features: Feature[]; dark: boolean })
   );
 }
 
-function Price({ dark }: { dark: boolean }) {
+function Price({ dark, amount = 49 }: { dark: boolean; amount?: number }) {
   return (
     <div style={{ marginTop: 16, display: "flex", alignItems: "baseline", gap: 4 }}>
       <span style={{ fontSize: 40, fontWeight: 500, lineHeight: 1, color: dark ? "#FFFFFF" : "var(--navy)" }}>
-        $49
+        ${amount}
       </span>
       <span style={{ fontSize: 16, fontWeight: 300, color: dark ? "#8FA3B8" : "var(--dim)" }}>/month</span>
     </div>
@@ -162,16 +241,85 @@ function CheckoutButton({
   );
 }
 
+function ComingSoonCard({
+  tier,
+  notified,
+  pending,
+  onNotify,
+}: {
+  tier: ComingSoonTier;
+  notified: boolean;
+  pending: boolean;
+  onNotify: () => void;
+}) {
+  return (
+    <div className="welcome-soon-card">
+      <span
+        style={{
+          alignSelf: "flex-start",
+          background: "var(--cloud)",
+          border: "1px solid var(--line)",
+          borderRadius: 20,
+          padding: "3px 10px",
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--navy)",
+          marginBottom: 12,
+        }}
+      >
+        Coming soon
+      </span>
+      <h3 style={{ fontSize: 18, fontWeight: 500, color: "var(--navy)", margin: 0 }}>{tier.name}</h3>
+      <Price dark={false} amount={tier.price} />
+
+      <div style={{ borderTop: "1px solid var(--cloud)", margin: "20px 0" }} />
+      <FeatureList features={tier.features} dark={false} />
+
+      {notified ? (
+        <p style={{ marginTop: "auto", paddingTop: 20, marginBottom: 0, fontSize: 13, color: "var(--teal)" }}>
+          ✓ You&apos;re on the list
+        </p>
+      ) : (
+        <button type="button" className="welcome-notify" disabled={pending} onClick={onNotify}>
+          {pending ? "Adding you..." : "Notify me when available"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function WelcomeClient({
   spotsRemaining,
   totalSpots,
+  userEmail,
 }: {
   spotsRemaining: number;
   totalSpots: number;
+  userEmail: string;
 }) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
   const [error, setError] = useState(false);
+  const [notifiedTiers, setNotifiedTiers] = useState<Set<string>>(new Set());
+  const [pendingTier, setPendingTier] = useState<ComingSoonTierKey | null>(null);
   const foundingAvailable = spotsRemaining > 0;
+
+  async function notifyMe(feature: ComingSoonTierKey) {
+    setPendingTier(feature);
+    try {
+      const res = await fetch("/api/notify-me", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail, feature }),
+      });
+      if (res.ok) setNotifiedTiers((prev) => new Set(prev).add(feature));
+    } catch {
+      // leave the link in place so the user can retry
+    } finally {
+      setPendingTier(null);
+    }
+  }
 
   async function startCheckout(planKey: PlanKey) {
     setLoadingPlan(planKey);
@@ -241,8 +389,8 @@ export default function WelcomeClient({
         >
           <Star size={16} color="var(--gold)" style={{ flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 500, color: "#7D4E00" }}>
-            {spotsRemaining} Founding Member {spotsRemaining === 1 ? "spot" : "spots"} remaining — $49/month,
-            Core features, locked forever.
+            {spotsRemaining} of {totalSpots} Founding Member {spotsRemaining === 1 ? "spot" : "spots"} remaining —
+            lock in Starter + Core features at $49/month, forever.
           </span>
         </div>
       ) : (
@@ -370,6 +518,32 @@ export default function WelcomeClient({
           Something went wrong. Please try again or contact hello@elidan.ai
         </div>
       )}
+
+      {/* Coming soon tiers */}
+      <p
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--dim)",
+          textAlign: "center",
+          margin: "40px 0 20px",
+        }}
+      >
+        Coming soon
+      </p>
+      <div className="welcome-soon-grid">
+        {COMING_SOON_TIERS.map((tier) => (
+          <ComingSoonCard
+            key={tier.key}
+            tier={tier}
+            notified={notifiedTiers.has(tier.key)}
+            pending={pendingTier === tier.key}
+            onNotify={() => notifyMe(tier.key)}
+          />
+        ))}
+      </div>
 
       {/* Footer */}
       <footer style={{ textAlign: "center" }}>

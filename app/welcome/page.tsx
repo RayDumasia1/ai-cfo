@@ -25,6 +25,7 @@ export default async function WelcomePage() {
     <WelcomeClient
       spotsRemaining={spotsRemaining}
       totalSpots={FOUNDING_MEMBER_SPOTS}
+      userEmail={user.email ?? ""}
     />
   );
 }

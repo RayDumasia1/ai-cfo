@@ -58,7 +58,13 @@ export const ADVISORY_AVAILABLE = false;
 // for this vision. Keep it simple until
 // Phase 2 engineering begins.
 
-const COMING_SOON_FEATURES = new Set(["cfo_call", "ai_insights"]);
+const COMING_SOON_FEATURES = new Set([
+  "cfo_call",
+  "ai_insights",
+  "tier_core",
+  "tier_growth",
+  "tier_advisory",
+]);
 export function isFeatureComingSoon(feature: string): boolean {
   return COMING_SOON_FEATURES.has(feature);
 }
