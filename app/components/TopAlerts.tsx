@@ -1,40 +1,55 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { Alert, DismissedAlert, SnoozeType } from "@/lib/types";
+import type { ActionInsert, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
 import AlertsList from "./AlertsList";
 
 const STORAGE_KEY = "elidan_alerts_collapsed";
+
+// localStorage has no same-tab change events; toggles go through component state
+const subscribeNoop = () => () => {};
+
+function readStoredCollapsed(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
 interface TopAlertsProps {
   alerts: Alert[];
   dismissedAlerts: DismissedAlert[];
   dataVersion: string | null;
   snoozeDuration: SnoozeType;
+  /** Danger/warning alert cards show "Create action" when provided. */
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
 
 export default function TopAlerts({
   alerts,
   dataVersion,
   snoozeDuration,
+  onCreateAction,
 }: TopAlertsProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const prevDataVersion = useRef(dataVersion);
-
-  // Read localStorage after mount to avoid SSR mismatch
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === "true") {
-        setCollapsed(true);
-      }
-    } catch {}
-  }, []);
+  // Read localStorage on the client only; the server snapshot (false) avoids SSR mismatch
+  const storedCollapsed = useSyncExternalStore(subscribeNoop, readStoredCollapsed, () => false);
+  // null until the user toggles (or an import resets it) — falls back to the stored value
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const collapsed = collapsedOverride ?? storedCollapsed;
 
   // Reset to expanded when a new import arrives (dataVersion changes)
+  const [seenDataVersion, setSeenDataVersion] = useState(dataVersion);
+  if (dataVersion !== null && dataVersion !== seenDataVersion) {
+    setSeenDataVersion(dataVersion);
+    setCollapsedOverride(false);
+  }
+
+  // Persist the reset — side effect only, no state updates
+  const prevDataVersion = useRef(dataVersion);
   useEffect(() => {
     if (dataVersion !== null && dataVersion !== prevDataVersion.current) {
-      setCollapsed(false);
       try { localStorage.setItem(STORAGE_KEY, "false"); } catch {}
       prevDataVersion.current = dataVersion;
     }
@@ -54,7 +69,7 @@ export default function TopAlerts({
 
   function toggle() {
     const next = !collapsed;
-    setCollapsed(next);
+    setCollapsedOverride(next);
     try { localStorage.setItem(STORAGE_KEY, String(next)); } catch {}
   }
 
@@ -117,7 +132,11 @@ export default function TopAlerts({
           transition: "max-height 250ms ease-in-out",
         }}
       >
-        <AlertsList initialAlerts={urgent} snoozeDuration={snoozeDuration} />
+        <AlertsList
+          initialAlerts={urgent}
+          snoozeDuration={snoozeDuration}
+          onCreateAction={onCreateAction}
+        />
       </div>
     </div>
   );

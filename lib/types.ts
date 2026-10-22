@@ -130,3 +130,65 @@ export type BusinessProfileInsert = Omit<BusinessProfile, "id" | "created_at" | 
 export type FinancialMonthInsert  = Omit<FinancialMonth,  "id" | "created_at" | "updated_at">;
 export type ExpenseCategoryInsert = Omit<ExpenseCategory, "id" | "created_at">;
 export type DataImportInsert      = Omit<DataImport,      "id" | "created_at">;
+
+// ─── Action Tracker ───────────────────────────────────────────────────────────
+
+export type ActionGoalType =
+  | "revenue_increase"
+  | "expense_reduction"
+  | "runway_improvement"
+  | "risk_mitigation";
+
+export type ActionGoalUnit = "usd" | "percent" | "months" | "units";
+
+export type ActionStatus = "not_started" | "in_progress" | "completed";
+
+export type Action = {
+  id: string;
+  user_id: string;
+  business_id: string | null;
+  name: string;
+  description: string | null;
+  goal_type: ActionGoalType;
+  goal_value: number | null;
+  goal_unit: ActionGoalUnit | null;
+  status: ActionStatus;
+  due_date: string | null;
+  /** Alert code that triggered this action (e.g. "RUNWAY_DANGER"). Null if user-created. */
+  linked_alert_code: string | null;
+  actual_impact: number | null;
+  actual_impact_notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Shape for creating a new action. completed_at is server-managed via trigger. */
+export type ActionInsert = Omit<Action, "id" | "created_at" | "updated_at" | "completed_at">;
+
+/** Shape for partial updates — only editable fields. */
+export type ActionUpdate = Partial<
+  Pick<
+    Action,
+    | "name"
+    | "description"
+    | "goal_type"
+    | "goal_value"
+    | "goal_unit"
+    | "status"
+    | "due_date"
+    | "linked_alert_code"
+    | "actual_impact"
+    | "actual_impact_notes"
+  >
+>;
+
+export type ActionAuditLog = {
+  id: string;
+  action_id: string;
+  user_id: string;
+  old_status: ActionStatus | null;
+  new_status: ActionStatus;
+  note: string | null;
+  created_at: string;
+};

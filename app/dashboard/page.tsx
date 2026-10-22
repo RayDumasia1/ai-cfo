@@ -5,6 +5,7 @@ import {
   getFinancialMonths,
   getDismissedAlerts,
   getSubscription,
+  getActions,
 } from "@/lib/db";
 import { alertEngine, isAlertSnoozed, currentRunway } from "@/lib/calculations";
 import { isNewUser as isNewUserCheck, parseSuperuserEmails } from "@/lib/onboarding";
@@ -12,13 +13,9 @@ import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
 import RunwayCard from "@/app/components/RunwayCard";
 import CashOutCard from "@/app/components/CashOutCard";
-import ScenarioPanel from "@/app/components/ScenarioPanel";
-import TopAlerts from "@/app/components/TopAlerts";
-import BottomAlerts from "@/app/components/BottomAlerts";
 import RevenueBurnChart from "@/app/components/RevenueBurnChart";
-import ImportRefresher from "./ImportRefresher";
 import OnboardingController from "./OnboardingController";
-import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
+import DashboardClient from "./DashboardClient";
 import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanner";
 import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
 import PendingCancellationBanner from "@/app/components/billing/PendingCancellationBanner";
@@ -36,12 +33,19 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription] = await Promise.all([
+  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     user ? getFinancialMonths(user.id, 6, supabase) : [],
     user ? getDismissedAlerts(user.id, supabase) : [],
     user ? getSubscription(user.id, supabase) : null,
+    // Action Tracker failing to load shouldn't take down the dashboard — panel shows its empty state
+    user
+      ? getActions(user.id, {}, supabase).catch((err) => {
+          console.error("dashboard:getActions:error", err instanceof Error ? err.message : err);
+          return [];
+        })
+      : [],
   ]);
 
   const dataVersion = profile?.data_version ?? null;
@@ -122,63 +126,42 @@ export default async function DashboardPage({
         </p>
       </div>
 
-      {/* Top alerts — danger + warning only; renders nothing when all clear */}
-      <TopAlerts
-        alerts={visibleAlerts}
+      <DashboardClient
+        featureTier={subscription?.feature_tier ?? "starter"}
+        initialActions={actions}
+        visibleAlerts={visibleAlerts}
         dismissedAlerts={dismissedAlerts ?? []}
         dataVersion={dataVersion}
         snoozeDuration={snoozeDuration}
-      />
-
-      {/* Stat cards */}
-      <div className="mb-8" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "stretch" }}>
-        <CashPositionCard
-          initialData={cashPosition}
-          minCashReserve={profile?.min_cash_reserve}
-          isNewUser={isNewUser}
-        />
-        <BurnRateCard months={recentMonths ?? []} isNewUser={isNewUser} />
-        <RunwayCard
-          cash={cashPosition?.cash ?? null}
-          months={recentMonths ?? []}
-          runwayWarningThreshold={profile?.runway_warning_threshold}
-          isNewUser={isNewUser}
-        />
-        <CashOutCard
-          cash={cashPosition?.cash ?? null}
-          months={recentMonths ?? []}
-          isNewUser={isNewUser}
-        />
-      </div>
-
-      {/* Revenue vs Burn chart — always rendered; component handles empty state */}
-      <div className="mb-8">
-        <RevenueBurnChart months={recentMonths} />
-      </div>
-
-      {/* Bottom alerts — success only, or "everything healthy" when zero total */}
-      <div className="mb-8">
-        <BottomAlerts
-          alerts={visibleAlerts}
-          dismissedAlerts={dismissedAlerts ?? []}
-          dataVersion={dataVersion}
-          snoozeDuration={snoozeDuration}
-        />
-      </div>
-
-      {/* Two-column data row: Import | What-If Scenario */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div id="import-section">
-          <ImportRefresher hasData={recentMonths.length > 0} isNewUser={isNewUser} />
+        hasData={recentMonths.length > 0}
+        isNewUser={isNewUser}
+      >
+        {/* Stat cards */}
+        <div className="mb-8" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "stretch" }}>
+          <CashPositionCard
+            initialData={cashPosition}
+            minCashReserve={profile?.min_cash_reserve}
+            isNewUser={isNewUser}
+          />
+          <BurnRateCard months={recentMonths ?? []} isNewUser={isNewUser} />
+          <RunwayCard
+            cash={cashPosition?.cash ?? null}
+            months={recentMonths ?? []}
+            runwayWarningThreshold={profile?.runway_warning_threshold}
+            isNewUser={isNewUser}
+          />
+          <CashOutCard
+            cash={cashPosition?.cash ?? null}
+            months={recentMonths ?? []}
+            isNewUser={isNewUser}
+          />
         </div>
 
-        <ScenarioPanel hasData={recentMonths.length > 0} />
-      </div>
-
-      {/* Upgrade strip — Starter only */}
-      {subscription && (
-        <UpgradeStrip currentTier={subscription.feature_tier} />
-      )}
+        {/* Revenue vs Burn chart — always rendered; component handles empty state */}
+        <div className="mb-8">
+          <RevenueBurnChart months={recentMonths} />
+        </div>
+      </DashboardClient>
     </div>
   );
 }

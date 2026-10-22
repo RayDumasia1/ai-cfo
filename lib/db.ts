@@ -15,6 +15,11 @@ import { supabase } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type {
+  Action,
+  ActionAuditLog,
+  ActionInsert,
+  ActionStatus,
+  ActionUpdate,
   BusinessProfile,
   BusinessProfileInsert,
   DataImport,
@@ -660,4 +665,175 @@ export function getBillingPeriodStart(subscriptionCreatedAt: Date): Date {
   const billingDayLastMonth = Math.min(createdDay, daysInLastMonth);
 
   return new Date(Date.UTC(lastMonthYear, lastMonth, billingDayLastMonth));
+}
+
+// ─── Action Tracker ───────────────────────────────────────────────────────────
+
+
+/**
+ * Returns the count of active (non-completed) actions for a user.
+ * Used to enforce per-tier limits before creating a new action.
+ * Always call with the server client.
+ */
+export async function getActiveActionCount(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<number> {
+  const { data, error } = await client.rpc("get_active_action_count", {
+    p_user_id: userId,
+  });
+  if (error) throw error;
+  return data ?? 0;
+}
+
+/**
+ * Returns all actions for a user, newest first.
+ * Pass status to filter (e.g. fetch only active actions for the panel).
+ */
+export async function getActions(
+  userId: string,
+  options: { status?: ActionStatus | ActionStatus[] } = {},
+  client: SupabaseClient = supabase
+): Promise<Action[]> {
+  let query = client
+    .from("actions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (options.status) {
+    const statuses = Array.isArray(options.status)
+      ? options.status
+      : [options.status];
+    query = query.in("status", statuses);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+/**
+ * Returns a single action owned by the user, or null if it doesn't exist.
+ */
+export async function getAction(
+  userId: string,
+  actionId: string,
+  client: SupabaseClient = supabase
+): Promise<Action | null> {
+  const { data, error } = await client
+    .from("actions")
+    .select("*")
+    .eq("id", actionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Creates a new action.
+ * Callers must check getActiveActionCount against USAGE_LIMITS before calling.
+ */
+export async function createAction(
+  userId: string,
+  action: Omit<ActionInsert, "user_id">,
+  client: SupabaseClient = supabase
+): Promise<Action> {
+  const { data, error } = await client
+    .from("actions")
+    .insert({ ...action, user_id: userId })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Partially updates an action.
+ * If status changes, also writes an audit log entry.
+ * Always call with the server client.
+ */
+export async function updateAction(
+  userId: string,
+  actionId: string,
+  updates: ActionUpdate,
+  options: { auditNote?: string } = {},
+  client: SupabaseClient = supabase
+): Promise<Action> {
+  // Fetch current status for audit log comparison
+  let oldStatus: ActionStatus | null = null;
+  if (updates.status !== undefined) {
+    const { data: current, error: fetchError } = await client
+      .from("actions")
+      .select("status")
+      .eq("id", actionId)
+      .eq("user_id", userId)
+      .single();
+    if (fetchError) throw fetchError;
+    oldStatus = current.status as ActionStatus;
+  }
+
+  const { data, error } = await client
+    .from("actions")
+    .update(updates)
+    .eq("id", actionId)
+    .eq("user_id", userId)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // Write audit log when status changed
+  if (updates.status !== undefined && updates.status !== oldStatus) {
+    await client.from("action_audit_log").insert({
+      action_id: actionId,
+      user_id: userId,
+      old_status: oldStatus,
+      new_status: updates.status,
+      note: options.auditNote ?? null,
+    });
+    // Audit log failures are non-fatal — log but don't throw
+  }
+
+  return data;
+}
+
+/**
+ * Deletes an action. Only the owning user can delete their own actions (enforced by RLS).
+ * Cascade on action_audit_log means history is also removed.
+ */
+export async function deleteAction(
+  userId: string,
+  actionId: string,
+  client: SupabaseClient = supabase
+): Promise<void> {
+  const { error } = await client
+    .from("actions")
+    .delete()
+    .eq("id", actionId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+}
+
+/**
+ * Returns the audit log for a specific action, newest entry first.
+ */
+export async function getActionAuditLog(
+  userId: string,
+  actionId: string,
+  client: SupabaseClient = supabase
+): Promise<ActionAuditLog[]> {
+  const { data, error } = await client
+    .from("action_audit_log")
+    .select("*")
+    .eq("action_id", actionId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
 }

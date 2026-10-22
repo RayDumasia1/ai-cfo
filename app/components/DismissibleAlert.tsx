@@ -1,14 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
-import type { Alert, SnoozeType } from "@/lib/types";
+import { Plus, X } from "lucide-react";
+import type { ActionInsert, Alert, SnoozeType } from "@/lib/types";
+import { alertToActionPrefill } from "@/lib/actions";
 
 interface DismissibleAlertProps {
   alert: Alert;
   snoozeType: SnoozeType;
   onDismissed: (alertCode: string) => void;
   onRestored: (alert: Alert) => void;
+  /** When provided, danger/warning alerts show a "Create action" button. */
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
 
 const severityStyles: Record<
@@ -17,7 +20,7 @@ const severityStyles: Record<
 > = {
   danger:  { border: "#ef4444", icon: "✕", titleColor: "#ef4444", bg: "#fef2f2" },
   warning: { border: "#f59e0b", icon: "⚠", titleColor: "#b45309", bg: "#fffbeb" },
-  success: { border: "#22c55e", icon: "✓", titleColor: "#15803d", bg: "#f0fdf4" },
+  success: { border: "#22c55e", icon: "✓", titleColor: "var(--color-success-text)", bg: "#f0fdf4" },
 };
 
 const TOOLTIP_TEXT: Record<SnoozeType, string> = {
@@ -64,8 +67,10 @@ export default function DismissibleAlert({
   snoozeType,
   onDismissed,
   onRestored,
+  onCreateAction,
 }: DismissibleAlertProps) {
   const s = severityStyles[alert.severity];
+  const actionPrefill = onCreateAction ? alertToActionPrefill(alert) : null;
   const canDismiss = alert.severity !== "danger";
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,6 +141,30 @@ export default function DismissibleAlert({
           >
             {alert.message}
           </p>
+          {actionPrefill && (
+            <button
+              type="button"
+              onClick={() => onCreateAction?.(actionPrefill)}
+              className="transition-opacity hover:opacity-75"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                marginTop: 8,
+                fontSize: 12,
+                fontWeight: 500,
+                color: "var(--teal)",
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--teal)",
+                borderRadius: "var(--radius-md)",
+                padding: "4px 10px",
+                cursor: "pointer",
+              }}
+            >
+              <Plus size={12} />
+              Create action
+            </button>
+          )}
         </div>
 
         {canDismiss && (

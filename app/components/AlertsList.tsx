@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Alert, SnoozeType } from "@/lib/types";
+import type { ActionInsert, Alert, SnoozeType } from "@/lib/types";
 import DismissibleAlert from "./DismissibleAlert";
 
 interface AlertsListProps {
   initialAlerts: Alert[];
   snoozeDuration: SnoozeType;
   emptyMessage?: string;
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
 
 const SEVERITY_ORDER: Record<Alert["severity"], number> = {
@@ -26,6 +27,7 @@ export default function AlertsList({
   initialAlerts,
   snoozeDuration,
   emptyMessage,
+  onCreateAction,
 }: AlertsListProps) {
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
 
@@ -70,6 +72,7 @@ export default function AlertsList({
             snoozeType={snoozeDuration}
             onDismissed={onDismissed}
             onRestored={onRestored}
+            onCreateAction={onCreateAction}
           />
         ))}
       </div>

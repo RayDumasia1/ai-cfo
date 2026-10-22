@@ -18,6 +18,8 @@
   --danger:      #E84545;
   --warning:     #F59E0B;
   --success:     #22C55E;
+  /* Darker success green for text on light success backgrounds */
+  --color-success-text: #15803d;
 
   --radius-sm: 6px;
   --radius-md: 10px;

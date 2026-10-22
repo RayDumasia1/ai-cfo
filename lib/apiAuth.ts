@@ -8,18 +8,20 @@ export interface AuthedSession {
   supabase: SupabaseClient;
 }
 
-type AuthedHandler = (
+type AuthedHandler<Ctx> = (
   req: NextRequest,
-  session: AuthedSession
+  session: AuthedSession,
+  ctx: Ctx
 ) => Promise<Response>;
 
 /**
  * Wraps an API route handler with session validation.
  * Returns 401 if no valid session. Passes userId, email, and a server-side
  * Supabase client to the handler so it can skip redundant auth checks.
+ * The route context (e.g. `{ params }` on dynamic routes) is forwarded as-is.
  */
-export function requireAuth(handler: AuthedHandler) {
-  return async (req: NextRequest): Promise<Response> => {
+export function requireAuth<Ctx = unknown>(handler: AuthedHandler<Ctx>) {
+  return async (req: NextRequest, ctx: Ctx): Promise<Response> => {
     try {
       const supabase = await createClient();
       const {
@@ -35,7 +37,7 @@ export function requireAuth(handler: AuthedHandler) {
         userId: user.id,
         email: user.email ?? "",
         supabase,
-      });
+      }, ctx);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("requireAuth:error", message);

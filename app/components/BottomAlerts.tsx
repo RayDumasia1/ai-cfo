@@ -1,6 +1,6 @@
 "use client";
 
-import type { Alert, DismissedAlert, SnoozeType } from "@/lib/types";
+import type { ActionInsert, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
 import AlertsList from "./AlertsList";
 
 interface BottomAlertsProps {
@@ -10,6 +10,8 @@ interface BottomAlertsProps {
   dismissedAlerts: DismissedAlert[];
   dataVersion: string | null;
   snoozeDuration: SnoozeType;
+  /** Danger/warning alert cards show "Create action" when provided. */
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
 
 /**
@@ -22,6 +24,7 @@ interface BottomAlertsProps {
 export default function BottomAlerts({
   alerts,
   snoozeDuration,
+  onCreateAction,
 }: BottomAlertsProps) {
   const successAlerts = alerts.filter((a) => a.severity === "success");
   const totalAlerts = alerts.length;
@@ -32,6 +35,7 @@ export default function BottomAlerts({
       <AlertsList
         initialAlerts={[]}
         snoozeDuration={snoozeDuration}
+        onCreateAction={onCreateAction}
         emptyMessage="Everything looks healthy — no alerts at this time."
       />
     );
@@ -44,6 +48,7 @@ export default function BottomAlerts({
     <AlertsList
       initialAlerts={successAlerts}
       snoozeDuration={snoozeDuration}
+        onCreateAction={onCreateAction}
     />
   );
 }
