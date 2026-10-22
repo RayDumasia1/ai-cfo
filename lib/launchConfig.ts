@@ -28,6 +28,8 @@
  * Spots do NOT return to pool (hard cap: 25 total issued).
  * Do not add expiry logic without explicit approval from the founder.
  */
+// Also drives the public marketing counter (GET /api/public/founding-spots)
+// via lib/foundingMembers.ts — the only place the cap should be read from.
 export const FOUNDING_MEMBER_SPOTS = 25;
 
 /**

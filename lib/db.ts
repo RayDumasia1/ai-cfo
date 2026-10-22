@@ -514,15 +514,39 @@ export async function getBillingDetails(
   return data as BillingDetails;
 }
 
-export async function getFoundingMemberCount(
+/**
+ * A spot is claimed once a row has been assigned a founding_member_number,
+ * regardless of current plan or status — spots never return to the pool.
+ * Requires the service-role client: RLS limits other clients to their own row.
+ */
+export async function getClaimedFoundingMemberCount(
   client: SupabaseClient
 ): Promise<number> {
   const { count, error } = await client
     .from("subscriptions")
-    .select("*", { count: "exact", head: true })
-    .eq("plan", "founding_member");
+    .select("id", { count: "exact", head: true })
+    .not("founding_member_number", "is", null);
   if (error) throw error;
   return count ?? 0;
+}
+
+/**
+ * Highest member number issued so far (0 if none). New numbers are max + 1 so
+ * they never collide with an existing number even if one was cleared manually;
+ * a unique partial index on founding_member_number rejects concurrent duplicates.
+ */
+export async function getMaxFoundingMemberNumber(
+  client: SupabaseClient
+): Promise<number> {
+  const { data, error } = await client
+    .from("subscriptions")
+    .select("founding_member_number")
+    .not("founding_member_number", "is", null)
+    .order("founding_member_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.founding_member_number ?? 0;
 }
 
 export interface UsageResult {

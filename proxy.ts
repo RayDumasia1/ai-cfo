@@ -2,6 +2,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "./utils/supabase/middleware";
 import { hasPaidSubscription } from "./lib/db";
 
+// Unauthenticated, CDN-cached endpoints (e.g. the marketing site's Founding
+// Member counter). Skipped before any auth lookup so no cookies are set.
+const PUBLIC_PATHS = ["/api/public/"];
+
 const AUTH_BYPASS_PATHS = [
   "/auth/signup",
   "/auth/verify",
@@ -20,6 +24,10 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES = [
 ];
 
 export async function proxy(request: NextRequest) {
+  if (PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
   const { supabase, supabaseResponse } = createClient(request);
   const {
     data: { user },

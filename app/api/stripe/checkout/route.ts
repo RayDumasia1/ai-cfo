@@ -1,18 +1,16 @@
 import { requireAuth } from "@/lib/apiAuth";
 import { stripe, STRIPE_PRICES } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
-import { getFoundingMemberCount } from "@/lib/db";
+import { getFoundingMemberAvailability } from "@/lib/foundingMembers";
 import type { NextRequest } from "next/server";
 
 const VALID_PLAN_KEYS = new Set(Object.keys(STRIPE_PRICES));
 
 export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
   const body = await req.json();
-  const { planKey, mode, isFoundingMemberRestore, originalMemberNumber } = body as {
+  const { planKey, mode } = body as {
     planKey: string;
     mode: string;
-    isFoundingMemberRestore?: boolean;
-    originalMemberNumber?: number;
   };
 
   if (!planKey || !VALID_PLAN_KEYS.has(planKey)) {
@@ -67,23 +65,35 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
     return Response.json({ error: "Could not resolve Stripe customer" }, { status: 500 });
   }
 
-  // Founding member specific checks (new sign-up only; restores bypass)
-  if (planKey === "founding_member" && !isFoundingMemberRestore) {
-    const count = await getFoundingMemberCount(supabase);
-    if (count >= 25) {
+  // Founding member checks. Checkout only ever creates new claims — anyone who
+  // already holds a member number is restored manually by CS (see launchConfig).
+  if (planKey === "founding_member") {
+    const { data: existingSub, error: existingError } = await supabase
+      .from("subscriptions")
+      .select("founding_member_number")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existingError) {
+      console.error("checkout:foundingMember:readExisting:error", existingError);
+      return Response.json({ error: "Could not verify availability" }, { status: 503 });
+    }
+    if (existingSub?.founding_member_number != null) {
       return Response.json(
-        { error: "Founding Member spots are sold out.", sold_out: true, spots_remaining: 0 },
+        { error: "You are already a Founding Member.", already_member: true },
         { status: 409 }
       );
     }
-    const { data: existingSub } = await supabase
-      .from("subscriptions")
-      .select("plan")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (existingSub?.plan === "founding_member") {
+
+    let soldOut: boolean;
+    try {
+      ({ soldOut } = await getFoundingMemberAvailability(supabase));
+    } catch (err) {
+      console.error("checkout:foundingMember:availability:error", err);
+      return Response.json({ error: "Could not verify availability" }, { status: 503 });
+    }
+    if (soldOut) {
       return Response.json(
-        { error: "You are already a Founding Member.", already_member: true },
+        { error: "Founding Member spots are sold out.", sold_out: true, spots_remaining: 0 },
         { status: 409 }
       );
     }
@@ -102,8 +112,6 @@ export const POST = requireAuth(async (req: NextRequest, { userId, email }) => {
   const sessionMetadata: Record<string, string> = {
     supabase_user_id: userId,
     plan_key: planKey,
-    is_founding_member_restore: isFoundingMemberRestore ? "true" : "false",
-    original_member_number: originalMemberNumber?.toString() ?? "",
   };
 
   const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {

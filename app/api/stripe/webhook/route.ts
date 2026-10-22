@@ -1,5 +1,6 @@
 import { stripe, PLAN_TO_TIER } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
+import { upsertNewFoundingMember } from "@/lib/foundingMembers";
 import {
   sendCfoCallConfirmation,
   sendPaymentFailedEmail,
@@ -107,43 +108,46 @@ async function handleCheckoutCompleted(
 
     let emailMemberNumber: number | null = null;
     let isRestore = false;
+    let isNewFoundingClaim = false;
 
     if (planKey === "founding_member") {
-      isRestore = session.metadata?.is_founding_member_restore === "true";
-      const originalNumber = session.metadata?.original_member_number
-        ? parseInt(session.metadata.original_member_number)
-        : null;
+      // Trust the DB, not session metadata: a user who already holds a number
+      // re-activates that spot rather than claiming a new one.
+      const { data: existing, error: existingError } = await supabase
+        .from("subscriptions")
+        .select("founding_member_number")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existingError) {
+        console.error("webhook:founding_member:readExisting:error", existingError);
+      }
+      const originalNumber = existing?.founding_member_number ?? null;
 
-      if (isRestore && originalNumber) {
-        row.founding_member_number = originalNumber;
+      if (originalNumber !== null) {
+        isRestore = true;
         row.founding_member_cancelled_at = null;
         emailMemberNumber = originalNumber;
-      } else {
-        // New join: assign next member number (no expiry — Core features are permanent)
-        const { count } = await supabase
-          .from("subscriptions")
-          .select("*", { count: "exact", head: true })
-          .eq("plan", "founding_member");
-        const nextNumber = (count ?? 0) + 1;
-        if (nextNumber > 25) {
-          console.warn(
-            `webhook:founding_member:cap_exceeded number=${nextNumber}`
-          );
-        }
-        row.founding_member_number = nextNumber;
-        emailMemberNumber = nextNumber;
+      } else if (!existingError) {
+        // New join (no expiry — Core features are permanent)
+        isNewFoundingClaim = true;
       }
     }
 
-    const { error: upsertError } = await supabase
-      .from("subscriptions")
-      .upsert(row, { onConflict: "user_id" });
-    if (upsertError) {
-      console.error("webhook:checkoutCompleted:upsert:error", upsertError);
+    let upsertError: { code?: string } | null = null;
+    if (isNewFoundingClaim) {
+      ({ upsertError, memberNumber: emailMemberNumber } =
+        await upsertNewFoundingMember(row, userId, supabase));
+    } else {
+      ({ error: upsertError } = await supabase
+        .from("subscriptions")
+        .upsert(row, { onConflict: "user_id" }));
+      if (upsertError) {
+        console.error("webhook:checkoutCompleted:upsert:error", upsertError);
+      }
     }
 
-    // Send founding member email after successful upsert
-    if (planKey === "founding_member" && emailMemberNumber !== null) {
+    // Send founding member email only after a successful upsert
+    if (planKey === "founding_member" && !upsertError && emailMemberNumber !== null) {
       const customerEmail = session.customer_details?.email;
       if (customerEmail) {
         if (isRestore) {

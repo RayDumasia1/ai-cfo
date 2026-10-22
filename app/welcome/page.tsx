@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { createServiceClient } from "@/utils/supabase/service";
-import { getFoundingMemberCount, hasPaidSubscription } from "@/lib/db";
-import { FOUNDING_MEMBER_SPOTS } from "@/lib/launchConfig";
+import { hasPaidSubscription } from "@/lib/db";
+import { getFoundingMemberAvailability } from "@/lib/foundingMembers";
 import WelcomeClient from "./WelcomeClient";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +16,12 @@ export default async function WelcomePage() {
 
   if (await hasPaidSubscription(user.id, supabase)) redirect("/dashboard");
 
-  // Service client: the count spans all users, which RLS would hide.
-  const foundingMemberCount = await getFoundingMemberCount(createServiceClient());
-  const spotsRemaining = Math.max(0, FOUNDING_MEMBER_SPOTS - foundingMemberCount);
+  const { total, remaining } = await getFoundingMemberAvailability();
 
   return (
     <WelcomeClient
-      spotsRemaining={spotsRemaining}
-      totalSpots={FOUNDING_MEMBER_SPOTS}
+      spotsRemaining={remaining}
+      totalSpots={total}
       userEmail={user.email ?? ""}
     />
   );
