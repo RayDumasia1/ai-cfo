@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import type { FeatureTier } from "@/lib/featureGates";
 import type { Action } from "@/lib/types";
-import { GOAL_TYPE_PROMPTS, getActionLimitState, isActiveAction } from "@/lib/actions";
+import { GOAL_TYPE_PROMPTS, getActionLimitState } from "@/lib/actions";
 import {
   ACTION_EMPTY_MESSAGES,
   ACTION_FILTERS,
@@ -13,12 +13,14 @@ import {
   formatActualImpact,
   formatShortDate,
   formatTimestampDate,
+  getTabCounts,
   isOverdue,
   localToday,
   type ActionFilter,
 } from "@/lib/actionList";
 import ActionModal from "@/app/components/ActionModal";
 import ActionStatusPill from "@/app/components/ActionStatusPill";
+import OverdueBadge from "@/app/components/OverdueBadge";
 import { useActionManager } from "@/app/components/useActionManager";
 
 interface ActionsPageClientProps {
@@ -116,15 +118,17 @@ function ActionCard({
               </span>
             )
           : action.due_date && (
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: overdue ? 500 : 400,
-                  color: overdue ? "var(--danger)" : "var(--dim)",
-                }}
-              >
-                {overdue ? "Overdue · " : "Due "}
-                {formatShortDate(action.due_date)}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {overdue && <OverdueBadge />}
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: overdue ? 500 : 400,
+                    color: overdue ? "var(--danger)" : "var(--dim)",
+                  }}
+                >
+                  Due {formatShortDate(action.due_date)}
+                </span>
               </span>
             )}
         <Pencil size={16} aria-hidden="true" style={{ color: "var(--dim)" }} />
@@ -139,12 +143,8 @@ export default function ActionsPageClient({ featureTier, initialActions }: Actio
 
   const today = localToday();
   const visible = filterAndSortActions(actions, filter, today);
-  const counts: Record<ActionFilter, number> = {
-    all: actions.length,
-    active: actions.filter(isActiveAction).length,
-    completed: actions.filter((a) => !isActiveAction(a)).length,
-  };
-  const { atLimit } = getActionLimitState(featureTier, counts.active);
+  const counts = getTabCounts(actions, today);
+  const { atLimit } = getActionLimitState(featureTier, counts.active.count);
 
   return (
     <div className="px-8 py-8">
@@ -209,7 +209,14 @@ export default function ActionsPageClient({ featureTier, initialActions }: Actio
             >
               {ACTION_FILTER_LABELS[f]}
               <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 400, color: "var(--dim)" }}>
-                {counts[f]}
+                ({counts[f].count}
+                {counts[f].overdue > 0 && (
+                  <>
+                    {" · "}
+                    <span style={{ color: "var(--danger)" }}>{counts[f].overdue} overdue</span>
+                  </>
+                )}
+                )
               </span>
             </button>
           );

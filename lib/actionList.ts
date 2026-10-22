@@ -55,12 +55,46 @@ function byCreatedDesc(a: Action, b: Action): number {
   return b.created_at.localeCompare(a.created_at);
 }
 
-/** Overdue first, then newest created. */
+/** 0 = overdue, 1 = due today or later, 2 = no due date. */
+function activeSortGroup(action: Action, today: string): number {
+  if (isOverdue(action, today)) return 0;
+  return action.due_date ? 1 : 2;
+}
+
+/**
+ * Active sort order:
+ *   1. Overdue — due date ascending (most overdue first)
+ *   2. Due today or later — newest created first
+ *   3. No due date — newest created first
+ */
 export function sortActiveActions(actions: Action[], today: string = localToday()): Action[] {
   return [...actions].sort((a, b) => {
-    const overdueDiff = Number(isOverdue(b, today)) - Number(isOverdue(a, today));
-    return overdueDiff !== 0 ? overdueDiff : byCreatedDesc(a, b);
+    const ga = activeSortGroup(a, today);
+    const gb = activeSortGroup(b, today);
+    if (ga !== gb) return ga - gb;
+    if (ga === 0) {
+      const byDue = a.due_date!.localeCompare(b.due_date!);
+      if (byDue !== 0) return byDue;
+    }
+    return byCreatedDesc(a, b);
   });
+}
+
+/** Number of active actions past their due date. */
+export function countOverdue(actions: Action[], today: string = localToday()): number {
+  return actions.filter((a) => isOverdue(a, today)).length;
+}
+
+export type TabCount = { count: number; overdue: number };
+
+/** Per-tab counts. Only the Active tab carries an overdue count (0 = hide it). */
+export function getTabCounts(actions: Action[], today: string = localToday()): Record<ActionFilter, TabCount> {
+  const active = actions.filter((a) => a.status !== "completed");
+  return {
+    all:       { count: actions.length, overdue: 0 },
+    active:    { count: active.length, overdue: countOverdue(active, today) },
+    completed: { count: actions.length - active.length, overdue: 0 },
+  };
 }
 
 /** Most recently completed first; missing completed_at sorts last. */

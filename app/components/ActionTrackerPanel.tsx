@@ -11,8 +11,9 @@ import {
   getActionLimitState,
   isActiveAction,
 } from "@/lib/actions";
-import { formatShortDate, isOverdue } from "@/lib/actionList";
+import { countOverdue, formatShortDate, isOverdue, localToday, sortActiveActions } from "@/lib/actionList";
 import ActionStatusPill from "./ActionStatusPill";
+import OverdueBadge from "./OverdueBadge";
 
 interface ActionTrackerPanelProps {
   featureTier: FeatureTier;
@@ -114,18 +115,19 @@ function ActionRow({ action, onEdit }: { action: Action; onEdit: (a: Action) => 
         {GOAL_TYPE_LABELS[action.goal_type]}
       </span>
       {action.due_date && (
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: overdue ? 500 : 400,
-            color: overdue ? "var(--danger)" : "var(--dim)",
-            flexShrink: 0,
-            minWidth: 64,
-            textAlign: "right",
-          }}
-        >
-          {overdue ? "Overdue · " : "Due "}
-          {formatShortDate(action.due_date)}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {overdue && <OverdueBadge />}
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: overdue ? 500 : 400,
+              color: overdue ? "var(--danger)" : "var(--dim)",
+              minWidth: 64,
+              textAlign: "right",
+            }}
+          >
+            Due {formatShortDate(action.due_date)}
+          </span>
         </span>
       )}
       <Pencil size={14} aria-label="Edit action" style={{ color: "var(--dim)", flexShrink: 0 }} />
@@ -142,7 +144,9 @@ export default function ActionTrackerPanel({
 }: ActionTrackerPanelProps) {
   const [showCompleted, setShowCompleted] = useState(false);
 
-  const active = actions.filter(isActiveAction);
+  const today = localToday();
+  const active = sortActiveActions(actions.filter(isActiveAction), today);
+  const overdueCount = countOverdue(active, today);
   const completed = actions.filter((a) => !isActiveAction(a));
   const { limit, atLimit, nearLimit } = getActionLimitState(featureTier, active.length);
   const hint = upgradeHint(featureTier);
@@ -209,6 +213,12 @@ export default function ActionTrackerPanel({
             }}
           >
             {active.length} active
+            {overdueCount > 0 && (
+              <>
+                {" · "}
+                <span style={{ color: "var(--danger)" }}>{overdueCount} overdue</span>
+              </>
+            )}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>

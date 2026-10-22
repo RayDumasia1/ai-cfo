@@ -7,8 +7,10 @@ import {
 } from '../lib/actions'
 import {
   ACTION_EMPTY_MESSAGES,
+  countOverdue,
   filterAndSortActions,
   formatActualImpact,
+  getTabCounts,
   isOverdue,
   localToday,
 } from '../lib/actionList'
@@ -171,8 +173,8 @@ describe('filterAndSortActions', () => {
   const doneLate = makeAction('doneLate', { status: 'completed', completed_at: '2026-10-18T00:00:00Z' })
   const all = [doneEarly, newer, overdueOld, doneLate, older, overdueNew]
 
-  it('active: overdue first, then created_at desc; excludes completed', () =>
-    expect(ids(filterAndSortActions(all, 'active', TODAY))).toEqual(['overdueNew', 'overdueOld', 'newer', 'older']))
+  it('active: overdue first (most overdue first), then created_at desc; excludes completed', () =>
+    expect(ids(filterAndSortActions(all, 'active', TODAY))).toEqual(['overdueOld', 'overdueNew', 'newer', 'older']))
 
   it('active includes both not_started and in_progress', () => {
     const r = filterAndSortActions(all, 'active', TODAY)
@@ -189,7 +191,7 @@ describe('filterAndSortActions', () => {
 
   it('all: active (overdue at top) then completed', () =>
     expect(ids(filterAndSortActions(all, 'all', TODAY))).toEqual([
-      'overdueNew', 'overdueOld', 'newer', 'older', 'doneLate', 'doneEarly',
+      'overdueOld', 'overdueNew', 'newer', 'older', 'doneLate', 'doneEarly',
     ]))
 
   it('does not mutate the input', () => {
@@ -228,4 +230,82 @@ describe('formatActualImpact', () => {
   it('units plural with grouping', () => expect(formatActualImpact(1200, 'units')).toBe('1,200 units'))
   it('units singular', () => expect(formatActualImpact(1, 'units')).toBe('1 unit'))
   it('no unit → plain number', () => expect(formatActualImpact(42, null)).toBe('42'))
+})
+
+// ─── Chunk 2: overdue state ───────────────────────────────────────────────────
+
+describe('overdue detection', () => {
+  it('past due + not_started → overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: '2026-10-01', status: 'not_started' }), TODAY)).toBe(true))
+  it('past due + in_progress → overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: '2026-10-01', status: 'in_progress' }), TODAY)).toBe(true))
+  it('past due + completed → not overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: '2026-10-01', status: 'completed' }), TODAY)).toBe(false))
+  it('future due date → not overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: '2026-11-01' }), TODAY)).toBe(false))
+  it('no due date → not overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: null }), TODAY)).toBe(false))
+  it('countOverdue counts only overdue active actions', () =>
+    expect(countOverdue([
+      makeAction('a', { due_date: '2026-10-01' }),
+      makeAction('b', { due_date: '2026-10-20', status: 'in_progress' }),
+      makeAction('c', { due_date: '2026-10-01', status: 'completed' }),
+      makeAction('d', { due_date: '2026-12-01' }),
+      makeAction('e'),
+    ], TODAY)).toBe(2))
+})
+
+describe('sort groups', () => {
+  // created_at chosen so that created_at order alone would give the wrong answer
+  const mostOverdue = makeAction('mostOverdue', { due_date: '2026-09-01', created_at: '2026-08-01T00:00:00Z' })
+  const lessOverdue = makeAction('lessOverdue', { due_date: '2026-10-20', created_at: '2026-10-19T00:00:00Z' })
+  const futureOld = makeAction('futureOld', { due_date: '2026-12-01', created_at: '2026-09-01T00:00:00Z' })
+  const futureNew = makeAction('futureNew', { due_date: '2026-11-01', created_at: '2026-10-15T00:00:00Z' })
+  const dueToday = makeAction('dueToday', { due_date: TODAY, created_at: '2026-10-10T00:00:00Z' })
+  const noDateNew = makeAction('noDateNew', { created_at: '2026-10-21T00:00:00Z' })
+  const noDateOld = makeAction('noDateOld', { created_at: '2026-07-01T00:00:00Z' })
+  const done = makeAction('done', { status: 'completed', completed_at: '2026-10-21T00:00:00Z', due_date: '2026-01-01' })
+  const shuffled = [noDateNew, done, futureOld, lessOverdue, noDateOld, dueToday, mostOverdue, futureNew]
+
+  it('overdue group: due date ascending (most overdue first)', () =>
+    expect(ids(filterAndSortActions(shuffled, 'active', TODAY)).slice(0, 2)).toEqual(['mostOverdue', 'lessOverdue']))
+
+  it('overdue ties on due date fall back to newest created', () => {
+    const tieOld = makeAction('tieOld', { due_date: '2026-10-01', created_at: '2026-09-01T00:00:00Z' })
+    const tieNew = makeAction('tieNew', { due_date: '2026-10-01', created_at: '2026-09-20T00:00:00Z' })
+    expect(ids(filterAndSortActions([tieOld, tieNew], 'active', TODAY))).toEqual(['tieNew', 'tieOld'])
+  })
+
+  it('future-dated (incl. due today) sort after overdue, newest created first', () =>
+    expect(ids(filterAndSortActions(shuffled, 'active', TODAY)).slice(2, 5)).toEqual(['futureNew', 'dueToday', 'futureOld']))
+
+  it('no-due-date actions sort after future-dated ones, newest created first', () =>
+    expect(ids(filterAndSortActions(shuffled, 'active', TODAY)).slice(5)).toEqual(['noDateNew', 'noDateOld']))
+
+  it('all tab: overdue → future-dated → no due date → completed', () =>
+    expect(ids(filterAndSortActions(shuffled, 'all', TODAY))).toEqual([
+      'mostOverdue', 'lessOverdue', 'futureNew', 'dueToday', 'futureOld', 'noDateNew', 'noDateOld', 'done',
+    ]))
+})
+
+describe('tab label counts', () => {
+  it('active tab shows overdue count when > 0', () => {
+    const counts = getTabCounts([
+      makeAction('a', { due_date: '2026-10-01' }),
+      makeAction('b'),
+      makeAction('c', { status: 'in_progress' }),
+      makeAction('d', { status: 'completed', completed_at: '2026-10-05T00:00:00Z' }),
+    ], TODAY)
+    expect(counts.active).toEqual({ count: 3, overdue: 1 })
+    expect(counts.all).toEqual({ count: 4, overdue: 0 })
+    expect(counts.completed).toEqual({ count: 1, overdue: 0 })
+  })
+
+  it('overdue count is 0 (hidden) when nothing is overdue', () =>
+    expect(getTabCounts([makeAction('a', { due_date: '2026-12-01' }), makeAction('b')], TODAY).active)
+      .toEqual({ count: 2, overdue: 0 }))
+
+  it('completed actions past due never add to the overdue count', () =>
+    expect(getTabCounts([makeAction('d', { status: 'completed', due_date: '2026-01-01' })], TODAY).active)
+      .toEqual({ count: 0, overdue: 0 }))
 })
