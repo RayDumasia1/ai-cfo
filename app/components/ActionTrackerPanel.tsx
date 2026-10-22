@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Info, ListChecks, Pencil, Plus } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ChevronDown, ChevronRight, Info, ListChecks, Pencil, Plus } from "lucide-react";
 import type { FeatureTier } from "@/lib/featureGates";
 import { USAGE_LIMITS } from "@/lib/featureGates";
-import type { Action, ActionStatus } from "@/lib/types";
+import type { Action } from "@/lib/types";
 import {
-  ACTION_STATUS_LABELS,
   GOAL_TYPE_LABELS,
   getActionLimitState,
   isActiveAction,
 } from "@/lib/actions";
+import { formatShortDate, isOverdue } from "@/lib/actionList";
+import ActionStatusPill from "./ActionStatusPill";
 
 interface ActionTrackerPanelProps {
   featureTier: FeatureTier;
@@ -29,12 +31,6 @@ const TIER_NAMES: Record<FeatureTier, string> = {
   advisory: "Advisory",
 };
 
-const STATUS_PILL: Record<ActionStatus, { color: string; bg: string }> = {
-  not_started: { color: "var(--dim)",  bg: "rgba(107,122,141,0.10)" },
-  in_progress: { color: "var(--teal)", bg: "rgba(44,166,164,0.10)" },
-  completed:   { color: "var(--color-success-text)", bg: "rgba(34,197,94,0.10)" },
-};
-
 const cardStyle: React.CSSProperties = {
   backgroundColor: "var(--surface)",
   border: "1px solid var(--line)",
@@ -43,20 +39,6 @@ const cardStyle: React.CSSProperties = {
   padding: 24,
   marginTop: 24,
 };
-
-function formatDueDate(dueDate: string): string {
-  // Parse as a local date so "2026-11-03" doesn't shift a day in negative UTC offsets
-  const [y, m, d] = dueDate.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function isOverdue(action: Action): boolean {
-  if (!action.due_date || action.status === "completed") return false;
-  const [y, m, d] = action.due_date.split("-").map(Number);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(y, m - 1, d) < today;
-}
 
 /** Copy for the next tier's allowance, e.g. "upgrade to Core for 50". */
 function upgradeHint(tier: FeatureTier): string | null {
@@ -94,26 +76,6 @@ function AddActionButton({ onClick, disabled }: { onClick: () => void; disabled?
   );
 }
 
-function StatusPill({ status }: { status: ActionStatus }) {
-  const s = STATUS_PILL[status];
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        fontWeight: 500,
-        color: s.color,
-        backgroundColor: s.bg,
-        borderRadius: 999,
-        padding: "2px 8px",
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}
-    >
-      {ACTION_STATUS_LABELS[status]}
-    </span>
-  );
-}
-
 function ActionRow({ action, onEdit }: { action: Action; onEdit: (a: Action) => void }) {
   const overdue = isOverdue(action);
   const done = action.status === "completed";
@@ -133,7 +95,7 @@ function ActionRow({ action, onEdit }: { action: Action; onEdit: (a: Action) => 
         cursor: "pointer",
       }}
     >
-      <StatusPill status={action.status} />
+      <ActionStatusPill status={action.status} />
       <span
         style={{
           flex: 1,
@@ -163,7 +125,7 @@ function ActionRow({ action, onEdit }: { action: Action; onEdit: (a: Action) => 
           }}
         >
           {overdue ? "Overdue · " : "Due "}
-          {formatDueDate(action.due_date)}
+          {formatShortDate(action.due_date)}
         </span>
       )}
       <Pencil size={14} aria-label="Edit action" style={{ color: "var(--dim)", flexShrink: 0 }} />
@@ -249,7 +211,26 @@ export default function ActionTrackerPanel({
             {active.length} active
           </span>
         </div>
-        <AddActionButton onClick={onAddAction} disabled={atLimit} />
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Link
+            href="/dashboard/actions"
+            className="transition-opacity hover:opacity-75"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--teal)",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            View all
+            <ArrowRight size={14} />
+          </Link>
+          <AddActionButton onClick={onAddAction} disabled={atLimit} />
+        </div>
       </div>
 
       {/* Limit reached — inline, non-blocking */}

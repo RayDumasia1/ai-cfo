@@ -2,6 +2,14 @@
 
 import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
+import {
+  CalendarDays,
+  FileText,
+  LayoutDashboard,
+  ListChecks,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 import { useSessionTimeout } from "@/hooks/useSessionTimeout";
 import { useSubscription } from "@/hooks/useSubscription";
 import { hasFeature } from "@/lib/featureGates";
@@ -25,11 +33,12 @@ function RisingColumnMark({ className }: { className?: string }) {
   );
 }
 
-const navItems = [
-  { label: "Dashboard",       href: "/dashboard" },
-  { label: "Reports",         href: "/reports" },
-  { label: "Book a CFO Call", href: "/dashboard/cfo-call" },
-  { label: "Settings",        href: "/dashboard/settings" },
+const navItems: { label: string; href: string; icon: LucideIcon }[] = [
+  { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
+  { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
+  { label: "Reports",         href: "/reports",            icon: FileText },
+  { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },
+  { label: "Settings",        href: "/dashboard/settings", icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -107,9 +116,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   backgroundColor: isActive ? "rgba(44,166,164,0.12)" : "transparent",
                   color: isActive ? "var(--teal)" : "rgba(255,255,255,0.45)",
                   textDecoration: "none",
-                  display: "block",
+                  display: "flex",
+                  gap: 8,
                 }}
               >
+                <item.icon size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
                 {item.label}
               </a>
             );

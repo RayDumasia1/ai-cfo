@@ -5,7 +5,14 @@ import {
   validateActionCreate,
   validateActionUpdate,
 } from '../lib/actions'
-import type { Alert } from '../lib/types'
+import {
+  ACTION_EMPTY_MESSAGES,
+  filterAndSortActions,
+  formatActualImpact,
+  isOverdue,
+  localToday,
+} from '../lib/actionList'
+import type { Action, Alert } from '../lib/types'
 
 const alert = (code: Alert['code'], severity: Alert['severity']): Alert => ({
   code,
@@ -117,4 +124,108 @@ describe('validateActionUpdate', () => {
   it('rejects invalid status', () => expect(validateActionUpdate({ status: 'done' }).ok).toBe(false))
   it('rejects null status', () => expect(validateActionUpdate({ status: null }).ok).toBe(false))
   it('rejects blank name', () => expect(validateActionUpdate({ name: '' }).ok).toBe(false))
+})
+
+// ─── Action list (Actions page) ───────────────────────────────────────────────
+
+const TODAY = '2026-10-22'
+
+const makeAction = (id: string, overrides: Partial<Action> = {}): Action => ({
+  id,
+  user_id: 'u1',
+  business_id: null,
+  name: id,
+  description: null,
+  goal_type: 'expense_reduction',
+  goal_value: null,
+  goal_unit: null,
+  status: 'not_started',
+  due_date: null,
+  linked_alert_code: null,
+  actual_impact: null,
+  actual_impact_notes: null,
+  completed_at: null,
+  created_at: '2026-10-01T00:00:00Z',
+  updated_at: '2026-10-01T00:00:00Z',
+  ...overrides,
+})
+
+const ids = (actions: Action[]) => actions.map((a) => a.id)
+
+describe('isOverdue', () => {
+  it('past due date → overdue', () => expect(isOverdue(makeAction('a', { due_date: '2026-10-21' }), TODAY)).toBe(true))
+  it('due today → not overdue', () => expect(isOverdue(makeAction('a', { due_date: TODAY }), TODAY)).toBe(false))
+  it('no due date → not overdue', () => expect(isOverdue(makeAction('a'), TODAY)).toBe(false))
+  it('completed past due → not overdue', () =>
+    expect(isOverdue(makeAction('a', { due_date: '2026-01-01', status: 'completed' }), TODAY)).toBe(false))
+  it('localToday formats YYYY-MM-DD in local time', () =>
+    expect(localToday(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05'))
+})
+
+describe('filterAndSortActions', () => {
+  const newer = makeAction('newer', { created_at: '2026-10-20T00:00:00Z' })
+  const older = makeAction('older', { created_at: '2026-10-02T00:00:00Z', status: 'in_progress' })
+  const overdueOld = makeAction('overdueOld', { created_at: '2026-09-01T00:00:00Z', due_date: '2026-10-01' })
+  const overdueNew = makeAction('overdueNew', { created_at: '2026-10-10T00:00:00Z', due_date: '2026-10-15' })
+  const doneEarly = makeAction('doneEarly', { status: 'completed', completed_at: '2026-10-05T00:00:00Z', due_date: '2026-01-01' })
+  const doneLate = makeAction('doneLate', { status: 'completed', completed_at: '2026-10-18T00:00:00Z' })
+  const all = [doneEarly, newer, overdueOld, doneLate, older, overdueNew]
+
+  it('active: overdue first, then created_at desc; excludes completed', () =>
+    expect(ids(filterAndSortActions(all, 'active', TODAY))).toEqual(['overdueNew', 'overdueOld', 'newer', 'older']))
+
+  it('active includes both not_started and in_progress', () => {
+    const r = filterAndSortActions(all, 'active', TODAY)
+    expect(r.map((a) => a.status)).toEqual(expect.arrayContaining(['not_started', 'in_progress']))
+  })
+
+  it('completed: completed_at desc', () =>
+    expect(ids(filterAndSortActions(all, 'completed', TODAY))).toEqual(['doneLate', 'doneEarly']))
+
+  it('completed: missing completed_at sorts last', () => {
+    const noDate = makeAction('noDate', { status: 'completed' })
+    expect(ids(filterAndSortActions([noDate, doneEarly], 'completed', TODAY))).toEqual(['doneEarly', 'noDate'])
+  })
+
+  it('all: active (overdue at top) then completed', () =>
+    expect(ids(filterAndSortActions(all, 'all', TODAY))).toEqual([
+      'overdueNew', 'overdueOld', 'newer', 'older', 'doneLate', 'doneEarly',
+    ]))
+
+  it('does not mutate the input', () => {
+    const input = [...all]
+    filterAndSortActions(input, 'all', TODAY)
+    expect(input).toEqual(all)
+  })
+})
+
+describe('empty states per filter tab', () => {
+  const active = makeAction('active')
+  const done = makeAction('done', { status: 'completed', completed_at: '2026-10-05T00:00:00Z' })
+
+  it('all tab is empty only with no actions', () => {
+    expect(filterAndSortActions([], 'all', TODAY)).toHaveLength(0)
+    expect(filterAndSortActions([done], 'all', TODAY)).toHaveLength(1)
+  })
+  it('active tab is empty when everything is completed', () =>
+    expect(filterAndSortActions([done], 'active', TODAY)).toHaveLength(0))
+  it('completed tab is empty when nothing is completed', () =>
+    expect(filterAndSortActions([active], 'completed', TODAY)).toHaveLength(0))
+  it('each tab has its own empty message', () => {
+    expect(ACTION_EMPTY_MESSAGES.all).toBe("You haven't created any actions yet.")
+    expect(ACTION_EMPTY_MESSAGES.active).toBe('No active actions. Add one to start tracking your progress.')
+    expect(ACTION_EMPTY_MESSAGES.completed).toBe('No completed actions yet. Mark an action complete to see it here.')
+  })
+})
+
+describe('formatActualImpact', () => {
+  it('usd → currency, no trailing cents', () => expect(formatActualImpact(4200, 'usd')).toBe('$4,200'))
+  it('usd with cents shows two digits', () => expect(formatActualImpact(1234.5, 'usd')).toBe('$1,234.50'))
+  it('usd negative', () => expect(formatActualImpact(-500, 'usd')).toBe('-$500'))
+  it('percent', () => expect(formatActualImpact(12.5, 'percent')).toBe('12.5%'))
+  it('months plural', () => expect(formatActualImpact(3, 'months')).toBe('3 months'))
+  it('months singular', () => expect(formatActualImpact(1, 'months')).toBe('1 month'))
+  it('units plural with grouping', () => expect(formatActualImpact(1200, 'units')).toBe('1,200 units'))
+  it('units singular', () => expect(formatActualImpact(1, 'units')).toBe('1 unit'))
+  it('no unit → plain number', () => expect(formatActualImpact(42, null)).toBe('42'))
 })

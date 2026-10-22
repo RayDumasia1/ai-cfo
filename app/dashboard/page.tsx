@@ -42,7 +42,9 @@ export default async function DashboardPage({
     // Action Tracker failing to load shouldn't take down the dashboard — panel shows its empty state
     user
       ? getActions(user.id, {}, supabase).catch((err) => {
-          console.error("dashboard:getActions:error", err instanceof Error ? err.message : err);
+          // Supabase errors are plain objects, not Error instances — log message + code
+          const { message, code } = (err ?? {}) as { message?: string; code?: string };
+          console.error("dashboard:getActions:error", message ?? String(err), code ?? "");
           return [];
         })
       : [],

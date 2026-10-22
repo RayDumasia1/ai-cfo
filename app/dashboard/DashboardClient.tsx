@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { FeatureTier } from "@/lib/featureGates";
-import type { Action, ActionInsert, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
+import type { Action, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
 import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
 import ScenarioPanel from "@/app/components/ScenarioPanel";
 import ActionTrackerPanel from "@/app/components/ActionTrackerPanel";
 import ActionModal from "@/app/components/ActionModal";
+import { useActionManager } from "@/app/components/useActionManager";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
 import ImportRefresher from "./ImportRefresher";
 
@@ -40,54 +41,7 @@ export default function DashboardClient({
   isNewUser,
   children,
 }: DashboardClientProps) {
-  const [actions, setActions] = useState<Action[]>(initialActions);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalPrefill, setModalPrefill] = useState<Partial<ActionInsert> | undefined>();
-  const [modalEditAction, setModalEditAction] = useState<Action | undefined>();
-  // Bumped on every open so the modal remounts with fresh form state
-  const [modalKey, setModalKey] = useState(0);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  // Sync when the server re-fetches (e.g. router.refresh after import)
-  useEffect(() => {
-    setActions(initialActions);
-  }, [initialActions]);
-
-  function openModal(prefill?: Partial<ActionInsert>, editAction?: Action) {
-    setModalPrefill(prefill);
-    setModalEditAction(editAction);
-    setModalKey((k) => k + 1);
-    setActionError(null);
-    setIsModalOpen(true);
-  }
-
-  const closeModal = useCallback(() => setIsModalOpen(false), []);
-
-  function handleSave(saved: Action) {
-    setActions((prev) =>
-      prev.some((a) => a.id === saved.id)
-        ? prev.map((a) => (a.id === saved.id ? saved : a))
-        : [saved, ...prev]
-    );
-    setIsModalOpen(false);
-  }
-
-  async function handleDelete(action: Action) {
-    setIsModalOpen(false);
-    setActionError(null);
-
-    // Optimistic remove; restore at the original position on failure
-    const snapshot = actions;
-    setActions((prev) => prev.filter((a) => a.id !== action.id));
-
-    try {
-      const res = await fetch(`/api/actions/${action.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("delete failed");
-    } catch {
-      setActions(snapshot);
-      setActionError(`Couldn't delete "${action.name}" — please try again.`);
-    }
-  }
+  const { actions, actionError, openModal, modalKey, modalProps } = useActionManager(initialActions);
 
   return (
     <>
@@ -133,15 +87,7 @@ export default function DashboardClient({
       {/* Upgrade strip — Starter only */}
       <UpgradeStrip currentTier={featureTier} />
 
-      <ActionModal
-        key={modalKey}
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        onSave={handleSave}
-        onDelete={handleDelete}
-        prefill={modalPrefill}
-        editAction={modalEditAction}
-      />
+      <ActionModal key={modalKey} {...modalProps} />
     </>
   );
 }
