@@ -116,8 +116,8 @@ export async function sendFoundingMemberWelcomeEmail(
       <table cellpadding="0" cellspacing="0">
         <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Core features at $49/month — locked permanently</td></tr>
         <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Rate never increases regardless of future price changes</td></tr>
-        <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Cancel anytime — 30-day grace period from billing end to restore your status</td></tr>
-        <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">After 30 days post-cancellation, Founding Member status is permanently released</td></tr>
+        <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Cancel anytime — reinstate in account settings before your paid billing cycle ends</td></tr>
+        <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">After your billing cycle ends, contact support for case-by-case reinstatement. Your member number and badge stay yours; your spot is never reassigned.</td></tr>
       </table>
       <p style="font-size:13px;color:#344150;margin:10px 0 0;">As long as you stay subscribed, you keep everything.</p>
     </div>
@@ -196,14 +196,18 @@ export async function sendFoundingMemberCancelledEmail(
       Your subscription has been cancelled.
     </p>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your Core features remain active until <strong>${billingEndFormatted}</strong>.
+      Your Core access ends on <strong>${billingEndFormatted}</strong>.
       After that date your account access will end.
     </p>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 24px;">
-      Changed your mind? If you'd like to restore your
-      <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> status,
-      email us at <a href="mailto:hello@elidan.ai" style="color:#2CA6A4;text-decoration:none;">hello@elidan.ai</a>
-      within 30 days of your billing period ending and we'll take care of it manually.
+      Before your paid billing cycle ends, you can
+      <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/dashboard/settings?tab=billing" style="color:#2CA6A4;text-decoration:none;">keep your membership in account settings</a>
+      at $49/month with Core benefits. After it ends, contact
+      <a href="mailto:hello@elidan.ai" style="color:#2CA6A4;text-decoration:none;">hello@elidan.ai</a>
+      for manual reinstatement, reviewed case by case; the Founding rate is not guaranteed.
+      You can also sign up fresh at standard plan pricing.
+      Your <strong>Founding Member #${memberNumber}</strong> number and badge remain yours permanently,
+      and your spot is never offered to someone else.
     </p>
     <p style="font-size:13px;color:#344150;line-height:1.6;margin:0 0 8px;">
       Thank you for being a Founding Member.

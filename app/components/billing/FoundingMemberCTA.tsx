@@ -226,7 +226,7 @@ export default function FoundingMemberCTA() {
           marginBottom: 0,
         }}
       >
-        Cancel within 30 days of billing end to keep your status
+        Reinstate in account settings before your billing cycle ends. Afterward, contact support for case-by-case review. Your number and badge are permanent.
       </p>
     </div>
   );

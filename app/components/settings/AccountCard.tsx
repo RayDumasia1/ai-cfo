@@ -328,10 +328,12 @@ export default function AccountCard({ email, memberSince, businessName }: Accoun
               }}>
                 —
               </span>
-            ) : plan === "founding_member" ? (
+            ) : subscription?.founding_member_number != null ? (
               <FoundingMemberBadge
                 memberNumber={subscription?.founding_member_number ?? null}
+                isTest={subscription.founding_member_is_test}
                 featureTier={subscription?.feature_tier ?? "starter"}
+                benefitsActive={plan === "founding_member" && ["active", "pending_cancellation"].includes(subscription.status)}
               />
             ) : (
               <span style={{

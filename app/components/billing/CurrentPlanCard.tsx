@@ -153,11 +153,13 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
       </div>
 
       {/* Founding member badge */}
-      {billing.plan === "founding_member" && (
+      {billing.founding_member_number != null && (
         <div style={{ marginBottom: 12 }}>
           <FoundingMemberBadge
             memberNumber={billing.founding_member_number}
+            isTest={billing.founding_member_is_test}
             featureTier={billing.feature_tier}
+            benefitsActive={billing.plan === "founding_member" && ["active", "pending_cancellation"].includes(billing.status)}
           />
         </div>
       )}
@@ -176,20 +178,20 @@ export default function CurrentPlanCard({ billing }: CurrentPlanCardProps) {
         {renewalLine}
       </p>
 
-      {isPendingCancellationFM && billing.billing_period_end ? (
+      {isPendingCancellationFM && billing.billing_period_end && billing.founding_member_number != null ? (
         <div style={{ marginTop: "auto" }}>
           <FoundingMemberPendingCancellationSection
-            memberNumber={billing.founding_member_number ?? 1}
+            memberNumber={billing.founding_member_number}
             billingPeriodEnd={billing.billing_period_end}
           />
         </div>
       ) : (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: "auto" }}>
-          {isActiveFoundingMember && billing.billing_period_end ? (
+          {isActiveFoundingMember && billing.billing_period_end && billing.founding_member_number != null ? (
             <FoundingMemberManageButton
               customerId={billing.stripe_customer_id ?? ""}
               billingPeriodEnd={billing.billing_period_end}
-              memberNumber={billing.founding_member_number ?? 1}
+              memberNumber={billing.founding_member_number}
             />
           ) : billing.stripe_customer_id ? (
             <ManageSubscriptionButton customerId={billing.stripe_customer_id} />

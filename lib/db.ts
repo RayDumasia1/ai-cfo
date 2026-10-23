@@ -14,6 +14,8 @@
 import { supabase } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
+import type { CheckoutAttempt } from "./subscriptionCheckout";
+import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
 import type {
   Action,
   ActionAuditLog,
@@ -383,6 +385,52 @@ export async function updateAlertPreferences(
 
 // ─── Subscriptions & Usage ────────────────────────────────────────────────────
 
+export async function reserveCheckoutAttempt(
+  proposal: Omit<CheckoutAttempt, "created_at" | "session_id">,
+  client: SupabaseClient
+): Promise<CheckoutAttempt> {
+  const { error } = await client.from("subscription_checkout_attempts")
+    .upsert(proposal, { onConflict: "user_id", ignoreDuplicates: true });
+  if (error) throw error;
+  const { data, error: readError } = await client.from("subscription_checkout_attempts")
+    .select("*").eq("user_id", proposal.user_id).single();
+  if (readError) throw readError;
+  return data as CheckoutAttempt;
+}
+
+export async function saveCheckoutAttempt(
+  attempt: CheckoutAttempt,
+  values: { customer_id?: string; session_id?: string },
+  client: SupabaseClient
+) {
+  const { data, error } = await client.from("subscription_checkout_attempts").update(values)
+    .eq("user_id", attempt.user_id).eq("id", attempt.id).select("id").single();
+  if (error) throw error;
+  if (!data) throw new Error("Checkout attempt changed");
+}
+
+export async function releaseCheckoutAttempt(attempt: CheckoutAttempt, client: SupabaseClient) {
+  const { error } = await client.from("subscription_checkout_attempts").delete()
+    .eq("user_id", attempt.user_id).eq("id", attempt.id);
+  if (error) throw error;
+}
+
+/** Persist a customer without resetting existing subscription entitlements. */
+export async function ensureBillingCustomer(userId: string, customerId: string, client: SupabaseClient): Promise<string> {
+  const { error: insertError } = await client.from("subscriptions").upsert({
+    user_id: userId, stripe_customer_id: customerId,
+    plan: "starter", feature_tier: "starter", status: "active",
+  }, { onConflict: "user_id", ignoreDuplicates: true });
+  if (insertError) throw insertError;
+  const { error: updateError } = await client.from("subscriptions")
+    .update({ stripe_customer_id: customerId }).eq("user_id", userId).is("stripe_customer_id", null);
+  if (updateError) throw updateError;
+  const { data, error: readError } = await client.from("subscriptions")
+    .select("stripe_customer_id").eq("user_id", userId).single();
+  if (readError || !data?.stripe_customer_id) throw readError ?? new Error("Missing customer");
+  return data.stripe_customer_id;
+}
+
 export interface SubscriptionResult {
   plan: Plan;
   feature_tier: FeatureTier;
@@ -391,8 +439,9 @@ export interface SubscriptionResult {
   /** @deprecated Founding Member benefits no longer expire. Column retained for schema compatibility only. */
   founding_member_expires_at: string | null;
   founding_member_number: number | null;
+  founding_member_is_test: boolean;
   founding_member_cancelled_at: string | null;
-  /** @deprecated Grace period handled manually via CS. Column retained for schema compatibility only. */
+  /** Legacy field; no longer grants restoration after the billing cycle ends. */
   founding_member_grace_ends_at: string | null;
 }
 
@@ -403,6 +452,7 @@ const DEFAULT_STARTER: SubscriptionResult = {
   billing_period_end: null,
   founding_member_expires_at: null,
   founding_member_number: null,
+  founding_member_is_test: false,
   founding_member_cancelled_at: null,
   founding_member_grace_ends_at: null,
 };
@@ -418,7 +468,7 @@ export async function getSubscription(
   const { data, error } = await client
     .from("subscriptions")
     .select(
-      "plan, feature_tier, status, billing_period_end, founding_member_expires_at, founding_member_number, founding_member_cancelled_at, founding_member_grace_ends_at"
+      "plan, feature_tier, status, billing_period_end, founding_member_expires_at, founding_member_number, founding_member_is_test, founding_member_cancelled_at, founding_member_grace_ends_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -478,10 +528,11 @@ export interface BillingDetails {
   billing_period_end: string | null;
   cancelled_at: string | null;
   founding_member_number: number | null;
+  founding_member_is_test: boolean;
   /** @deprecated Founding Member benefits no longer expire. Column retained for schema compatibility only. */
   founding_member_expires_at: string | null;
   founding_member_cancelled_at: string | null;
-  /** @deprecated Grace period handled manually via CS. Column retained for schema compatibility only. */
+  /** Legacy field; no longer grants restoration after the billing cycle ends. */
   founding_member_grace_ends_at: string | null;
 }
 
@@ -492,7 +543,7 @@ export async function getBillingDetails(
   const { data, error } = await client
     .from("subscriptions")
     .select(
-      "plan, feature_tier, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, billing_period_start, billing_period_end, cancelled_at, founding_member_number, founding_member_expires_at, founding_member_cancelled_at, founding_member_grace_ends_at"
+      "plan, feature_tier, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, billing_period_start, billing_period_end, cancelled_at, founding_member_number, founding_member_is_test, founding_member_expires_at, founding_member_cancelled_at, founding_member_grace_ends_at"
     )
     .eq("user_id", userId)
     .maybeSingle();
@@ -511,6 +562,7 @@ export async function getBillingDetails(
       billing_period_end: null,
       cancelled_at: null,
       founding_member_number: null,
+      founding_member_is_test: false,
       founding_member_expires_at: null,
       founding_member_cancelled_at: null,
       founding_member_grace_ends_at: null,
@@ -520,38 +572,34 @@ export async function getBillingDetails(
 }
 
 /**
- * A spot is claimed once a row has been assigned a founding_member_number,
- * regardless of current plan or status — spots never return to the pool.
- * Requires the service-role client: RLS limits other clients to their own row.
+ * Counts customer identities, including cancelled/deleted accounts; excludes tests.
+ * Cancellation never releases a spot. Audited owner corrections are explicit exceptions.
  */
 export async function getClaimedFoundingMemberCount(
   client: SupabaseClient
 ): Promise<number> {
   const { count, error } = await client
-    .from("subscriptions")
-    .select("id", { count: "exact", head: true })
-    .not("founding_member_number", "is", null);
+    .from("founding_member_spots")
+    .select("founding_member_number", { count: "exact", head: true })
+    .eq("is_test", false);
   if (error) throw error;
   return count ?? 0;
 }
 
-/**
- * Highest member number issued so far (0 if none). New numbers are max + 1 so
- * they never collide with an existing number even if one was cleared manually;
- * a unique partial index on founding_member_number rejects concurrent duplicates.
- */
-export async function getMaxFoundingMemberNumber(
+/** Lowest unissued customer number; cancelled identities remain in the registry. */
+export async function getAvailableFoundingMemberNumber(
   client: SupabaseClient
-): Promise<number> {
+): Promise<number | null> {
   const { data, error } = await client
-    .from("subscriptions")
+    .from("founding_member_spots")
     .select("founding_member_number")
-    .not("founding_member_number", "is", null)
-    .order("founding_member_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("is_test", false);
   if (error) throw error;
-  return data?.founding_member_number ?? 0;
+  const issued = new Set((data ?? []).map(row => row.founding_member_number));
+  for (let number = 1; number <= FOUNDING_MEMBER_SPOTS; number++) {
+    if (!issued.has(number)) return number;
+  }
+  return null;
 }
 
 export interface UsageResult {

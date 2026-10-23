@@ -95,7 +95,8 @@ export default function FoundingMemberCancelWarning({
             {[
               `Core features stay active until ${formatDateLong(billingPeriodEnd)}`,
               `After that date your account access will end`,
-              `To restore your Founding Member status, email us at hello@elidan.ai within 30 days of your billing period ending`,
+              `Reinstate in account settings at $49/month before your paid billing cycle ends`,
+              `After your billing cycle ends, reinstatement requires support and is reviewed case by case. Your number and badge remain yours; your spot is never reassigned`,
             ].map((item) => (
               <li
                 key={item}

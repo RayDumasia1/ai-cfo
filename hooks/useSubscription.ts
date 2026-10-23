@@ -9,6 +9,7 @@ export interface SubscriptionData {
   status: string;
   billing_period_end: string | null;
   founding_member_number: number | null;
+  founding_member_is_test: boolean;
   founding_member_expires_at: string | null;
   founding_member_cancelled_at: string | null;
   founding_member_grace_ends_at: string | null;

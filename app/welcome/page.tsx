@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import { hasPaidSubscription } from "@/lib/db";
+import { getBillingDetails, hasPaidSubscription } from "@/lib/db";
 import { getFoundingMemberAvailability } from "@/lib/foundingMembers";
+import { getReturningFoundingMember } from "@/lib/foundingMemberState";
+import { FOUNDING_MEMBER_SPOTS } from "@/lib/launchConfig";
 import WelcomeClient from "./WelcomeClient";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +18,19 @@ export default async function WelcomePage() {
 
   if (await hasPaidSubscription(user.id, supabase)) redirect("/dashboard");
 
-  const { total, remaining } = await getFoundingMemberAvailability();
+  const billing = await getBillingDetails(user.id, supabase);
+  const returningMember = getReturningFoundingMember(billing);
+  // Existing holders do not compete for new spots or depend on the public count.
+  const { total, remaining } = returningMember
+    ? { total: FOUNDING_MEMBER_SPOTS, remaining: 0 }
+    : await getFoundingMemberAvailability();
 
   return (
     <WelcomeClient
       spotsRemaining={remaining}
       totalSpots={total}
       userEmail={user.email ?? ""}
+      returningMember={returningMember}
     />
   );
 }

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CheckCircle2, Loader2, Lock, Star } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
+import FoundingMemberReturnCard from "@/app/components/billing/FoundingMemberReturnCard";
+import type { ReturningFoundingMember } from "@/lib/foundingMemberState";
 
 type PlanKey = "founding_member" | "starter";
 
@@ -294,13 +296,15 @@ export default function WelcomeClient({
   spotsRemaining,
   totalSpots,
   userEmail,
+  returningMember = null,
 }: {
   spotsRemaining: number;
   totalSpots: number;
   userEmail: string;
+  returningMember?: ReturningFoundingMember | null;
 }) {
   const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [notifiedTiers, setNotifiedTiers] = useState<Set<string>>(new Set());
   const [pendingTier, setPendingTier] = useState<ComingSoonTierKey | null>(null);
   const foundingAvailable = spotsRemaining > 0;
@@ -323,7 +327,7 @@ export default function WelcomeClient({
 
   async function startCheckout(planKey: PlanKey) {
     setLoadingPlan(planKey);
-    setError(false);
+    setError(null);
     try {
       // The checkout route sets its own success/cancel URLs; a cancelled
       // checkout lands on /dashboard/settings, which the proxy sends back here.
@@ -333,11 +337,13 @@ export default function WelcomeClient({
         body: JSON.stringify({ planKey, mode: "subscription" }),
       });
       const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error ?? "Checkout failed");
+      if (!res.ok || !data.url) {
+        throw new Error(typeof data.error === "string" ? data.error : "Checkout failed. Please try again.");
+      }
       window.location.href = data.url;
-    } catch {
+    } catch (err) {
       setLoadingPlan(null);
-      setError(true);
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again or contact hello@elidan.ai");
     }
   }
 
@@ -373,7 +379,7 @@ export default function WelcomeClient({
       </header>
 
       {/* Availability banner */}
-      {foundingAvailable ? (
+      {!returningMember && (foundingAvailable ? (
         <div
           style={{
             maxWidth: 480,
@@ -410,11 +416,13 @@ export default function WelcomeClient({
           Founding Member spots are now full. Upgrade to Core anytime after subscribing to unlock AI
           features.
         </div>
-      )}
+      ))}
 
       {/* Plan cards */}
-      <div className={`welcome-cards${foundingAvailable ? "" : " welcome-cards--single"}`}>
-        {foundingAvailable && (
+      <div className={`welcome-cards${returningMember || foundingAvailable ? "" : " welcome-cards--single"}`}>
+        {returningMember ? (
+          <FoundingMemberReturnCard membership={returningMember} />
+        ) : foundingAvailable && (
           <div
             className="welcome-card"
             style={{ background: "var(--navy)", border: "1px solid var(--gold)", position: "relative" }}
@@ -515,7 +523,7 @@ export default function WelcomeClient({
             textAlign: "center",
           }}
         >
-          Something went wrong. Please try again or contact hello@elidan.ai
+          {error}
         </div>
       )}
 

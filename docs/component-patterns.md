@@ -529,8 +529,8 @@ style:    UI/visual changes only
 | Accounting integrations | QuickBooks only at launch (Core) — Xero and others deferred |
 | Bank sync | Deferred to Phase 4 |
 | Founding Member | Core forever at $49, no 24-month expiry |
-| FM cancellation | Manual CS process — no automated grace period |
-| FM spots | 25 total issued, never return to pool |
+| FM cancellation | Core access through paid billing end; self-service reinstatement in account settings before that cutoff. Afterward, support reviews reinstatement case by case. Standard plans remain available; number/badge stay permanent and issued spots never return to the pool. |
+| FM spots | Customer numbers #1-#25 stay consumed after cancellation. Audited database-owner corrections may release mistaken/test assignments. Explicit test memberships use #26 onward and do not affect customer capacity. |
 | Suspended state | Simple message + email us — no automated restore |
 | Scenarios page | Hidden pending UX review |
 | Growth/Advisory | Hidden — coming soon |
@@ -542,6 +542,29 @@ style:    UI/visual changes only
 | Service role client | Only in webhooks, cron jobs, admin routes |
 
 ---
+
+### Founding membership administration
+
+Apply `docs/migrations/2026-10-22-founding-billing-cycle-reinstatement.sql` in preview before running the updated application. It supersedes the earlier 30-day migration, whether or not that migration was applied. Existing assignments remain customer assignments until explicitly corrected; the migration does not infer test status or move any accounts automatically. Existing customer numbers outside #1-#25 cause validation to fail for review rather than being silently reclassified.
+
+Run corrections manually through the Supabase SQL editor as `postgres`. Browser users and `service_role` cannot execute this operation. Each correction requires the account UUID, desired number (or NULL), explicit test designation, reason, and administrator name. The audit also records the database session identity and previous/new membership identity. The name is an operator-supplied label; database access logs remain the source for identifying the person using a shared SQL-editor role.
+
+To move a test account from customer #1 to test #26, replace the placeholders and run:
+
+```sql
+SELECT public.admin_correct_founding_membership(
+  '<account-uuid>'::uuid, 26, true,
+  'Move test account out of the customer pool', '<administrator-name>'
+);
+```
+
+This releases #1 and assigns #26 in one transaction, provided #26 is available. The next paying customer receives the lowest unissued customer number. A cancelled paying customer's number stays issued and is never selected by ordinary allocation.
+
+To clear a mistaken assignment, use `NULL, false`. To assign a customer identity manually, use a number from 1 through 25 and `false`. Other test accounts need distinct numbers above 25. All operations reject numbers owned by another account and roll back the entire correction on a collision. Clearing a deleted account's retained registry identity is also supported by UUID.
+
+Corrections update **identity only**. They do not create/cancel Stripe subscriptions, charge/refund money, change plans/status/features, or reactivate subscriptions. Keep any test entitlement configuration separate. Close outstanding checkout sessions and reconcile in-flight billing events before resetting an account's identity so an old payment cannot issue another claim afterward.
+
+Verify in preview using `docs/migrations/verify-founding-membership-corrections.sql`. Fill in two dedicated preview account UUIDs and run the entire script as `postgres`; it rolls back fixture changes. It covers role permissions, forged bypass flags, test exclusion, assignment, cancellation retention, collisions, number ranges, release, and append-only auditing. Multi-connection checkout concurrency and browser/Stripe integration still require preview verification. Do not treat the verification file as a migration.
 
 ## 10 Document History
 

@@ -3,20 +3,24 @@ import type { FeatureTier } from "@/lib/featureGates";
 interface FoundingMemberBadgeProps {
   memberNumber: number | null;
   featureTier: FeatureTier;
+  benefitsActive?: boolean;
+  isTest?: boolean;
 }
 
 export default function FoundingMemberBadge({
   memberNumber,
   featureTier,
+  isTest = false,
+  benefitsActive = featureTier === "core",
 }: FoundingMemberBadgeProps) {
   let subText: string | null = null;
   let subColor = "#6B7A8D";
 
-  if (featureTier === "core") {
-    subText = "Core features · Locked forever";
-  } else if (featureTier === "suspended") {
-    subText = "Account suspended · Grace period active";
-    subColor = "#F59E0B";
+  if (benefitsActive) {
+    subText = "Founding rate · Core benefits active";
+  } else {
+    subText = isTest ? "Test membership · Founding benefits inactive" : "Permanent member badge · Founding benefits inactive";
+    subColor = "var(--dim)";
   }
 
   return (
@@ -35,7 +39,7 @@ export default function FoundingMemberBadge({
           color: "#7D4E00",
         }}
       >
-        ✦ Founding Member{memberNumber ? ` #${memberNumber}` : ""}
+        ✦ {isTest ? "Test Founding Member" : "Founding Member"}{memberNumber ? ` #${memberNumber}` : ""}
       </span>
       {subText && (
         <p style={{ fontSize: 12, color: subColor, margin: "4px 0 0" }}>

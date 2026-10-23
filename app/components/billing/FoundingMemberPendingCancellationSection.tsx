@@ -55,9 +55,8 @@ export default function FoundingMemberPendingCancellationSection({
         }}
       >
         <p style={{ fontSize: 13, color: "#344150", margin: 0 }}>
-          Your subscription is scheduled to cancel on{" "}
-          <strong>{formatDateShort(billingPeriodEnd)}</strong>. Your Core
-          features remain active until then. Changed your mind?
+          Founding Member #{memberNumber} · Active until {formatDateShort(billingPeriodEnd)}.
+          {" "}Your cancellation is scheduled. Keep your membership to continue at $49/month.
         </p>
       </div>
 
@@ -83,7 +82,7 @@ export default function FoundingMemberPendingCancellationSection({
         {loading && (
           <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
         )}
-        {loading ? "Restoring access..." : "Undo cancellation →"}
+        {loading ? "Keeping your membership..." : "Keep my membership"}
         <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </button>
 

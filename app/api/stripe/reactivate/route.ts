@@ -7,11 +7,12 @@ export const dynamic = "force-dynamic";
 export const POST = requireAuth(async (_req, { userId }) => {
   const serviceSupabase = createServiceClient();
 
-  const { data: sub } = await serviceSupabase
+  const { data: sub, error: readError } = await serviceSupabase
     .from("subscriptions")
-    .select("stripe_subscription_id, plan, status")
+    .select("stripe_subscription_id, plan, status, billing_period_end")
     .eq("user_id", userId)
     .maybeSingle();
+  if (readError) return Response.json({ error: "Could not verify subscription" }, { status: 503 });
 
   if (!sub?.stripe_subscription_id) {
     return Response.json({ error: "No active subscription found" }, { status: 400 });
@@ -24,11 +25,23 @@ export const POST = requireAuth(async (_req, { userId }) => {
     );
   }
 
+  const billingEnd = sub.billing_period_end ? new Date(sub.billing_period_end).getTime() : NaN;
+  if (!Number.isFinite(billingEnd) || Date.now() >= billingEnd) {
+    return Response.json({ error: "Your billing cycle has ended or could not be verified. Contact hello@elidan.ai for help with reinstatement." }, { status: 409 });
+  }
+
   try {
-    // Portal schedules via cancel_at — clear it directly (cannot send both params)
-    await stripe.subscriptions.update(sub.stripe_subscription_id, {
-      cancel_at: "" as unknown as number,
-    });
+    const current = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
+    if (current.status !== "active" && current.status !== "trialing") {
+      return Response.json({ error: "This subscription has ended. Refresh the page to see your restoration options." }, { status: 409 });
+    }
+    const stripeEnd = current.cancel_at ?? current.items.data[0]?.current_period_end;
+    if (!stripeEnd || Date.now() >= stripeEnd * 1000) {
+      return Response.json({ error: "Your billing cycle has ended. Contact hello@elidan.ai for reinstatement, reviewed case by case." }, { status: 409 });
+    }
+    await stripe.subscriptions.update(sub.stripe_subscription_id, current.cancel_at
+      ? { cancel_at: null }
+      : { cancel_at_period_end: false });
   } catch (err) {
     console.error("reactivate:stripe:error", err);
     return Response.json({ error: "Failed to reactivate subscription" }, { status: 500 });
@@ -40,7 +53,7 @@ export const POST = requireAuth(async (_req, { userId }) => {
       status: "active",
       cancelled_at: null,
     })
-    .eq("user_id", userId);
+    .eq("user_id", userId).eq("stripe_subscription_id", sub.stripe_subscription_id).eq("status", "pending_cancellation");
 
   if (updateError) {
     console.error("reactivate:update:error", updateError);

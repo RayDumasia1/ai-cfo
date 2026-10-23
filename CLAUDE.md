@@ -119,7 +119,8 @@ style:    UI/visual only
 - QuickBooks only at launch (Core tier); Xero and other integrations deferred
 - Bank sync (Plaid) deferred to Phase 4
 - Founding Member = Core forever at $49
-- Cancel → CS handles manually (no automated grace)
+- Cancellation: keep $49/Core through the paid billing cycle; self-service reinstatement in account settings before it ends. After it ends, contact support for manual, case-by-case reinstatement (no guaranteed rate). Standard plans remain available. Number and badge are permanent; issued spots never return to the pool.
+- Founding administration: customer spots #1-#25 remain consumed after cancellation. Database-owner corrections require a reason and audit entry. Explicit test memberships use #26 onward and do not consume customer capacity. Identity assignment never changes Stripe charges or feature access.
 - Growth/Advisory hidden (coming soon)
 - Scenarios page hidden pending UX review
 - usage_tracking uses 'usage_limit' not 'limit'

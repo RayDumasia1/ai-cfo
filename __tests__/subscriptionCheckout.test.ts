@@ -1,0 +1,714 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+vi.mock("server-only", () => ({}));
+vi.mock("../lib/supabase", () => ({ supabase: {} }));
+vi.mock("../utils/supabase/service", () => ({ createServiceClient: vi.fn() }));
+vi.mock("../utils/supabase/server", () => ({ createClient: vi.fn() }));
+vi.mock("../lib/foundingMembers", () => ({
+  getFoundingMemberAvailability: vi.fn(async () => ({ soldOut: false })),
+  upsertNewFoundingMember: vi.fn(),
+}));
+vi.mock("../lib/email", () => ({
+  sendCfoCallConfirmation: vi.fn(), sendPaymentFailedEmail: vi.fn(),
+  sendFoundingMemberWelcomeEmail: vi.fn(), sendFoundingMemberRestoreEmail: vi.fn(),
+  sendFoundingMemberCancelledEmail: vi.fn(),
+}));
+vi.mock("../lib/stripe", () => ({
+  stripe: {
+    customers: { create: vi.fn(), retrieve: vi.fn() },
+    subscriptions: { list: vi.fn(), retrieve: vi.fn(), cancel: vi.fn(), update: vi.fn() },
+    invoicePayments: { list: vi.fn() },
+    refunds: { create: vi.fn() },
+    checkout: { sessions: { create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), list: vi.fn() } },
+    webhooks: { constructEvent: vi.fn() },
+  },
+  STRIPE_PRICES: { starter: "price_starter", core: "price_core", founding_member: "price_founding", cfo_call: "price_call" },
+  PLAN_TO_TIER: { starter: "starter", core: "core", founding_member: "core" },
+}));
+
+import { stripe } from "../lib/stripe";
+import { createServiceClient } from "../utils/supabase/service";
+import { createClient } from "../utils/supabase/server";
+import { POST as checkout } from "../app/api/stripe/checkout/route";
+import { POST as webhook } from "../app/api/stripe/webhook/route";
+import { ensureBillingCustomer } from "../lib/db";
+import { sendPaymentFailedEmail } from "../lib/email";
+import { getFoundingMemberAvailability, upsertNewFoundingMember } from "../lib/foundingMembers";
+import { POST as reactivate } from "../app/api/stripe/reactivate/route";
+
+type Row = Record<string, unknown>;
+
+// In-memory PostgREST double: executes filtered writes when awaited, including
+// ON CONFLICT DO NOTHING and compare-and-delete. No Supabase/Stripe network calls.
+function database() {
+  const tables: Record<string, Row[]> = { subscriptions: [], subscription_checkout_attempts: [], usage_tracking: [] };
+  const writes: { table: string; filters: [string, unknown][]; values: Row }[] = [];
+  let failTable: string | null = null;
+  const client = {
+    from(table: string) {
+      let operation = "select";
+      let values: Row = {};
+      let ignoreDuplicates = false;
+      const filters: [string, unknown][] = [];
+      const builder = {
+        select() { return builder; },
+        upsert(row: Row, options?: { ignoreDuplicates?: boolean }) {
+          operation = "upsert"; values = row; ignoreDuplicates = !!options?.ignoreDuplicates; return builder;
+        },
+        update(row: Row) { operation = "update"; values = row; return builder; },
+        delete() { operation = "delete"; return builder; },
+        eq(key: string, value: unknown) { filters.push([key, value]); return builder; },
+        is(key: string, value: unknown) { filters.push([key, value]); return builder; },
+        neq(key: string, value: unknown) { filters.push([`!${key}`, value]); return builder; },
+        lt() { return builder; },
+        single: () => execute(true),
+        maybeSingle: () => execute(true),
+        then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
+          return execute(false).then(resolve, reject);
+        },
+      };
+      async function execute(single: boolean) {
+        if (table === failTable) return { data: null, error: new Error("Database unavailable") };
+        const rows = tables[table] ??= [];
+        const matches = (row: Row) => filters.every(([key, value]) => key.startsWith("!")
+          ? row[key.slice(1)] !== value : (row[key] ?? null) === value);
+        let selected = rows.filter(matches);
+        if (operation === "upsert") {
+          const existing = rows.find(row => row.user_id === values.user_id);
+          if (existing && !ignoreDuplicates) Object.assign(existing, values);
+          if (!existing) rows.push({ created_at: new Date().toISOString(), ...values });
+          selected = rows.filter(row => row.user_id === values.user_id);
+        }
+        if (operation === "update") {
+          writes.push({ table, filters: [...filters], values });
+          selected.forEach(row => Object.assign(row, values));
+        }
+        if (operation === "delete") tables[table] = rows.filter(row => !matches(row));
+        return { data: single ? selected[0] ?? null : selected, error: null };
+      }
+      return builder;
+    },
+  } as unknown as SupabaseClient;
+  return { client, tables, writes, fail: (table: string) => { failTable = table; } };
+}
+
+let db: ReturnType<typeof database>;
+let sessions: Map<string, Row>;
+let subscriptions: Row[];
+let userId: string;
+let invoicePayments: Row[];
+
+function request(planKey = "core", mode = "subscription") {
+  return new NextRequest("https://app.example.invalid/api/stripe/checkout", {
+    method: "POST", body: JSON.stringify({ planKey, mode }),
+  });
+}
+
+function seedSubscription(overrides: Row = {}): Row {
+  const row = { user_id: userId, stripe_customer_id: "cus_existing", stripe_subscription_id: "sub_current", plan: "core", status: "active", feature_tier: "core", ...overrides };
+  db.tables.subscriptions.push(row);
+  return row;
+}
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-22T12:00:00.000Z"));
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example.invalid");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  db = database(); sessions = new Map(); subscriptions = []; invoicePayments = []; userId = "user_one";
+  vi.mocked(getFoundingMemberAvailability).mockResolvedValue({ total: 25, claimed: 1, remaining: 24, soldOut: false });
+  vi.mocked(createServiceClient).mockReturnValue(db.client);
+  vi.mocked(createClient).mockImplementation(async () => ({
+    auth: { getUser: async () => ({ data: { user: { id: userId, email: "test@example.invalid" } }, error: null }) },
+  }) as unknown as Awaited<ReturnType<typeof createClient>>);
+  vi.mocked(stripe.customers.create).mockImplementation(async (_params, options) => ({
+    id: `cus_${options?.idempotencyKey}`,
+  }) as never);
+  vi.mocked(stripe.customers.retrieve).mockResolvedValue({ email: "test@example.invalid" } as never);
+  vi.mocked(stripe.subscriptions.list).mockImplementation((params) => ({
+    autoPagingEach: async (visit: (row: Row) => unknown) => {
+      for (const row of subscriptions.filter(row => row.customer === params?.customer)) {
+        if (visit(row) === false) break;
+      }
+    },
+  }) as never);
+  vi.mocked(stripe.subscriptions.retrieve).mockImplementation(async (id) => (
+    subscriptions.find(row => row.id === id) ?? { id, status: "canceled", items: { data: [] } }
+  ) as never);
+  vi.mocked(stripe.subscriptions.cancel).mockImplementation(async id => {
+    const sub = subscriptions.find(row => row.id === id);
+    if (sub) sub.status = "canceled";
+    return sub as never;
+  });
+  vi.mocked(stripe.subscriptions.update).mockResolvedValue({ status: "active" } as never);
+  vi.mocked(stripe.invoicePayments.list).mockImplementation(() => ({
+    autoPagingEach: async (visit: (row: Row) => Promise<void>) => {
+      for (const payment of invoicePayments) await visit(payment);
+    },
+  }) as never);
+  vi.mocked(stripe.refunds.create).mockResolvedValue({ status: "succeeded" } as never);
+  vi.mocked(stripe.checkout.sessions.create).mockImplementation(async (params, options) => {
+    const key = options?.idempotencyKey ?? `payment:${sessions.size}`;
+    if (!sessions.has(key)) sessions.set(key, {
+      id: `cs_${sessions.size}`, url: `https://checkout.example.invalid/${sessions.size}`,
+      status: "open", ...params,
+    });
+    return sessions.get(key) as never;
+  });
+  vi.mocked(stripe.checkout.sessions.retrieve).mockImplementation(async (id) => (
+    [...sessions.values()].find(row => row.id === id)
+  ) as never);
+  vi.mocked(stripe.checkout.sessions.list).mockImplementation((params) => ({
+    autoPagingEach: async (visit: (row: Row) => Promise<unknown>) => {
+      for (const session of sessions.values()) {
+        if (session.customer === params?.customer && session.status === "open") await visit(session);
+      }
+    },
+  }) as never);
+  vi.mocked(stripe.checkout.sessions.expire).mockImplementation(async (id) => {
+    const session = [...sessions.values()].find(row => row.id === id)!;
+    if (session.status !== "open") throw new Error("Session cannot be expired");
+    session.status = "expired";
+    return session as never;
+  });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("subscription checkout", () => {
+  it("explains restoration when a cancelled account already holds a Founding Member number", async () => {
+    seedSubscription({ status: "cancelled", stripe_subscription_id: null, founding_member_number: 1 });
+    const response = await checkout(request("founding_member"), {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      already_member: true,
+      error: expect.stringContaining("hello@elidan.ai"),
+    });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(0);
+  });
+
+  it("creates and reuses the Founding Member checkout for an eligible new account", async () => {
+    const first = await checkout(request("founding_member"), {});
+    const second = await checkout(request("founding_member"), {});
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await first.json()).toEqual(await second.json());
+    expect(sessions.size).toBe(1);
+    expect([...sessions.values()][0]).toMatchObject({
+      line_items: [{ price: "price_founding", quantity: 1 }],
+      metadata: { plan_key: "founding_member", supabase_user_id: userId },
+    });
+  });
+
+  it("blocks a new Founding Member checkout when spots are sold out", async () => {
+    vi.mocked(getFoundingMemberAvailability).mockResolvedValue({ total: 25, claimed: 25, remaining: 0, soldOut: true });
+    const response = await checkout(request("founding_member"), {});
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ sold_out: true });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when Founding Member availability cannot be checked", async () => {
+    vi.mocked(getFoundingMemberAvailability).mockRejectedValueOnce(new Error("Database unavailable"));
+    expect((await checkout(request("founding_member"), {})).status).toBe(503);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it.each(["active", "pending_cancellation", "past_due", "unpaid", "incomplete", "paused"])(
+    "blocks an existing %s subscription before creating a session", async (status) => {
+      seedSubscription({ status });
+      expect((await checkout(request(), {})).status).toBe(409);
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    }
+  );
+
+  it("blocks a Stripe subscription even when the database has not received its webhook", async () => {
+    seedSubscription({ stripe_subscription_id: null, plan: "starter" });
+    subscriptions.push({ customer: "cus_existing", status: "active" });
+    expect((await checkout(request(), {})).status).toBe(409);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("reuses one checkout across repeated and concurrent requests", async () => {
+    const responses = await Promise.all(Array.from({ length: 10 }, () => checkout(request(), {})));
+    expect(responses.every(response => response.status === 200)).toBe(true);
+    const urls = await Promise.all(responses.map(response => response.json().then(body => body.url)));
+    expect(new Set(urls).size).toBe(1);
+    expect(sessions.size).toBe(1);
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(1);
+    expect(new Set(vi.mocked(stripe.checkout.sessions.create).mock.calls.map(call => call[1]?.idempotencyKey)).size).toBe(1);
+  });
+
+  it("isolates checkout attempts between accounts", async () => {
+    const first = await (await checkout(request(), {})).json();
+    userId = "user_two";
+    const second = await (await checkout(request(), {})).json();
+    expect(first.url).not.toBe(second.url);
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(2);
+  });
+
+  it("recovers an ambiguous Stripe timeout using the same idempotency key", async () => {
+    const create = vi.mocked(stripe.checkout.sessions.create).getMockImplementation()!;
+    vi.mocked(stripe.checkout.sessions.create).mockImplementationOnce(async (...args) => {
+      await create(...args);
+      throw new Error("Response lost after Stripe created the session");
+    });
+    expect((await checkout(request(), {})).status).toBe(503);
+    expect((await checkout(request(), {})).status).toBe(200);
+    expect(sessions.size).toBe(1);
+  });
+
+  it("does not replace a completed checkout while webhook activation is pending", async () => {
+    await checkout(request(), {});
+    [...sessions.values()][0].status = "complete";
+    expect((await checkout(request(), {})).status).toBe(409);
+    expect(sessions.size).toBe(1);
+  });
+
+  it("expires the previous session before switching plans", async () => {
+    await checkout(request(), {});
+    expect((await checkout(request("starter"), {})).status).toBe(200);
+    expect([...sessions.values()][0].status).toBe("expired");
+    expect((await checkout(request("starter"), {})).status).toBe(200);
+    expect([...sessions.values()].filter(row => row.status === "open")).toHaveLength(1);
+  });
+
+  it("does not release an attempt if session expiration races with completion", async () => {
+    await checkout(request(), {});
+    vi.mocked(stripe.checkout.sessions.expire).mockRejectedValueOnce(new Error("Already complete"));
+    expect((await checkout(request("starter"), {})).status).toBe(503);
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(1);
+  });
+
+  it("allows another attempt only after the existing session is confirmed expired", async () => {
+    await checkout(request(), {});
+    [...sessions.values()][0].status = "expired";
+    expect((await checkout(request(), {})).status).toBe(200);
+    expect(sessions.size).toBe(2);
+  });
+
+  it.each(["subscriptions", "subscription_checkout_attempts"])("fails closed when %s is unavailable", async table => {
+    db.fail(table);
+    expect((await checkout(request(), {})).status).toBe(503);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when Stripe subscription verification fails", async () => {
+    vi.mocked(stripe.subscriptions.list).mockImplementationOnce(() => { throw new Error("Stripe unavailable"); });
+    expect((await checkout(request(), {})).status).toBe(503);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("does not retry ambiguous creation beyond Stripe's idempotency retention window", async () => {
+    await checkout(request(), {});
+    const attempt = db.tables.subscription_checkout_attempts[0];
+    attempt.session_id = null;
+    attempt.created_at = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    vi.mocked(stripe.checkout.sessions.create).mockClear();
+    expect((await checkout(request(), {})).status).toBe(409);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("permits repurchase after a terminal subscription", async () => {
+    seedSubscription({ status: "cancelled" });
+    subscriptions.push({ customer: "cus_existing", status: "canceled" });
+    expect((await checkout(request(), {})).status).toBe(200);
+  });
+
+  it("retires the completed attempt after its subscription ends, permitting a fresh purchase", async () => {
+    await checkout(request(), {});
+    Object.assign([...sessions.values()][0], { status: "complete", subscription: "sub_ended" });
+    Object.assign(db.tables.subscriptions[0], { status: "cancelled", stripe_subscription_id: "sub_ended" });
+    subscriptions.push({ id: "sub_ended", status: "canceled" });
+    expect((await checkout(request(), {})).status).toBe(200);
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(1);
+    expect(sessions.size).toBe(2);
+  });
+
+  it("expires legacy subscription checkouts without expiring one-time purchases", async () => {
+    seedSubscription({ plan: "starter", stripe_subscription_id: null });
+    sessions.set("legacy", { id: "cs_legacy", customer: "cus_existing", mode: "subscription", status: "open" });
+    sessions.set("call", { id: "cs_call", customer: "cus_existing", mode: "payment", status: "open" });
+    expect((await checkout(request(), {})).status).toBe(200);
+    expect(sessions.get("legacy")?.status).toBe("expired");
+    expect(sessions.get("call")?.status).toBe("open");
+  });
+
+  it("does not create a session if a legacy checkout cannot be expired", async () => {
+    seedSubscription({ plan: "starter", stripe_subscription_id: null });
+    sessions.set("legacy", { id: "cs_legacy", customer: "cus_existing", mode: "subscription", status: "open" });
+    vi.mocked(stripe.checkout.sessions.expire).mockRejectedValueOnce(new Error("Legacy checkout completed"));
+    expect((await checkout(request(), {})).status).toBe(503);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("rechecks subscriptions when a legacy checkout completes during reconciliation", async () => {
+    seedSubscription({ plan: "starter", stripe_subscription_id: null });
+    vi.mocked(stripe.checkout.sessions.list).mockImplementationOnce(() => ({
+      autoPagingEach: async () => { subscriptions.push({ customer: "cus_existing", status: "active" }); },
+    }) as never);
+    expect((await checkout(request(), {})).status).toBe(409);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("preserves paid entitlements when initializing an existing customer's association", async () => {
+    const row = seedSubscription({ stripe_customer_id: null });
+    await ensureBillingCustomer(userId, "cus_new", db.client);
+    expect(row).toMatchObject({ plan: "core", feature_tier: "core", stripe_subscription_id: "sub_current", stripe_customer_id: "cus_new" });
+  });
+
+  it.each([["core", "payment"], ["cfo_call", "subscription"]])("rejects a mismatched product/mode pair: %s / %s", async (plan, mode) => {
+    expect((await checkout(request(plan, mode), {})).status).toBe(400);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps one-time CFO purchases available to current subscribers", async () => {
+    seedSubscription();
+    expect((await checkout(request("cfo_call", "payment"), {})).status).toBe(200);
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(expect.objectContaining({ mode: "payment", customer: "cus_existing" }));
+  });
+});
+
+async function deliver(type: string, object: Row, eventTime = new Date()) {
+  vi.mocked(stripe.webhooks.constructEvent).mockReturnValue({
+    type, created: Math.floor(eventTime.getTime() / 1000), data: { object: { payment_status: "paid", ...object } },
+  } as never);
+  return webhook(new NextRequest("https://app.example.invalid/api/stripe/webhook", { method: "POST", body: "synthetic signed event" }));
+}
+
+describe("subscription webhook identity", () => {
+  it("activates the subscription created by the current checkout attempt", async () => {
+    await checkout(request(), {});
+    const session = [...sessions.values()][0];
+    subscriptions.push({
+      id: "sub_new", status: "active", customer: session.customer,
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1800000000, current_period_end: 1802592000 }] },
+    });
+    await deliver("checkout.session.completed", { ...session, subscription: "sub_new", status: "complete" });
+    expect(db.tables.subscriptions[0]).toMatchObject({
+      stripe_subscription_id: "sub_new", plan: "core", feature_tier: "core", status: "active",
+    });
+  });
+
+  it("does not activate an already-ended subscription on a delayed checkout event", async () => {
+    await checkout(request(), {});
+    const session = [...sessions.values()][0];
+    subscriptions.push({ id: "sub_new", status: "canceled", customer: session.customer });
+    await deliver("checkout.session.completed", { ...session, subscription: "sub_new", status: "complete" });
+    expect(db.tables.subscriptions[0].stripe_subscription_id).toBeUndefined();
+  });
+
+  it("preserves scheduled cancellation when checkout completion is delivered again", async () => {
+    await checkout(request(), {});
+    const session = [...sessions.values()][0];
+    Object.assign(db.tables.subscriptions[0], { stripe_subscription_id: "sub_new", status: "pending_cancellation" });
+    subscriptions.push({ id: "sub_new", status: "active", cancel_at_period_end: true, items: { data: [] } });
+    await deliver("checkout.session.completed", { ...session, subscription: "sub_new", status: "complete" });
+    expect(db.tables.subscriptions[0].status).toBe("pending_cancellation");
+  });
+
+  it.each(["customer.subscription.updated", "customer.subscription.deleted"])("ignores %s from an older subscription", async type => {
+    const current = seedSubscription();
+    await deliver(type, { id: "sub_old", customer: "cus_existing", status: "canceled", items: { data: [] } });
+    expect(current).toMatchObject({ stripe_subscription_id: "sub_current", status: "active", feature_tier: "core" });
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("still applies cancellation to the matching subscription", async () => {
+    const current = seedSubscription();
+    await deliver("customer.subscription.deleted", { id: "sub_current", customer: "cus_existing" });
+    expect(current).toMatchObject({ status: "cancelled", feature_tier: "starter" });
+    expect(db.writes[0].filters).toContainEqual(["stripe_subscription_id", "sub_current"]);
+  });
+
+  it.each(["invoice.payment_failed", "invoice.payment_succeeded"])("ignores %s for an old subscription or a one-time purchase", async type => {
+    const current = seedSubscription({ status: "past_due" });
+    await deliver(type, { customer: "cus_existing", parent: { subscription_details: { subscription: "sub_old" } } });
+    await deliver(type, { customer: "cus_existing", parent: null });
+    expect(current.status).toBe("past_due");
+    expect(db.writes).toHaveLength(0);
+    expect(sendPaymentFailedEmail).not.toHaveBeenCalled();
+  });
+
+  it("applies payment failure to the matching subscription", async () => {
+    const current = seedSubscription();
+    await deliver("invoice.payment_failed", { customer: "cus_existing", parent: { subscription_details: { subscription: "sub_current" } } });
+    expect(current.status).toBe("past_due");
+    expect(sendPaymentFailedEmail).toHaveBeenCalledOnce();
+  });
+
+  it("applies payment success with an expanded matching subscription ID", async () => {
+    const current = seedSubscription({ status: "past_due" });
+    subscriptions.push({ id: "sub_current", status: "active", items: { data: [] } });
+    await deliver("invoice.payment_succeeded", {
+      customer: "cus_existing", parent: { subscription_details: { subscription: { id: "sub_current" } } },
+    });
+    expect(current.status).toBe("active");
+    expect(db.writes[0].filters).toContainEqual(["stripe_subscription_id", "sub_current"]);
+  });
+
+  it("ignores a superseded checkout completion", async () => {
+    const current = seedSubscription();
+    await deliver("checkout.session.completed", {
+      mode: "subscription", subscription: "sub_old", customer: "cus_existing",
+      metadata: { supabase_user_id: userId, plan_key: "core", checkout_attempt_id: "old_attempt" },
+    });
+    expect(current.stripe_subscription_id).toBe("sub_current");
+    expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("ignores a legacy completion targeting a different subscription", async () => {
+    seedSubscription();
+    await deliver("checkout.session.completed", {
+      mode: "subscription", subscription: "sub_old",
+      metadata: { supabase_user_id: userId, plan_key: "core" },
+    });
+    expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+  });
+});
+
+function cancelledFoundingMember(overrides: Row = {}) {
+  return seedSubscription({
+    plan: "founding_member", feature_tier: "suspended", status: "cancelled",
+    stripe_subscription_id: "sub_ended", founding_member_number: 7,
+    billing_period_end: "2026-10-01T12:00:00.000Z",
+    founding_member_cancelled_at: "2026-10-01T12:00:00.000Z",
+    founding_member_grace_ends_at: "2026-10-31T12:00:00.000Z",
+    founding_member_rate_lost_at: null, ...overrides,
+  });
+}
+
+async function restorationPayment() {
+  const response = await checkout(request("founding_member"), {});
+  expect(response.status).toBe(200);
+  const session = [...sessions.values()].find(row => row.status === "open")!;
+  subscriptions.push({
+    id: "sub_restored", customer: session.customer, status: "active", latest_invoice: "in_restore",
+    items: { data: [{ price: { id: "price_founding" }, current_period_start: 1800000000, current_period_end: 1802592000 }] },
+  });
+  invoicePayments.push({ id: "ip_restore", amount_paid: 4900, payment: { payment_intent: "pi_restore" } });
+  return { ...session, status: "complete", subscription: "sub_restored" };
+}
+
+function legacyRestorationPayment(supportApproved = false) {
+  db.tables.subscription_checkout_attempts.push({ user_id: userId, id: "legacy_attempt" });
+  subscriptions.push({
+    id: "sub_restored", customer: "cus_existing", status: "active", latest_invoice: "in_restore",
+    items: { data: [{ price: { id: "price_founding" }, current_period_start: 1800000000, current_period_end: 1802592000 }] },
+  });
+  invoicePayments.push({ id: "ip_restore", amount_paid: 4900, payment: { payment_intent: "pi_restore" } });
+  return {
+    id: "cs_legacy", mode: "subscription", customer: "cus_existing", status: "complete", subscription: "sub_restored",
+    metadata: { supabase_user_id: userId, plan_key: "founding_member",
+      ...(supportApproved ? { founding_reinstatement: "support" } : { checkout_attempt_id: "legacy_attempt", restoration_deadline: "2026-10-31T12:00:00Z" }),
+    },
+  };
+}
+
+describe("Founding Member billing-cycle reinstatement policy", () => {
+  it.each(["2026-10-22T11:59:59.999Z", "2026-10-01T12:00:00Z", "2026-08-01T12:00:00Z"])("requires support after effective end, even with legacy future grace dates: %s", async end => {
+    cancelledFoundingMember({ billing_period_end: end, founding_member_cancelled_at: end });
+    const response = await checkout(request("founding_member"), {});
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("case by case");
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    expect(getFoundingMemberAvailability).not.toHaveBeenCalled();
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(0);
+    expect(db.tables.subscriptions[0].founding_member_number).toBe(7);
+  });
+
+  it.each(["starter", "core"])("lets a cancelled holder choose standard %s pricing and keeps their number", async plan => {
+    const row = cancelledFoundingMember();
+    const response = await checkout(request(plan), {});
+    expect(response.status).toBe(200);
+    expect([...sessions.values()][0]).toMatchObject({
+      line_items: [{ price: `price_${plan}`, quantity: 1 }],
+      metadata: { plan_key: plan },
+    });
+    expect(row.founding_member_number).toBe(7);
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("does not change a former holder's active standard plan into a Founding plan", async () => {
+    cancelledFoundingMember({ plan: "starter", status: "active", stripe_subscription_id: "sub_starter" });
+    expect((await checkout(request("founding_member"), {})).status).toBe(409);
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("reverses obsolete self-service price changes without granting Core", async () => {
+    const row = cancelledFoundingMember({ plan: "starter", status: "active", feature_tier: "starter", stripe_subscription_id: "sub_starter", stripe_price_id: "price_starter" });
+    await deliver("customer.subscription.updated", {
+      id: "sub_starter", customer: "cus_existing", status: "active",
+      metadata: { plan_key: "founding_member", founding_restore_deadline: "2026-10-31T12:00:00.000Z" },
+      items: { data: [{ id: "si_starter", price: { id: "price_founding" } }] },
+    });
+    expect(row).toMatchObject({ plan: "starter", feature_tier: "starter", founding_member_number: 7 });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_starter", expect.objectContaining({
+      items: [{ id: "si_starter", price: "price_starter" }], proration_behavior: "none",
+    }), expect.anything());
+  });
+
+  it("ignores a client-supplied deadline and member number", async () => {
+    cancelledFoundingMember({ founding_member_cancelled_at: "2026-08-01T00:00:00Z" });
+    const response = await checkout(new NextRequest("https://app.example.invalid/api/stripe/checkout", {
+      method: "POST", body: JSON.stringify({ planKey: "founding_member", mode: "subscription", memberNumber: 99, restorationDeadline: "2099-01-01", founding_reinstatement: "support" }),
+    }), {});
+    expect(response.status).toBe(409);
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("restores the original number only on a support-approved Stripe checkout", async () => {
+    const row = cancelledFoundingMember();
+    const session = legacyRestorationPayment(true);
+    expect((await deliver("checkout.session.completed", session)).status).toBe(200);
+    expect(db.tables.subscriptions).toHaveLength(1);
+    expect(row).toMatchObject({
+      stripe_subscription_id: "sub_restored", founding_member_number: 7,
+      plan: "founding_member", feature_tier: "core", status: "active",
+      founding_member_cancelled_at: null, founding_member_grace_ends_at: null,
+    });
+    expect(upsertNewFoundingMember).not.toHaveBeenCalled();
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it("cancels and refunds an obsolete self-service checkout instead of granting Core or a new spot", async () => {
+    const row = cancelledFoundingMember();
+    const session = legacyRestorationPayment();
+    expect((await deliver("checkout.session.completed", session)).status).toBe(200);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledWith("sub_restored", expect.anything(), expect.anything());
+    expect(stripe.refunds.create).toHaveBeenCalledWith({ payment_intent: "pi_restore", amount: 4900 }, {
+      idempotencyKey: "ineligible-founding-refund:ip_restore",
+    });
+    expect(row).toMatchObject({ stripe_subscription_id: "sub_ended", founding_member_number: 7, feature_tier: "suspended", status: "cancelled" });
+    expect(row.founding_member_rate_lost_at).toBeNull();
+    expect(upsertNewFoundingMember).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 and retries reversal safely if the refund temporarily fails", async () => {
+    const row = cancelledFoundingMember();
+    const session = legacyRestorationPayment();
+    vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+    vi.mocked(stripe.refunds.create).mockRejectedValueOnce(new Error("Temporary Stripe error"));
+    expect((await deliver("checkout.session.completed", session)).status).toBe(500);
+    expect((await deliver("checkout.session.completed", session)).status).toBe(200);
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledOnce();
+    expect(row.feature_tier).toBe("suspended");
+    const keys = vi.mocked(stripe.refunds.create).mock.calls.map(call => call[1]?.idempotencyKey);
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it("does not grant benefits on an unpaid restoration checkout", async () => {
+    const row = cancelledFoundingMember();
+    const session = legacyRestorationPayment();
+    await deliver("checkout.session.completed", { ...session, payment_status: "unpaid" });
+    expect(row.feature_tier).toBe("suspended");
+    expect(row.stripe_subscription_id).toBe("sub_ended");
+  });
+
+  it("preserves the effective end and number without starting a grace clock on repeated cancellation events", async () => {
+    const row = seedSubscription({ plan: "founding_member", founding_member_number: 7 });
+    const endedAt = Math.floor(new Date("2026-10-10T12:00:00Z").getTime() / 1000);
+    const event = { id: "sub_current", customer: "cus_existing", ended_at: endedAt };
+    await deliver("customer.subscription.deleted", event);
+    vi.setSystemTime(new Date("2026-11-15T12:00:00Z"));
+    await deliver("customer.subscription.deleted", event);
+    expect(row).toMatchObject({
+      founding_member_number: 7, feature_tier: "suspended", status: "cancelled",
+      founding_member_cancelled_at: "2026-10-10T12:00:00.000Z", founding_member_grace_ends_at: null,
+    });
+  });
+
+  it("keeps access until scheduled billing end, then suspends without an automatic restoration window", async () => {
+    const row = seedSubscription({ plan: "founding_member", founding_member_number: 7 });
+    await deliver("customer.subscription.updated", {
+      id: "sub_current", customer: "cus_existing", status: "active", cancel_at_period_end: true,
+      items: { data: [{ current_period_end: Math.floor(new Date("2026-11-01T12:00:00Z").getTime() / 1000) }] },
+    });
+    expect(row.status).toBe("pending_cancellation");
+    expect(row.founding_member_cancelled_at).toBeUndefined();
+    const endedAt = Math.floor(new Date("2026-11-01T12:00:00Z").getTime() / 1000);
+    await deliver("customer.subscription.deleted", { id: "sub_current", customer: "cus_existing", ended_at: endedAt });
+    expect(row.founding_member_grace_ends_at).toBeNull();
+    expect(row.founding_member_number).toBe(7);
+    expect(row.feature_tier).toBe("suspended");
+  });
+
+  it("uses event time, not delayed processing time, when ended_at is unavailable", async () => {
+    const row = seedSubscription({ plan: "founding_member", founding_member_number: 7 });
+    await deliver("customer.subscription.deleted", { id: "sub_current", customer: "cus_existing" }, new Date("2026-10-10T12:00:00Z"));
+    expect(row.founding_member_cancelled_at).toBe("2026-10-10T12:00:00.000Z");
+  });
+
+  it("does not revive a cancelled subscription from a late invoice or subscription update", async () => {
+    const row = cancelledFoundingMember();
+    await deliver("invoice.payment_succeeded", { customer: "cus_existing", parent: { subscription_details: { subscription: "sub_ended" } } });
+    await deliver("customer.subscription.updated", { id: "sub_ended", customer: "cus_existing", status: "active" });
+    expect(row.status).toBe("cancelled");
+    expect(row.feature_tier).toBe("suspended");
+  });
+
+  it("reverses payment if the last new spot was consumed by a concurrent purchase", async () => {
+    vi.mocked(upsertNewFoundingMember).mockResolvedValueOnce({ upsertError: { code: "P0002" }, memberNumber: null });
+    const session = await restorationPayment();
+    await deliver("checkout.session.completed", session);
+    expect(stripe.refunds.create).toHaveBeenCalledOnce();
+    expect(db.tables.subscriptions[0].feature_tier).toBe("starter");
+    expect(db.tables.subscriptions[0].founding_member_number).toBeUndefined();
+  });
+});
+
+describe("keeping a scheduled membership", () => {
+  it.each([
+    ["2026-10-22T11:59:59.999Z", 409],
+    ["2026-10-22T12:00:00.000Z", 409],
+    ["2026-10-22T12:00:00.001Z", 200],
+    [null, 409], ["invalid", 409],
+  ])("enforces the stored paid-cycle cutoff (%s)", async (end, expected) => {
+    const row = seedSubscription({ plan: "founding_member", status: "pending_cancellation", founding_member_number: 7, billing_period_end: end });
+    subscriptions.push({ id: "sub_current", status: "active", cancel_at: 1793534400, items: { data: [] } });
+    const response = await reactivate(new NextRequest("https://app.example.invalid/api/stripe/reactivate", { method: "POST" }), {});
+    expect(response.status).toBe(expected);
+    expect(row.founding_member_number).toBe(7);
+    if (expected === 409) {
+      expect(row.status).toBe("pending_cancellation");
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    } else {
+      expect(row.status).toBe("active");
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it("also enforces Stripe's effective cancellation time when the database is stale", async () => {
+    seedSubscription({ plan: "founding_member", status: "pending_cancellation", billing_period_end: "2026-11-01T12:00:00Z" });
+    subscriptions.push({ id: "sub_current", status: "active", cancel_at: Date.now() / 1000, items: { data: [] } });
+    expect((await reactivate(new NextRequest("https://app.example.invalid/api/stripe/reactivate", { method: "POST" }), {})).status).toBe(409);
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("clears the correct Stripe scheduling mechanism (cancel_at: %s)", async usesDate => {
+    seedSubscription({ plan: "founding_member", status: "pending_cancellation", billing_period_end: "2026-11-01T12:00:00Z" });
+    subscriptions.push({ id: "sub_current", status: "active", cancel_at: usesDate ? 1793534400 : null, cancel_at_period_end: !usesDate, items: { data: [{ current_period_end: 1793534400 }] } });
+    const response = await reactivate(new NextRequest("https://app.example.invalid/api/stripe/reactivate", { method: "POST" }), {});
+    expect(response.status).toBe(200);
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_current", usesDate ? { cancel_at: null } : { cancel_at_period_end: false });
+  });
+
+  it("cannot revive a fully ended Stripe subscription by merely changing database status", async () => {
+    const row = seedSubscription({ plan: "founding_member", status: "pending_cancellation", billing_period_end: "2026-11-01T12:00:00Z" });
+    subscriptions.push({ id: "sub_current", status: "canceled" });
+    const response = await reactivate(new NextRequest("https://app.example.invalid/api/stripe/reactivate", { method: "POST" }), {});
+    expect(response.status).toBe(409);
+    expect(row.status).toBe("pending_cancellation");
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+});

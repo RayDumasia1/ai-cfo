@@ -11,6 +11,8 @@ import UsageCard from "@/app/components/billing/UsageCard";
 import PlanComparisonCard from "@/app/components/billing/PlanComparisonCard";
 import BillingHistoryCard from "@/app/components/billing/BillingHistoryCard";
 import FoundingMemberCTA from "@/app/components/billing/FoundingMemberCTA";
+import FoundingMemberReturnCard from "@/app/components/billing/FoundingMemberReturnCard";
+import { getReturningFoundingMember } from "@/lib/foundingMemberState";
 
 export default async function SettingsPage({
   searchParams,
@@ -29,6 +31,7 @@ export default async function SettingsPage({
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     tab === "billing" && user ? getBillingDetails(user.id, supabase) : null,
   ]);
+  const returningMember = billing ? getReturningFoundingMember(billing) : null;
 
   const tabLinkStyle = (active: boolean): React.CSSProperties => ({
     display: "inline-block",
@@ -87,7 +90,9 @@ export default async function SettingsPage({
             <CurrentPlanCard billing={billing} />
           )}
 
-          {billing.plan === "starter" && <FoundingMemberCTA />}
+          {billing.plan === "starter" && (returningMember
+            ? <FoundingMemberReturnCard membership={returningMember} />
+            : <FoundingMemberCTA />)}
 
           <PlanComparisonCard
             currentPlan={billing.plan}

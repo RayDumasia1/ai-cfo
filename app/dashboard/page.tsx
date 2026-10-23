@@ -101,9 +101,9 @@ export default async function DashboardPage({
       )}
 
       {/* Pending cancellation banner — subscription cancelled at period end, billing still active */}
-      {isPendingCancellationFM && subscription.billing_period_end && (
+      {isPendingCancellationFM && subscription.billing_period_end && subscription.founding_member_number != null && (
         <PendingCancellationBanner
-          memberNumber={subscription.founding_member_number ?? 1}
+          memberNumber={subscription.founding_member_number}
           billingPeriodEnd={subscription.billing_period_end}
         />
       )}

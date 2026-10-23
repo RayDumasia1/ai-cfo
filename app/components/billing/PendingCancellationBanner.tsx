@@ -73,10 +73,10 @@ export default function PendingCancellationBanner({
                 margin: "0 0 2px",
               }}
             >
-              Your subscription is cancelled
+              Founding Member #{memberNumber} · Active until {formatDateLong(billingPeriodEnd)}
             </p>
             <p style={{ fontSize: 12, color: "#6B7A8D", margin: 0 }}>
-              Access continues until {formatDateLong(billingPeriodEnd)}. Changed your mind?
+              Your cancellation is scheduled. Keep your membership to continue at $49/month.
             </p>
           </div>
         </div>
@@ -102,10 +102,10 @@ export default function PendingCancellationBanner({
           {loading ? (
             <>
               <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} />
-              Restoring access...
+              Keeping your membership...
             </>
           ) : (
-            "Undo cancellation →"
+            "Keep my membership"
           )}
           <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </button>

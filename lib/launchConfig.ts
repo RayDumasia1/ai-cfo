@@ -12,21 +12,25 @@
  * Cancel → Core active until billing_period_end
  * After billing_period_end → account suspended (feature_tier: 'suspended')
  *
- * Restoration: handled manually via customer service.
- * Customer emails hello@elidan.ai within 30 days of billing_period_end.
- * We restore manually in Supabase + Stripe.
+ * Confirmed October 2026: self-service reinstatement in account settings is
+ * available only before the current paid billing cycle ends. It clears the
+ * scheduled cancellation on the existing Stripe subscription and keeps $49/Core.
+ * After the subscription ends, contact support for manual, case-by-case review;
+ * reinstatement and the Founding rate are not guaranteed. There is no 30-day
+ * self-service grace period or automatic permanent forfeiture rule.
+ * A former member may instead subscribe fresh at standard plan pricing.
+ * Member numbers and badges are permanent, regardless of current plan/status.
+ * Support-approved checkout must carry Stripe session metadata
+ * founding_reinstatement=support plus supabase_user_id and plan_key=founding_member.
+ * Never accept that approval from a public API request. The old Stripe
+ * subscription must be terminal; reinstatement reuses the original member number.
  *
- * Manual restoration SQL:
- * UPDATE subscriptions
- * SET plan='founding_member', feature_tier='core', status='active', cancelled_at=NULL
- * WHERE user_id=(SELECT id FROM auth.users WHERE email='customer@email.com');
- * Then reactivate in Stripe dashboard.
- *
- * Grace period columns (founding_member_grace_ends_at, fm_grace_warning_sent,
- * fm_grace_expired_email_sent) are retained in the DB schema but no longer populated.
- *
- * Spots do NOT return to pool (hard cap: 25 total issued).
- * Do not add expiry logic without explicit approval from the founder.
+ * Customer spots #1-#25 do NOT return on cancellation. Explicit database-owner
+ * corrections (such as reclaiming a test assignment) are audited exceptions.
+ * Designated test memberships use #26 onward, are excluded from capacity and
+ * allocation, and can be cleared or reassigned by the administrator.
+ * Corrections change identity only, never Stripe billing or feature access.
+ * See foundingMemberState.ts and the permanent founding_member_spots registry.
  */
 // Also drives the public marketing counter (GET /api/public/founding-spots)
 // via lib/foundingMembers.ts — the only place the cap should be read from.
