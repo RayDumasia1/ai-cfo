@@ -1,6 +1,7 @@
 import { stripe, PLAN_TO_TIER } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
 import { upsertNewFoundingMember } from "@/lib/foundingMembers";
+import { getSubscriptionStatus } from "@/lib/subscriptionStatus";
 import {
   sendCfoCallConfirmation,
   sendPaymentFailedEmail,
@@ -47,7 +48,8 @@ export async function POST(req: NextRequest) {
       case "customer.subscription.updated":
         await handleSubscriptionUpdated(
           event.data.object as Stripe.Subscription,
-          supabase
+          supabase,
+          new Date(event.created * 1000)
         );
         break;
       case "customer.subscription.deleted":
@@ -60,13 +62,15 @@ export async function POST(req: NextRequest) {
       case "invoice.payment_failed":
         await handlePaymentFailed(
           event.data.object as Stripe.Invoice,
-          supabase
+          supabase,
+          new Date(event.created * 1000)
         );
         break;
       case "invoice.payment_succeeded":
         await handlePaymentSucceeded(
           event.data.object as Stripe.Invoice,
-          supabase
+          supabase,
+          new Date(event.created * 1000)
         );
         break;
     }
@@ -121,8 +125,7 @@ async function handleCheckoutCompleted(
       user_id: userId,
       plan: planKey,
       feature_tier: featureTier,
-      status: stripeSub.cancel_at_period_end || stripeSub.cancel_at
-        ? "pending_cancellation" : stripeSub.status,
+      status: getSubscriptionStatus(stripeSub),
       stripe_customer_id: session.customer as string,
       stripe_subscription_id: subId,
       stripe_price_id: stripeSub.items.data[0]?.price.id ?? null,
@@ -225,7 +228,8 @@ async function handleCheckoutCompleted(
 
 async function handleSubscriptionUpdated(
   sub: Stripe.Subscription,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  eventTime: Date
 ) {
   console.log("webhook:subscriptionUpdated", {
     id: sub.id,
@@ -250,6 +254,13 @@ async function handleSubscriptionUpdated(
   }
 
   const userId = existing.user_id;
+  const status = getSubscriptionStatus(sub);
+  if (status === "cancelled") {
+    // Terminal state wins over lingering cancellation flags. Route it through
+    // the same identity-preserving cleanup as customer.subscription.deleted.
+    await handleSubscriptionDeleted(sub, supabase, eventTime);
+    return;
+  }
   if (["cancelled", "canceled"].includes(existing.status)) return;
   if (existing.plan !== "founding_member" && existing.founding_member_number != null && sub.metadata?.founding_restore_deadline) {
     // An in-flight self-service price change from the old policy is no longer
@@ -264,7 +275,7 @@ async function handleSubscriptionUpdated(
   }
 
   // Case 1 — Cancellation scheduled (portal uses cancel_at, not cancel_at_period_end)
-  const isCancelScheduled = sub.cancel_at_period_end || (typeof sub.cancel_at === "number" && sub.cancel_at > 0);
+  const isCancelScheduled = status === "pending_cancellation";
   if (isCancelScheduled) {
     // Guard: only process once (idempotent against duplicate events)
     if (existing.status === "pending_cancellation") {
@@ -304,7 +315,7 @@ async function handleSubscriptionUpdated(
   }
 
   // Case 2 — Cancellation reversed (reactivation via portal or reactivate endpoint)
-  const isCancelCleared = !sub.cancel_at_period_end && !sub.cancel_at && existing.status === "pending_cancellation";
+  const isCancelCleared = status === "active" && existing.status === "pending_cancellation";
   if (isCancelCleared) {
     const { error: reactivateError } = await supabase
       .from("subscriptions")
@@ -330,7 +341,7 @@ async function handleSubscriptionUpdated(
     .update({
       plan: planKey,
       feature_tier: featureTier,
-      status: sub.status === "active" ? "active" : sub.status,
+      status,
       stripe_price_id: sub.items.data[0]?.price.id ?? null,
       billing_period_start: new Date(
         (sub.items.data[0]?.current_period_start ?? 0) * 1000
@@ -352,7 +363,7 @@ async function handleSubscriptionDeleted(
 ) {
   const { data: existing, error: lookupError } = await supabase
     .from("subscriptions")
-    .select("user_id, plan, status, billing_period_end, founding_member_number, founding_member_cancelled_at")
+    .select("user_id, plan, status, cancelled_at, billing_period_end, founding_member_number, founding_member_cancelled_at")
     .eq("stripe_customer_id", sub.customer as string)
     .eq("stripe_subscription_id", sub.id)
     .maybeSingle();
@@ -363,67 +374,38 @@ async function handleSubscriptionDeleted(
     return;
   }
 
-  const userId = existing.user_id;
+  const isFoundingPlan = existing.plan === "founding_member";
+  const alreadyCancelled = ["cancelled", "canceled"].includes(existing.status);
+  const shouldNotify = isFoundingPlan && !alreadyCancelled && existing.status !== "pending_cancellation" &&
+    existing.founding_member_number != null;
+  const endedAt = sub.ended_at ? new Date(sub.ended_at * 1000).toISOString() : null;
+  // Keep the effective end stable on retries, even when Stripe omits ended_at.
+  const effectiveEnd = endedAt ?? (isFoundingPlan ? existing.founding_member_cancelled_at : null) ??
+    (alreadyCancelled ? existing.cancelled_at : null) ?? eventTime.toISOString();
+  const { error: cancelError } = await supabase
+    .from("subscriptions")
+    .update({
+      status: "cancelled",
+      cancelled_at: effectiveEnd,
+      billing_period_end: effectiveEnd,
+      feature_tier: isFoundingPlan ? "suspended" : "starter",
+      ...(isFoundingPlan ? {
+        founding_member_cancelled_at: effectiveEnd,
+        founding_member_grace_ends_at: null,
+      } : { plan: "starter" }),
+      // A permanent member number/test designation is never cleared here,
+      // including when a former Founder has subsequently bought a standard plan.
+    })
+    .eq("user_id", existing.user_id)
+    .eq("stripe_customer_id", sub.customer as string)
+    .eq("stripe_subscription_id", sub.id);
+  if (cancelError) throw cancelError;
 
-  if (existing?.plan === "founding_member") {
-    const endedAt = sub.ended_at ? new Date(sub.ended_at * 1000) : eventTime;
-    const effectiveEnd = existing.founding_member_cancelled_at ?? endedAt.toISOString();
-    if (existing.status === "pending_cancellation") {
-      // Billing ended — suspend access
-      const { error: cancelError } = await supabase
-        .from("subscriptions")
-        .update({
-          status: "cancelled", feature_tier: "suspended", cancelled_at: effectiveEnd,
-          founding_member_cancelled_at: effectiveEnd, founding_member_grace_ends_at: null,
-          billing_period_end: effectiveEnd,
-        })
-        .eq("user_id", userId).eq("stripe_subscription_id", sub.id);
-      if (cancelError) {
-        throw cancelError;
-      }
-      // No email — already sent when pending_cancellation was set
-    } else {
-      // Immediate cancellation (no prior cancel_at_period_end event)
-      const billingEnd = new Date(effectiveEnd);
-
-      const { error: cancelError } = await supabase
-        .from("subscriptions")
-        .update({
-          status: "cancelled",
-          feature_tier: "suspended",
-          cancelled_at: effectiveEnd,
-          founding_member_cancelled_at: effectiveEnd,
-          founding_member_grace_ends_at: null,
-          billing_period_end: effectiveEnd,
-        })
-        .eq("user_id", userId).eq("stripe_subscription_id", sub.id);
-      if (cancelError) {
-        throw cancelError;
-      }
-
-      const email = await getCustomerEmail(sub.customer as string);
-      if (email && existing.founding_member_number) {
-        await sendFoundingMemberCancelledEmail(
-          email,
-          existing.founding_member_number,
-          billingEnd.toISOString()
-        );
-      }
-    }
-  } else {
-    // Standard plan: reset to starter
-    const { error: deleteError } = await supabase
-      .from("subscriptions")
-      .update({
-        status: "cancelled",
-        feature_tier: "starter",
-        plan: "starter",
-        cancelled_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId).eq("stripe_subscription_id", sub.id);
-    if (deleteError) {
-      throw deleteError;
-    }
+  // A scheduled cancellation already sent its notice; repeated terminal events
+  // must not send a second notice after another event path completed cleanup.
+  if (shouldNotify) {
+    const email = await getCustomerEmail(sub.customer as string);
+    if (email) await sendFoundingMemberCancelledEmail(email, existing.founding_member_number, effectiveEnd);
   }
 }
 
@@ -437,13 +419,16 @@ async function getCustomerEmail(customerId: string): Promise<string> {
   }
 }
 
-async function handlePaymentFailed(
+/** Resolve invoice events against the current subscription, not the invoice's
+ * historical payment result. Old invoices can arrive after recovery or ending. */
+async function syncInvoiceSubscription(
   invoice: Stripe.Invoice,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  eventTime: Date
 ) {
   const customerId = invoice.customer as string;
   const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!customerId || !subscriptionId) return;
+  if (!customerId || !subscriptionId) return null;
 
   const { data, error: readError } = await supabase
     .from("subscriptions")
@@ -451,90 +436,65 @@ async function handlePaymentFailed(
     .eq("stripe_customer_id", customerId)
     .eq("stripe_subscription_id", subscriptionId)
     .maybeSingle();
-
   if (readError) throw readError;
-  if (!data) return;
-  if (["cancelled", "canceled"].includes(data.status)) return;
+  if (!data || ["cancelled", "canceled"].includes(data.status)) return null;
 
-  const { error: pastDueError } = await supabase
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const status = getSubscriptionStatus(subscription);
+  if (status === "cancelled") {
+    await handleSubscriptionDeleted(subscription, supabase, eventTime);
+    return null;
+  }
+  const item = subscription.items.data[0];
+  const start = item?.current_period_start;
+  const end = subscription.cancel_at ?? item?.current_period_end;
+  const periodStart = start && start > 0 ? new Date(start * 1000).toISOString() : null;
+  const periodEnd = end && end > 0 ? new Date(end * 1000).toISOString() : null;
+  const { data: updated, error } = await supabase
     .from("subscriptions")
-    .update({ status: "past_due" })
-    .eq("user_id", data.user_id).eq("stripe_subscription_id", subscriptionId)
-    .neq("status", "cancelled").neq("status", "canceled");
-  if (pastDueError) {
-    throw pastDueError;
-  }
+    .update({
+      status,
+      ...(periodStart ? { billing_period_start: periodStart } : {}),
+      ...(periodEnd ? { billing_period_end: periodEnd } : {}),
+      // Clear a reversed cancellation only when Stripe confirms active state.
+      ...(status === "active" ? { cancelled_at: null } : {}),
+    })
+    .eq("user_id", data.user_id)
+    .eq("stripe_customer_id", customerId)
+    .eq("stripe_subscription_id", subscriptionId)
+    // Do not overwrite a cancellation or replacement that raced this lookup.
+    .eq("status", data.status)
+    .select("user_id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!updated) return null;
+  return { userId: data.user_id, subscription, status, periodStart };
+}
 
-  const customer = await stripe.customers.retrieve(customerId);
-  const customerEmail = (customer as Stripe.Customer).email;
-  if (customerEmail) {
-    await sendPaymentFailedEmail(customerEmail, process.env.NEXT_PUBLIC_APP_URL!);
-  }
+async function handlePaymentFailed(
+  invoice: Stripe.Invoice,
+  supabase: SupabaseClient,
+  eventTime: Date
+) {
+  const current = await syncInvoiceSubscription(invoice, supabase, eventTime);
+  if (!current || current.status !== "past_due") return;
+  const email = await getCustomerEmail(current.subscription.customer as string);
+  if (email) await sendPaymentFailedEmail(email, process.env.NEXT_PUBLIC_APP_URL!);
 }
 
 async function handlePaymentSucceeded(
   invoice: Stripe.Invoice,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  eventTime: Date
 ) {
-  const customerId = invoice.customer as string;
-  const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!customerId || !subscriptionId) return;
-
-  const { data, error: readError } = await supabase
-    .from("subscriptions")
-    .select("user_id, stripe_subscription_id, status")
-    .eq("stripe_customer_id", customerId)
-    .eq("stripe_subscription_id", subscriptionId)
-    .maybeSingle();
-
-  if (readError) throw readError;
-  if (!data) return;
-  if (["cancelled", "canceled"].includes(data.status)) return;
-
-  let periodStart: string | undefined;
-  let periodEnd: string | undefined;
-
-  if (data.stripe_subscription_id) {
-    try {
-      const stripeSub = await stripe.subscriptions.retrieve(
-        data.stripe_subscription_id
-      );
-      periodStart = new Date(
-        (stripeSub.items.data[0]?.current_period_start ?? 0) * 1000
-      ).toISOString();
-      periodEnd = new Date(
-        (stripeSub.items.data[0]?.current_period_end ?? 0) * 1000
-      ).toISOString();
-    } catch (err) {
-      throw err;
-    }
-  }
-
-  const { error: renewError } = await supabase
-    .from("subscriptions")
-    .update({
-      status: "active",
-      ...(periodStart && {
-        billing_period_start: periodStart,
-        billing_period_end: periodEnd,
-      }),
-    })
-    .eq("user_id", data.user_id)
-    .eq("stripe_subscription_id", subscriptionId)
-    // Never overwrite a scheduled cancellation — pending_cancellation means
-    // cancel_at is still set in Stripe; the subscription is active until period end
-    .neq("status", "pending_cancellation").neq("status", "cancelled").neq("status", "canceled");
-  if (renewError) {
-    throw renewError;
-  }
-
-  if (periodStart) {
-    await supabase
-      .from("usage_tracking")
-      .delete()
-      .eq("user_id", data.user_id)
-      .lt("period_end", periodStart);
-  }
+  const current = await syncInvoiceSubscription(invoice, supabase, eventTime);
+  if (!current?.periodStart || !["active", "pending_cancellation"].includes(current.status)) return;
+  const { error } = await supabase
+    .from("usage_tracking")
+    .delete()
+    .eq("user_id", current.userId)
+    .lt("period_end", current.periodStart);
+  if (error) throw error;
 }
 
 function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {

@@ -34,7 +34,7 @@ import { createClient } from "../utils/supabase/server";
 import { POST as checkout } from "../app/api/stripe/checkout/route";
 import { POST as webhook } from "../app/api/stripe/webhook/route";
 import { ensureBillingCustomer } from "../lib/db";
-import { sendPaymentFailedEmail } from "../lib/email";
+import { sendPaymentFailedEmail, sendFoundingMemberCancelledEmail } from "../lib/email";
 import { getFoundingMemberAvailability, upsertNewFoundingMember } from "../lib/foundingMembers";
 import { POST as reactivate } from "../app/api/stripe/reactivate/route";
 
@@ -71,6 +71,13 @@ function database() {
       };
       async function execute(single: boolean) {
         if (table === failTable) return { data: null, error: new Error("Database unavailable") };
+        // Match the actual preview CHECK: raw Stripe states must not slip
+        // through a permissive database double unnoticed.
+        if (table === "subscriptions" && ["upsert", "update"].includes(operation) &&
+            values.status !== undefined &&
+            !["active", "cancelled", "past_due", "trialing", "paused", "pending_cancellation"].includes(String(values.status))) {
+          return { data: null, error: { code: "23514", message: "subscriptions_status_check" } };
+        }
         const rows = tables[table] ??= [];
         const matches = (row: Row) => filters.every(([key, value]) => key.startsWith("!")
           ? row[key.slice(1)] !== value : (row[key] ?? null) === value);
@@ -86,7 +93,8 @@ function database() {
           selected.forEach(row => Object.assign(row, values));
         }
         if (operation === "delete") tables[table] = rows.filter(row => !matches(row));
-        return { data: single ? selected[0] ?? null : selected, error: null };
+        // PostgREST returns snapshots, not references into the mutable store.
+        return { data: single ? (selected[0] ? { ...selected[0] } : null) : selected.map(row => ({ ...row })), error: null };
       }
       return builder;
     },
@@ -441,6 +449,7 @@ describe("subscription webhook identity", () => {
 
   it("applies payment failure to the matching subscription", async () => {
     const current = seedSubscription();
+    subscriptions.push({ id: "sub_current", customer: "cus_existing", status: "past_due", items: { data: [] } });
     await deliver("invoice.payment_failed", { customer: "cus_existing", parent: { subscription_details: { subscription: "sub_current" } } });
     expect(current.status).toBe("past_due");
     expect(sendPaymentFailedEmail).toHaveBeenCalledOnce();
@@ -710,5 +719,154 @@ describe("keeping a scheduled membership", () => {
     expect(response.status).toBe(409);
     expect(row.status).toBe("pending_cancellation");
     expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("webhook subscription status compatibility", () => {
+  const statuses = [
+    ["active", "active"], ["trialing", "trialing"], ["past_due", "past_due"],
+    ["unpaid", "past_due"], ["incomplete", "past_due"], ["paused", "paused"],
+  ] as const;
+  const periodEnd = Math.floor(new Date("2026-11-01T12:00:00Z").getTime() / 1000);
+  function snapshot(status: string, overrides: Row = {}): Row {
+    return {
+      id: "sub_current", customer: "cus_existing", status,
+      cancel_at: null, cancel_at_period_end: false, metadata: { plan_key: "core" },
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: periodEnd }] },
+      ...overrides,
+    };
+  }
+  function invoice() {
+    return { customer: "cus_existing", parent: { subscription_details: { subscription: "sub_current" } } };
+  }
+
+  it.each(statuses)("persists Stripe %s as CHECK-compatible %s on updates", async (status, expected) => {
+    const row = seedSubscription();
+    expect((await deliver("customer.subscription.updated", snapshot(status))).status).toBe(200);
+    expect(row.status).toBe(expected);
+  });
+
+  it.each(statuses)("persists a paid checkout with current Stripe status %s as %s", async (status, expected) => {
+    await checkout(request(), {});
+    const session = [...sessions.values()][0];
+    subscriptions.push(snapshot(status, { id: "sub_new", customer: session.customer }));
+    expect((await deliver("checkout.session.completed", { ...session, subscription: "sub_new" })).status).toBe(200);
+    expect(db.tables.subscriptions[0].status).toBe(expected);
+    expect(db.tables.subscriptions[0].stripe_subscription_id).toBe("sub_new");
+  });
+
+  it.each(["canceled", "incomplete_expired"])("runs terminal cleanup for %s updates even if cancellation flags remain", async status => {
+    const row = seedSubscription({ plan: "founding_member", status: "pending_cancellation", founding_member_number: 26, founding_member_is_test: true });
+    const terminal = snapshot(status, { ended_at: 1792670400, cancel_at: periodEnd, cancel_at_period_end: true });
+    expect((await deliver("customer.subscription.updated", terminal)).status).toBe(200);
+    expect(row).toMatchObject({ plan: "founding_member", status: "cancelled", feature_tier: "suspended", founding_member_number: 26, founding_member_is_test: true });
+    expect(row.cancelled_at).toBe("2026-10-22T12:00:00.000Z");
+    expect(row.billing_period_end).toBe(row.cancelled_at);
+    expect(row.founding_member_cancelled_at).toBe(row.cancelled_at);
+    expect(row.founding_member_grace_ends_at).toBeNull();
+    expect((await deliver("customer.subscription.deleted", terminal)).status).toBe(200);
+    expect(sendFoundingMemberCancelledEmail).not.toHaveBeenCalled(); // scheduled notice already sent
+  });
+
+  it("does not turn a pending cancellation active when Stripe clears its flags on termination", async () => {
+    const row = seedSubscription({ status: "pending_cancellation", plan: "founding_member", founding_member_number: 7 });
+    expect((await deliver("customer.subscription.updated", snapshot("canceled", { ended_at: 1792670400 }))).status).toBe(200);
+    expect(row.status).toBe("cancelled");
+    expect(row.feature_tier).toBe("suspended");
+  });
+
+  it.each(["unpaid", "past_due", "paused", "incomplete", "trialing"])("never promotes %s to paid pending_cancellation just because a cancellation is scheduled", async status => {
+    const row = seedSubscription({ status: "pending_cancellation" });
+    await deliver("customer.subscription.updated", snapshot(status, { cancel_at: periodEnd }));
+    expect(row.status).toBe(status === "unpaid" || status === "incomplete" ? "past_due" : status);
+    expect(sendFoundingMemberCancelledEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["invoice.payment_failed", "invoice.payment_succeeded"])("keeps an active scheduled cancellation for %s using current Stripe state", async type => {
+    const row = seedSubscription({ status: "pending_cancellation" });
+    subscriptions.push(snapshot("active", { cancel_at: periodEnd }));
+    expect((await deliver(type, invoice())).status).toBe(200);
+    expect(row.status).toBe("pending_cancellation");
+    expect(row.billing_period_end).toBe("2026-11-01T12:00:00.000Z");
+    expect(sendPaymentFailedEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["unpaid", "incomplete", "past_due", "paused", "trialing"])("does not grant active access on a late paid invoice while Stripe is %s", async status => {
+    const row = seedSubscription({ status: "past_due" });
+    subscriptions.push(snapshot(status));
+    expect((await deliver("invoice.payment_succeeded", invoice())).status).toBe(200);
+    expect(row.status).toBe(status === "unpaid" || status === "incomplete" ? "past_due" : status);
+  });
+
+  it("ignores the payment-failure state of an old invoice after the subscription recovered", async () => {
+    const row = seedSubscription();
+    subscriptions.push(snapshot("active"));
+    await deliver("invoice.payment_failed", invoice());
+    expect(row.status).toBe("active");
+    expect(sendPaymentFailedEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["invoice.payment_failed", "invoice.payment_succeeded"])("applies terminal cleanup from current Stripe state on %s", async type => {
+    const row = seedSubscription({ plan: "founding_member", founding_member_number: 7 });
+    subscriptions.push(snapshot("canceled", { ended_at: 1792670400 }));
+    expect((await deliver(type, invoice())).status).toBe(200);
+    expect(row).toMatchObject({ plan: "founding_member", status: "cancelled", feature_tier: "suspended", founding_member_number: 7 });
+    expect(row.founding_member_cancelled_at).toBe("2026-10-22T12:00:00.000Z");
+    expect(sendPaymentFailedEmail).not.toHaveBeenCalled();
+  });
+
+  it("preserves a former Founder's identity when their standard plan ends", async () => {
+    const row = seedSubscription({ plan: "core", founding_member_number: 7 });
+    await deliver("customer.subscription.updated", snapshot("canceled", { ended_at: 1792670400 }));
+    expect(row).toMatchObject({ plan: "starter", feature_tier: "starter", status: "cancelled", founding_member_number: 7 });
+    expect(row.cancelled_at).toBe("2026-10-22T12:00:00.000Z");
+  });
+
+  it("sends an immediate cancellation notice once across updated/deleted delivery order", async () => {
+    seedSubscription({ plan: "founding_member", founding_member_number: 7 });
+    const terminal = snapshot("canceled", { ended_at: 1792670400 });
+    await deliver("customer.subscription.updated", terminal);
+    await deliver("customer.subscription.deleted", terminal);
+    expect(sendFoundingMemberCancelledEmail).toHaveBeenCalledOnce();
+  });
+
+  it.each(["invoice.payment_failed", "invoice.payment_succeeded"])("returns 500 without granting access when Stripe lookup fails on %s", async type => {
+    const row = seedSubscription({ status: "past_due" });
+    vi.mocked(stripe.subscriptions.retrieve).mockRejectedValueOnce(new Error("Stripe temporarily unavailable"));
+    expect((await deliver(type, invoice())).status).toBe(500);
+    expect(row.status).toBe("past_due");
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("rejects unknown future Stripe states without writing an unsupported database value", async () => {
+    const row = seedSubscription();
+    expect((await deliver("customer.subscription.updated", snapshot("future_status"))).status).toBe(500);
+    expect(row.status).toBe("active");
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it.each(["cancellation", "replacement"])("does not overwrite a concurrent %s during invoice reconciliation", async change => {
+    const row = seedSubscription({ status: "past_due" });
+    db.tables.usage_tracking.push({ user_id: userId, period_end: "2026-09-01T00:00:00Z" });
+    vi.mocked(stripe.subscriptions.retrieve).mockImplementationOnce(async () => {
+      Object.assign(row, change === "cancellation"
+        ? { status: "cancelled", feature_tier: "suspended" }
+        : { status: "active", stripe_subscription_id: "sub_replacement" });
+      return snapshot("active") as never;
+    });
+    expect((await deliver("invoice.payment_succeeded", invoice())).status).toBe(200);
+    if (change === "cancellation") expect(row.status).toBe("cancelled");
+    else expect(row.stripe_subscription_id).toBe("sub_replacement");
+    expect(db.tables.usage_tracking).toHaveLength(1);
+  });
+
+  it("does not reuse a historical Founding cancellation date when a later standard plan ends", async () => {
+    const row = seedSubscription({ founding_member_number: 7, founding_member_cancelled_at: "2026-08-01T00:00:00Z" });
+    const eventTime = new Date("2026-10-21T12:00:00Z");
+    await deliver("customer.subscription.deleted", snapshot("canceled"), eventTime);
+    expect(row.cancelled_at).toBe(eventTime.toISOString());
+    expect(row.founding_member_cancelled_at).toBe("2026-08-01T00:00:00Z");
+    expect(row.founding_member_number).toBe(7);
   });
 });

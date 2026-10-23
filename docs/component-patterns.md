@@ -538,10 +538,37 @@ style:    UI/visual changes only
 | One subscription per user | Enforced — updates not new checkouts |
 | feature_tier vs plan | Decoupled — feature access independent of billing price |
 | `business_id` | Always derived server-side, never trusted from client |
-| Stripe webhooks | Always return 200 — log errors, never throw |
+| Stripe webhooks | Verify signatures; acknowledge processed/irrelevant events with 200, reject invalid signatures with 400, and return 500 for state-processing failures so Stripe can retry. Normalize statuses before database writes. |
 | Service role client | Only in webhooks, cron jobs, admin routes |
 
 ---
+
+### Stripe webhook status and cancellation rules
+
+The `subscriptions.status` CHECK permits `active`, `cancelled`, `past_due`, `trialing`, `paused`, and `pending_cancellation`. Stripe's billing statuses are a separate domain. `lib/subscriptionStatus.ts` normalizes every checkout-completion, subscription-update, and invoice-state write:
+
+| Stripe subscription state | Application status | Reason |
+|---|---|---|
+| `active`, no cancellation scheduled | `active` | Current subscription is active. |
+| `active`, `cancel_at` or `cancel_at_period_end` set | `pending_cancellation` | Access continues until the effective end; self-service can clear the scheduled cancellation. |
+| `trialing` | `trialing` | Preserve the trial state; do not turn a scheduled trial cancellation into paid access. Trial access policy remains separate. |
+| `past_due`, `unpaid`, `incomplete` | `past_due` | Billing needs resolution. These states do not qualify as paid access in `hasPaidSubscription`. Stripe retains the original billing state. |
+| `paused` | `paused` | Pausing does not mean cancellation or successful payment. |
+| `canceled`, `incomplete_expired` | `cancelled` | Terminal state; run cancellation cleanup rather than treating cleared flags as reactivation. |
+
+Unknown Stripe statuses fail processing with 500 rather than writing an unsupported CHECK value or assuming active access. No status-constraint migration is required for this mapping.
+
+**Event identity and ordering.** Subscription and invoice processing matches both `stripe_customer_id` and `stripe_subscription_id`; matching only the customer would allow an old subscription event to cancel its replacement. An already-cancelled row cannot be revived by nonterminal updates or invoice events for that same subscription. New subscriptions enter through the coordinated checkout or explicitly support-approved reinstatement path.
+
+Both invoice success and failure handlers retrieve the current Stripe subscription before updating the application. An old paid invoice cannot activate a currently paused, unpaid, incomplete, or ended subscription. An old failed invoice cannot downgrade a recovered active subscription or remove a valid scheduled cancellation. Invoice writes also compare the previously read application status and both Stripe IDs, avoiding overwriting a cancellation/replacement that happened during the lookup. Stripe lookup and database failures return 500 for retry; missing period dates are left unchanged rather than replaced with the Unix epoch.
+
+**Terminal cancellation.** `customer.subscription.deleted`, terminal `customer.subscription.updated` states, and terminal states discovered during invoice processing share one cleanup function. The current Founding plan retains `plan=founding_member`, uses `feature_tier=suspended`, and keeps its member number/test flag. Standard plans reset to Starter while retaining any historical Founding number; a permanent badge alone does not establish the current plan. Only the matching subscription row is updated; the issued-spot registry is untouched.
+
+Use Stripe `ended_at` for `cancelled_at` and `billing_period_end`; for Founding plans also set `founding_member_cancelled_at` and clear the obsolete grace deadline. If `ended_at` is missing, preserve a previously recorded effective cancellation time or fall back to the signed event's creation time. Immediate cancellation ends access immediately even when the originally purchased period had a later end. Self-service reinstatement requires a pending cancellation before the effective end; after ending, support reviews reinstatement case by case. There is no post-end self-service grace window.
+
+Scheduled cancellations already send their notice. Sequential duplicate/updated/deleted terminal events suppress another notice once cancellation is recorded. This is not a durable event ledger or an exactly-once email guarantee; simultaneous delivery, email failures, and general nonterminal event ordering are separate concerns. Invoice current-state reconciliation does not make every subscription-update event globally ordered.
+
+**Investigation, 23 October 2026.** Preview test member #26 had the correct Founding plan, cancelled status, suspended tier, test registry identity, and effective end matching Stripe. Its existing `cancelled_at` was 1.169 seconds later than the effective end. That discrepancy was observed, not attributed to a confirmed cause or backfilled. `suspended` was introduced on 4 June 2026 and is permitted by the validated preview feature-tier CHECK; replacing it globally with Starter would change access semantics. No bulk plan rewrite is appropriate merely because an account retains a member number.
 
 ### Founding membership administration
 
