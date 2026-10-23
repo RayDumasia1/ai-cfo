@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SnoozeType } from "@/lib/types";
 
-const LEGACY_KEY = "elidan_snooze_duration";
+import { LOAD_PREFERENCES_ERROR, SAVE_PREFERENCES_ERROR, loadAlertPreference, saveAlertPreference } from "@/lib/alertPreferences";
 
 const options: { value: SnoozeType; label: string; id: string }[] = [
   { value: "data_reload", label: "Until I reload data", id: "snooze-data-reload" },
@@ -11,77 +11,48 @@ const options: { value: SnoozeType; label: string; id: string }[] = [
   { value: "7d",          label: "7 days",              id: "snooze-7d"          },
 ];
 
-type LoadState = "loading" | "ready";
+type LoadState = "loading" | "ready" | "error";
 type SaveState = "idle" | "saving" | "success" | "error";
 
 export default function AlertPreferencesCard() {
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reloadAttempt, setReloadAttempt] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [selected, setSelected] = useState<SnoozeType>("24h");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // On mount: fetch from Supabase, migrate localStorage if needed
   useEffect(() => {
+    let active = true;
     async function init() {
       try {
-        const res = await fetch("/api/settings/preferences");
-
-        if (res.ok) {
-          const json = await res.json() as { snooze_duration: SnoozeType };
-          const supabaseValue = json.snooze_duration;
-
-          // Check for legacy localStorage value to migrate
-          const legacy = localStorage.getItem(LEGACY_KEY) as SnoozeType | null;
-
-          if (legacy && legacy !== supabaseValue) {
-            // Migrate: push localStorage value up to Supabase
-            await fetch("/api/settings/preferences", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ snooze_duration: legacy }),
-            });
-            setSelected(legacy);
-          } else {
-            setSelected(supabaseValue ?? "24h");
-          }
-
-          // Clear legacy key regardless
-          localStorage.removeItem(LEGACY_KEY);
+        const value = await loadAlertPreference();
+        if (active) {
+          setSelected(value);
+          setLoadState("ready");
         }
       } catch {
-        // Network failure — fall back to localStorage or default
-        const legacy = localStorage.getItem(LEGACY_KEY) as SnoozeType | null;
-        if (legacy) setSelected(legacy);
-      } finally {
-        setLoadState("ready");
+        if (active) setLoadState("error");
       }
     }
-
-    init();
-  }, []);
+    void init();
+    return () => {
+      active = false;
+      if (successTimer.current) clearTimeout(successTimer.current);
+    };
+  }, [reloadAttempt]);
 
   async function handleSave() {
+    if (loadState !== "ready" || saveState === "saving") return;
+    if (successTimer.current) clearTimeout(successTimer.current);
     setSaveState("saving");
     setSaveError(null);
-
     try {
-      const res = await fetch("/api/settings/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snooze_duration: selected }),
-      });
-
-      if (!res.ok) {
-        const json = await res.json();
-        setSaveError(json.error ?? "Failed to save.");
-        setSaveState("error");
-        return;
-      }
-
+      await saveAlertPreference(selected);
       setSaveState("success");
-      setTimeout(() => setSaveState("idle"), 2000);
+      successTimer.current = setTimeout(() => setSaveState("idle"), 2000);
     } catch {
-      setSaveError("Network error. Please try again.");
+      setSaveError(SAVE_PREFERENCES_ERROR);
       setSaveState("error");
     }
   }
@@ -99,7 +70,14 @@ export default function AlertPreferencesCard() {
 
         {loadState === "loading" ? (
           <div style={{ marginTop: 12, height: 80, display: "flex", alignItems: "center" }}>
-            <span style={{ fontSize: 13, color: "#6B7A8D" }}>Loading…</span>
+            <span role="status" style={{ fontSize: 13, color: "var(--dim)" }}>Loading…</span>
+          </div>
+        ) : loadState === "error" ? (
+          <div style={{ marginTop: 12 }}>
+            <p role="alert" style={{ fontSize: 13, color: "var(--danger)" }}>{LOAD_PREFERENCES_ERROR}</p>
+            <button type="button" onClick={() => { setLoadState("loading"); setReloadAttempt(value => value + 1); }} style={primaryBtnStyle}>
+              Retry loading preferences
+            </button>
           </div>
         ) : (
           <div
@@ -119,8 +97,9 @@ export default function AlertPreferencesCard() {
                   name="snooze-duration"
                   value={opt.value}
                   checked={selected === opt.value}
-                  onChange={() => setSelected(opt.value)}
-                  style={{ accentColor: "#2CA6A4", width: 16, height: 16 }}
+                  disabled={saveState === "saving"}
+                  onChange={() => { setSelected(opt.value); setSaveState("idle"); setSaveError(null); }}
+                  style={{ accentColor: "var(--teal)", width: 16, height: 16 }}
                 />
                 <span style={{ fontSize: 14, color: "var(--ink)" }}>{opt.label}</span>
               </label>
@@ -135,23 +114,24 @@ export default function AlertPreferencesCard() {
       </div>
 
       {saveError && (
-        <p style={{ fontSize: 12, color: "#ef4444", marginTop: 12 }}>{saveError}</p>
+        <p role="alert" style={{ fontSize: 12, color: "var(--danger)", marginTop: 12 }}>{saveError}</p>
       )}
 
       <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 12 }}>
         <button
+          type="button"
           onClick={handleSave}
-          disabled={loadState === "loading" || saveState === "saving"}
+          disabled={loadState !== "ready" || saveState === "saving"}
           style={{
             ...primaryBtnStyle,
-            opacity: loadState === "loading" || saveState === "saving" ? 0.7 : 1,
-            cursor: loadState === "loading" || saveState === "saving" ? "default" : "pointer",
+            opacity: loadState !== "ready" || saveState === "saving" ? 0.7 : 1,
+            cursor: loadState !== "ready" || saveState === "saving" ? "default" : "pointer",
           }}
         >
           {saveState === "saving" ? "Saving…" : "Save preferences"}
         </button>
         {saveState === "success" && (
-          <span style={{ fontSize: 13, color: "#2CA6A4" }}>Preferences saved ✓</span>
+          <span role="status" style={{ fontSize: 13, color: "var(--teal)" }}>Preferences saved ✓</span>
         )}
       </div>
     </section>
@@ -159,27 +139,27 @@ export default function AlertPreferencesCard() {
 }
 
 const cardStyle: React.CSSProperties = {
-  backgroundColor: "#FFFFFF",
-  border: "1px solid #D8E2EC",
+  backgroundColor: "var(--surface)",
+  border: "1px solid var(--line)",
   borderRadius: 16,
   boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
   padding: 24,
 };
 const cardTitleStyle: React.CSSProperties = {
-  fontSize: 18, fontWeight: 500, color: "#0A1A2F", margin: 0,
+  fontSize: 18, fontWeight: 500, color: "var(--navy)", margin: 0,
 };
 const cardDescStyle: React.CSSProperties = {
-  fontSize: 13, color: "#6B7A8D", marginTop: 4, marginBottom: 0,
+  fontSize: 13, color: "var(--dim)", marginTop: 4, marginBottom: 0,
 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 500, color: "#344150",
+  fontSize: 13, fontWeight: 500, color: "var(--ink)",
 };
 const helperStyle: React.CSSProperties = {
-  fontSize: 12, color: "#6B7A8D", marginTop: 12, lineHeight: 1.5,
+  fontSize: 12, color: "var(--dim)", marginTop: 12, lineHeight: 1.5,
 };
 const primaryBtnStyle: React.CSSProperties = {
-  backgroundColor: "#2CA6A4",
-  color: "#FFFFFF",
+  backgroundColor: "var(--teal)",
+  color: "var(--surface)",
   border: "none",
   borderRadius: 6,
   padding: "8px 16px",

@@ -288,7 +288,7 @@ Value formatting:
 Snooze duration radio group:
 - Options: `data_reload` | `24h` (default) | `7d`
 - Stored in Supabase `business_profiles.snooze_duration`
-- Migrated from localStorage to Supabase
+- Server preference is authoritative; unscoped legacy localStorage values are never migrated into the signed-in account
 - "Danger alerts cannot be snoozed" helper text always visible
 
 ### 4.4 ChangePasswordCard
@@ -564,6 +564,16 @@ Session cookies are finalized after Proxy finishes its Auth and subscription che
 An invalid refresh token is an Auth/session condition, independent of Stripe cancellation and Founding Member identity. Supabase-provided cookie removals must reach the browser even when Proxy redirects an unauthenticated dashboard request to login. This prevents a dropped cleanup response from repeatedly presenting the same rejected cookie; it does not guarantee that refresh errors can never occur. Regression tests exercise the real Proxy and cookie adapter with a mocked Auth provider, including refresh, cleanup, verification/billing redirects, 403/402 responses, and public/webhook exclusions. Hosted-browser validation remains necessary after deployment.
 
 The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
+
+### Account-scoped alert preference loading and saving
+
+`AlertPreferencesCard` loads its value from `GET /api/settings/preferences` through `lib/alertPreferences.ts`. Loading performs no PATCH and never reads the browser-wide legacy `elidan_snooze_duration` value, which has no account identity and could belong to a previous user. The old key is removed on a best-effort basis; blocked storage or failed removal cannot prevent server preference loading. Server values are authoritative. Existing database values are retained; this change does not identify or repair values previously overwritten by the legacy migration.
+
+The card remains in loading/error state with Save disabled until the server returns one of `data_reload`, `24h`, or `7d`. Lookup failure, invalid data, and HTML/SSO responses show a retry state rather than making a browser/default value appear saved. Each load ignores completions after its effect is cleaned up; the settings page keys the card by the validated account ID so a new server-rendered account gets fresh component state. This does not implement cross-tab Auth change detection. Radio controls are disabled during saving, acknowledgement requires `success: true`, and old success timers are cancelled before a new save and on cleanup. Loading/success use status announcements; errors use alert announcements.
+
+The preferences API reads/writes only the authenticated user's `business_profiles.snooze_duration`, using the session client and existing RLS. GET disables caching and rejects an invalid stored enum. PATCH requires a non-null, non-array JSON object and an exact valid snooze value; missing/unknown/incorrectly typed values return 400 before writes. Auth/email verification and paid-subscription Proxy policy are unchanged. Database failures return generic 500 JSON with requestId, with safe load/save log labels instead of exposing raw database errors. Extra ownership/plan fields are not written.
+
+Automated tests cover differing successive account responses, no migration PATCH/read of legacy storage, unavailable storage, failed/invalid loads, retry, confirmed/failed saves, initially disabled UI, API validation, account scoping, and Auth failures. Browser interaction, offline/retry display, and actual account-switch behavior still require preview validation. No schema, RLS, subscription, billing, or danger-alert dismissal rule changes are included. Browser-only preferences with no saved server equivalent must be selected explicitly; there is no automatic legacy transfer.
 
 ### Financial threshold save API
 

@@ -117,7 +117,7 @@ export default async function SettingsPage({
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          <AlertPreferencesCard />
+          <AlertPreferencesCard key={user?.id} />
 
           {profile && <ThresholdsCard profile={profile} />}
         </div>
