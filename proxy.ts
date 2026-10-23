@@ -34,7 +34,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const { supabase, supabaseResponse } = createClient(request);
+  const { supabase, finishResponse } = createClient(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -42,28 +42,28 @@ export async function proxy(request: NextRequest) {
   const isApi = pathname.startsWith("/api");
 
   if (AUTH_BYPASS_PATHS.some((path) => pathname.startsWith(path))) {
-    return supabaseResponse;
+    return finishResponse();
   }
 
   if (pathname.startsWith("/dashboard") && !user) {
-    return NextResponse.redirect(
+    return finishResponse(NextResponse.redirect(
       new URL("/auth?reason=session_expired", request.url)
-    );
+    ));
   }
 
   if (user) {
     if (!hasVerifiedEmail(user)) {
       if (isApi) {
-        if (ALLOWED_WITHOUT_EMAIL_VERIFICATION.has(pathname)) return supabaseResponse;
-        return emailVerificationRequired();
+        if (ALLOWED_WITHOUT_EMAIL_VERIFICATION.has(pathname)) return finishResponse();
+        return finishResponse(emailVerificationRequired());
       }
-      return NextResponse.redirect(
+      return finishResponse(NextResponse.redirect(
         new URL(`/auth/verify?email=${encodeURIComponent(user.email ?? "")}`, request.url)
-      );
+      ));
     }
 
     if (pathname === "/auth") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return finishResponse(NextResponse.redirect(new URL("/dashboard", request.url)));
     }
 
     const isAllowed = ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
@@ -71,19 +71,22 @@ export async function proxy(request: NextRequest) {
     );
     if (!isAllowed && !(await hasPaidSubscription(user.id, supabase))) {
       if (isApi) {
-        return NextResponse.json(
+        return finishResponse(NextResponse.json(
           { error: "An active subscription is required" },
           { status: 402 }
-        );
+        ));
       }
-      return NextResponse.redirect(new URL("/welcome", request.url));
+      return finishResponse(NextResponse.redirect(new URL("/welcome", request.url)));
     }
   }
 
   // Prevent browsers from caching protected pages. Without this, the back
   // button after logout serves a stale cached copy, bypassing the auth check.
+  const supabaseResponse = finishResponse();
   if (pathname.startsWith("/dashboard")) {
-    supabaseResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    if (!supabaseResponse.headers.has("Cache-Control")) {
+      supabaseResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    }
     supabaseResponse.headers.set("Pragma", "no-cache");
   }
 

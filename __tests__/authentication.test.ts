@@ -51,7 +51,7 @@ beforeEach(() => {
   session(user());
   vi.mocked(createClient).mockResolvedValue(client as unknown as Awaited<ReturnType<typeof createClient>>);
   vi.mocked(createMiddlewareClient).mockReturnValue({
-    supabase: client, supabaseResponse: NextResponse.next(),
+    supabase: client, finishResponse: (response?: NextResponse) => response ?? NextResponse.next(),
   } as unknown as ReturnType<typeof createMiddlewareClient>);
   const builder = {
     select: vi.fn(() => builder), eq,
