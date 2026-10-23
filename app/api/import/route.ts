@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { parseExcelBuffer } from "@/lib/excelParser";
+import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 import {
   getOrCreateBusinessProfile,
   upsertBusinessProfile,
@@ -34,10 +35,11 @@ export async function POST(request: NextRequest) {
       authError: authError?.message ?? null,
     });
 
-    if (!user) {
+    if (authError || !user) {
       console.warn("import:unauthorized", { requestId });
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (!hasVerifiedEmail(user)) return emailVerificationRequired();
 
     // ── File ──────────────────────────────────────────────────────────────────
     const formData = await request.formData();

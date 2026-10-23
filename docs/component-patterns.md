@@ -538,10 +538,28 @@ style:    UI/visual changes only
 | One subscription per user | Enforced — updates not new checkouts |
 | feature_tier vs plan | Decoupled — feature access independent of billing price |
 | `business_id` | Always derived server-side, never trusted from client |
+| Email verification | Protected application APIs require a validated Auth user with `email_confirmed_at`; return 403 `EMAIL_NOT_VERIFIED` before data or billing work. Verification is separate from paid-subscription and feature checks. |
 | Stripe webhooks | Verify signatures; acknowledge processed/irrelevant events with 200, reject invalid signatures with 400, and return 500 for state-processing failures so Stripe can retry. Normalize statuses before database writes. |
 | Service role client | Only in webhooks, cron jobs, admin routes |
 
 ---
+
+### Authentication and email verification
+
+Protected application APIs require a valid Supabase session **and** a confirmed email. The shared policy in `lib/authPolicy.ts` checks `email_confirmed_at` on the user returned by `supabase.auth.getUser()`. Request fields, phone confirmation, and editable `user_metadata.email_verified` do not establish email verification.
+
+| Condition | Application response |
+|---|---|
+| Missing/invalid session | Protected handlers return 401. Authentication errors are rejected even if a user object was also returned. |
+| Authenticated user without confirmed email | Protected APIs return 403 with code `EMAIL_NOT_VERIFIED` and `Cache-Control: no-store`; protected page requests redirect to `/auth/verify`. |
+| Verified user without an eligible paid subscription | Existing subscription guard returns 402 for protected APIs or redirects pages to `/welcome`. Verified users can still choose a plan and reach billing flows. |
+| Verified user with eligible subscription | Existing feature-tier, usage-limit, and account-scoping checks continue to apply. |
+
+Proxy no longer passes all API calls through for an unverified session before checking subscription eligibility. `requireAuth` also enforces email verification at the handler boundary. Import, billing portal, and invoice routes perform the same check before parsing files, accessing financial/billing records, or calling Stripe, so they do not rely solely on Proxy coverage. Identity comes from the authenticated user rather than any client-supplied account ID.
+
+Email-verification, signup, callback, and password-reset pages remain reachable. The exact `/api/auth/login` and `/api/auth/logout` paths remain usable before email verification; this exception does not grant a general `/api/auth/*` bypass. Public `/api/public/*` endpoints retain their existing access rules. The exact Stripe webhook path bypasses session lookup and authenticates independently using its raw-body Stripe signature; an unverified browser cookie or an Auth-provider failure must not prevent webhook processing.
+
+The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
 
 ### Stripe webhook status and cancellation rules
 

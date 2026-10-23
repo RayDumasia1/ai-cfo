@@ -3,13 +3,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { stripe } from "@/lib/stripe";
+import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 
 export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!hasVerifiedEmail(user)) return emailVerificationRequired();
 
   const serviceClient = createServiceClient();
   const { data, error } = await serviceClient

@@ -125,4 +125,5 @@ style:    UI/visual only
 - Scenarios page hidden pending UX review
 - usage_tracking uses 'usage_limit' not 'limit'
 - Stripe: one subscription per user enforced
+- Protected APIs require email_confirmed_at from the validated Auth user. Unverified sessions receive 403 EMAIL_NOT_VERIFIED before data/billing work. Keep login/logout and verification/recovery pages reachable; Stripe webhooks authenticate independently by signature.
 - Stripe webhook statuses: normalize through lib/subscriptionStatus.ts to the existing application CHECK values. Reconcile invoices against the current Stripe subscription, match customer and subscription IDs, and use shared terminal cleanup. Processing failures return 500 for retry; never blindly reactivate from an invoice or cleared cancellation flags.

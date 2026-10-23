@@ -131,7 +131,7 @@ beforeEach(() => {
   vi.mocked(getFoundingMemberAvailability).mockResolvedValue({ total: 25, claimed: 1, remaining: 24, soldOut: false });
   vi.mocked(createServiceClient).mockReturnValue(db.client);
   vi.mocked(createClient).mockImplementation(async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: userId, email: "test@example.invalid" } }, error: null }) },
+    auth: { getUser: async () => ({ data: { user: { id: userId, email: "test@example.invalid", email_confirmed_at: "2026-10-01T00:00:00Z" } }, error: null }) },
   }) as unknown as Awaited<ReturnType<typeof createClient>>);
   vi.mocked(stripe.customers.create).mockImplementation(async (_params, options) => ({
     id: `cus_${options?.idempotencyKey}`,
@@ -192,6 +192,18 @@ afterEach(() => {
 });
 
 describe("subscription checkout", () => {
+  it("rejects an unverified account before creating customers, sessions or checkout attempts", async () => {
+    vi.mocked(createClient).mockResolvedValue({
+      auth: { getUser: async () => ({ data: { user: { id: userId, email: "test@example.invalid" } }, error: null }) },
+    } as unknown as Awaited<ReturnType<typeof createClient>>);
+    const response = await checkout(request("founding_member"), {});
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "EMAIL_NOT_VERIFIED" });
+    expect(stripe.customers.create).not.toHaveBeenCalled();
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    expect(db.tables.subscriptions).toHaveLength(0);
+    expect(db.tables.subscription_checkout_attempts).toHaveLength(0);
+  });
   it("explains restoration when a cancelled account already holds a Founding Member number", async () => {
     seedSubscription({ status: "cancelled", stripe_subscription_id: null, founding_member_number: 1 });
     const response = await checkout(request("founding_member"), {});
@@ -394,6 +406,15 @@ async function deliver(type: string, object: Row, eventTime = new Date()) {
 }
 
 describe("subscription webhook identity", () => {
+  it("rejects invalid Stripe signatures before accessing the database", async () => {
+    vi.mocked(stripe.webhooks.constructEvent).mockImplementationOnce(() => { throw new Error("Invalid signature"); });
+    const response = await webhook(new NextRequest("https://app.example.invalid/api/stripe/webhook", {
+      method: "POST", headers: { "stripe-signature": "invalid" }, body: "{}",
+    }));
+    expect(response.status).toBe(400);
+    expect(createServiceClient).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
   it("activates the subscription created by the current checkout attempt", async () => {
     await checkout(request(), {});
     const session = [...sessions.values()][0];

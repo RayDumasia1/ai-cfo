@@ -1,10 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "./utils/supabase/middleware";
 import { hasPaidSubscription } from "./lib/db";
+import { hasVerifiedEmail, emailVerificationRequired } from "./lib/authPolicy";
 
 // Unauthenticated, CDN-cached endpoints (e.g. the marketing site's Founding
 // Member counter). Skipped before any auth lookup so no cookies are set.
 const PUBLIC_PATHS = ["/api/public/"];
+// Stripe authenticates its webhook in the route using the raw-body signature.
+// User cookies and Auth availability must not interfere with delivery.
+const SESSION_INDEPENDENT_PATHS = new Set(["/api/stripe/webhook"]);
+const ALLOWED_WITHOUT_EMAIL_VERIFICATION = new Set(["/api/auth/login", "/api/auth/logout"]);
 
 const AUTH_BYPASS_PATHS = [
   "/auth/signup",
@@ -24,7 +29,8 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES = [
 ];
 
 export async function proxy(request: NextRequest) {
-  if (PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) {
+  if (PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path)) ||
+      SESSION_INDEPENDENT_PATHS.has(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
 
@@ -46,8 +52,11 @@ export async function proxy(request: NextRequest) {
   }
 
   if (user) {
-    if (!user.email_confirmed_at) {
-      if (isApi) return supabaseResponse;
+    if (!hasVerifiedEmail(user)) {
+      if (isApi) {
+        if (ALLOWED_WITHOUT_EMAIL_VERIFICATION.has(pathname)) return supabaseResponse;
+        return emailVerificationRequired();
+      }
       return NextResponse.redirect(
         new URL(`/auth/verify?email=${encodeURIComponent(user.email ?? "")}`, request.url)
       );

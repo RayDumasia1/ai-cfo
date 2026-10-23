@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hasVerifiedEmail, emailVerificationRequired } from "./authPolicy";
 
 export interface AuthedSession {
   userId: string;
@@ -16,7 +17,8 @@ type AuthedHandler<Ctx> = (
 
 /**
  * Wraps an API route handler with session validation.
- * Returns 401 if no valid session. Passes userId, email, and a server-side
+ * Returns 401 if no valid session, 403 if email verification is incomplete.
+ * Passes userId, email, and a server-side
  * Supabase client to the handler so it can skip redundant auth checks.
  * The route context (e.g. `{ params }` on dynamic routes) is forwarded as-is.
  */
@@ -32,6 +34,7 @@ export function requireAuth<Ctx = unknown>(handler: AuthedHandler<Ctx>) {
       if (error || !user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+      if (!hasVerifiedEmail(user)) return emailVerificationRequired();
 
       return handler(req, {
         userId: user.id,
