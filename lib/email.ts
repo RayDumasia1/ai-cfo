@@ -1,7 +1,6 @@
 import "server-only";
-import { Resend } from "resend";
+import { escapeHtml, sendEmail } from "./emailDelivery";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
 const FROM = "Elidan <no-reply@elidan.ai>";
 
 function wrapEmail(bodyHtml: string, previewText: string): string {
@@ -10,7 +9,7 @@ function wrapEmail(bodyHtml: string, previewText: string): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${previewText}</title>
+  <title>${escapeHtml(previewText)}</title>
 </head>
 <body style="margin:0;padding:0;background:#F4F7FA;font-family:Inter,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F7FA;padding:40px 0;">
@@ -55,7 +54,7 @@ export async function sendCfoCallConfirmation(
       so they arrive fully prepared with insights specific to your business.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${calendlyUrl}"
+      <a href="${escapeHtml(calendlyUrl)}"
          style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
         Book your call &rarr;
       </a>
@@ -69,16 +68,12 @@ export async function sendCfoCallConfirmation(
     </p>
   `;
 
-  try {
-    await resend.emails.send({
+  await sendEmail({
       from: FROM,
       to,
       subject: "Your CFO call is confirmed — book your time below",
       html: wrapEmail(body, "Your CFO call is confirmed"),
-    });
-  } catch (err) {
-    console.error("email:sendCfoCallConfirmation:error", err);
-  }
+    }, "sendCfoCallConfirmation");
 }
 
 export async function sendFoundingMemberWelcomeEmail(
@@ -91,14 +86,14 @@ export async function sendFoundingMemberWelcomeEmail(
       You're in.
     </h2>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 8px;">
-      You're <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> of
-      Elidan AI — one of the first ${memberNumber} businesses to join us before we open to the public.
+      You're <strong style="color:#7D4E00;">Founding Member #${escapeHtml(memberNumber)}</strong> of
+      Elidan AI — one of the first ${escapeHtml(memberNumber)} businesses to join us before we open to the public.
     </p>
     <p style="font-size:13px;font-weight:600;color:#344150;margin:16px 0 8px;">Here's what's included:</p>
     <table cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Core features — AI Insights, Ask your CFO, QuickBooks sync, Weekly CFO summary</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#7D4E00;font-weight:600;">$49/month — locked permanently, forever, regardless of future price increases</td></tr>
-      <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Founding Member #${memberNumber} badge on your account</td></tr>
+      <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Founding Member #${escapeHtml(memberNumber)} badge on your account</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Direct input into our product roadmap</td></tr>
       <tr><td style="padding:3px 0;font-size:13px;color:#344150;">✓&nbsp;</td><td style="padding:3px 0;font-size:13px;color:#344150;">Priority support from our team</td></tr>
     </table>
@@ -106,7 +101,7 @@ export async function sendFoundingMemberWelcomeEmail(
       Your Core features are active now and stay active as long as you remain subscribed.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard"
+      <a href="${escapeHtml(`${appUrl}/dashboard`)}"
          style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
         Go to your dashboard &rarr;
       </a>
@@ -128,16 +123,12 @@ export async function sendFoundingMemberWelcomeEmail(
       Rayan Dumasia<br>Founder, Elidan AI
     </p>
   `;
-  try {
-    await resend.emails.send({
+  await sendEmail({
       from: FROM,
       to,
       subject: `Welcome to Elidan — you're Founding Member #${memberNumber} 🎉`,
       html: wrapEmail(body, `Welcome to Elidan — Founding Member #${memberNumber}`),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMemberWelcomeEmail:error", err);
-  }
+    }, "sendFoundingMemberWelcomeEmail");
 }
 
 export async function sendFoundingMemberRestoreEmail(
@@ -150,7 +141,7 @@ export async function sendFoundingMemberRestoreEmail(
       You're back.
     </h2>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your <strong style="color:#7D4E00;">Founding Member #${memberNumber}</strong> status has been fully restored.
+      Your <strong style="color:#7D4E00;">Founding Member #${escapeHtml(memberNumber)}</strong> status has been fully restored.
     </p>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
       Your $49/month permanently locked rate is active and your Core features are available again.
@@ -159,22 +150,18 @@ export async function sendFoundingMemberRestoreEmail(
       There is no expiry on your Founding Member status — as long as you stay subscribed, you keep everything.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${appUrl}/dashboard"
+      <a href="${escapeHtml(`${appUrl}/dashboard`)}"
          style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
         Go to your dashboard &rarr;
       </a>
     </p>
   `;
-  try {
-    await resend.emails.send({
+  await sendEmail({
       from: FROM,
       to,
       subject: "Welcome back — your Founding Member status has been restored",
       html: wrapEmail(body, "Your Founding Member status has been restored"),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMemberRestoreEmail:error", err);
-  }
+    }, "sendFoundingMemberRestoreEmail");
 }
 
 function formatDateLong(iso: string): string {
@@ -196,17 +183,17 @@ export async function sendFoundingMemberCancelledEmail(
       Your subscription has been cancelled.
     </p>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 16px;">
-      Your Core access ends on <strong>${billingEndFormatted}</strong>.
+      Your Core access ends on <strong>${escapeHtml(billingEndFormatted)}</strong>.
       After that date your account access will end.
     </p>
     <p style="font-size:14px;color:#344150;line-height:1.6;margin:0 0 24px;">
       Before your paid billing cycle ends, you can
-      <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ""}/dashboard/settings?tab=billing" style="color:#2CA6A4;text-decoration:none;">keep your membership in account settings</a>
+      <a href="${escapeHtml(`${process.env.NEXT_PUBLIC_APP_URL ?? ""}/dashboard/settings?tab=billing`)}" style="color:#2CA6A4;text-decoration:none;">keep your membership in account settings</a>
       at $49/month with Core benefits. After it ends, contact
       <a href="mailto:hello@elidan.ai" style="color:#2CA6A4;text-decoration:none;">hello@elidan.ai</a>
       for manual reinstatement, reviewed case by case; the Founding rate is not guaranteed.
       You can also sign up fresh at standard plan pricing.
-      Your <strong>Founding Member #${memberNumber}</strong> number and badge remain yours permanently,
+      Your <strong>Founding Member #${escapeHtml(memberNumber)}</strong> number and badge remain yours permanently,
       and your spot is never offered to someone else.
     </p>
     <p style="font-size:13px;color:#344150;line-height:1.6;margin:0 0 8px;">
@@ -216,16 +203,12 @@ export async function sendFoundingMemberCancelledEmail(
       Rayan Dumasia<br>Founder, Elidan AI
     </p>
   `;
-  try {
-    await resend.emails.send({
+  await sendEmail({
       from: FROM,
       to,
       subject: "Your Elidan subscription has been cancelled",
       html: wrapEmail(body, "Your Elidan subscription has been cancelled"),
-    });
-  } catch (err) {
-    console.error("email:sendFoundingMemberCancelledEmail:error", err);
-  }
+    }, "sendFoundingMemberCancelledEmail");
 }
 
 export async function sendPaymentFailedEmail(
@@ -240,7 +223,7 @@ export async function sendPaymentFailedEmail(
       Please update your payment method to continue accessing your financial dashboard.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${billingUrl}"
+      <a href="${escapeHtml(billingUrl)}"
          style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
         Update payment method &rarr;
       </a>
@@ -251,14 +234,10 @@ export async function sendPaymentFailedEmail(
     </p>
   `;
 
-  try {
-    await resend.emails.send({
+  await sendEmail({
       from: FROM,
       to,
       subject: "Action required — payment failed for your Elidan subscription",
       html: wrapEmail(body, "Payment failed — action required"),
-    });
-  } catch (err) {
-    console.error("email:sendPaymentFailedEmail:error", err);
-  }
+    }, "sendPaymentFailedEmail");
 }

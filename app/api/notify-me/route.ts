@@ -1,19 +1,28 @@
 import type { NextRequest } from "next/server";
-import { Resend } from "resend";
+import { escapeHtml, sendEmail } from "@/lib/emailDelivery";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { isFeatureComingSoon } from "@/lib/launchConfig";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_REGEX = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
 
 export async function POST(req: NextRequest) {
+  let body: unknown;
   try {
-    const { email, feature } = await req.json();
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "Invalid request" }, { status: 400 });
+  }
+  try {
+    const { email: rawEmail, feature } = body as Record<string, unknown>;
+    const email = typeof rawEmail === "string" ? rawEmail.trim() : rawEmail;
 
     if (
       typeof email !== "string" ||
+      email.length > 254 ||
       !EMAIL_REGEX.test(email) ||
       typeof feature !== "string" ||
       feature.trim().length === 0 ||
@@ -25,21 +34,25 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser();
-    const user_id = user?.id ?? null;
+    const user_id = authError ? null : user?.id ?? null;
 
     const adminClient = createServiceClient();
-    const { error } = await adminClient
+    const { data: inserted, error } = await adminClient
       .from("notify_me")
       .upsert(
         { email, feature, user_id },
         { onConflict: "email,feature", ignoreDuplicates: true }
-      );
+      )
+      .select("email")
+      .maybeSingle();
 
     if (error) throw error;
 
-    try {
-      await resend.emails.send({
+    // Only new registrations notify support; duplicates remain successful.
+    if (inserted) {
+      await sendEmail({
         from: "Elidan AI <hello@elidan.ai>",
         to: "hello@elidan.ai",
         subject: `Notify me: ${feature}`,
@@ -48,22 +61,20 @@ export async function POST(req: NextRequest) {
           notification for a coming
           soon feature.</p>
           <p><strong>Feature:</strong>
-            ${feature}</p>
+            ${escapeHtml(feature)}</p>
           <p><strong>Email:</strong>
-            ${email}</p>
+            ${escapeHtml(email)}</p>
           <p><strong>User ID:</strong>
-            ${user_id ?? "Not signed in"}</p>
+            ${escapeHtml(user_id ?? "Not signed in")}</p>
           <p><strong>Time:</strong>
             ${new Date().toISOString()}</p>
         `,
-      });
-    } catch (resendError) {
-      console.error("Resend notification failed:", resendError);
+      }, "notify_me");
     }
 
     return Response.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error("notify-me error:", err);
+    console.error("notify-me:error", { reason: err instanceof Error ? "request_exception" : "database_error" });
     return Response.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

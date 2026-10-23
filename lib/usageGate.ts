@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import { escapeHtml, sendEmail } from "./emailDelivery";
 import type { FeatureTier } from "./featureGates";
 import { USAGE_LIMITS } from "./featureGates";
 import {
@@ -27,7 +27,7 @@ async function sendUsageWarningEmail(
   userEmail: string,
   used: number,
   limit: number
-): Promise<void> {
+): Promise<boolean> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const billingUrl = `${appUrl}/dashboard/settings?tab=billing`;
   const remaining = limit - used;
@@ -44,7 +44,7 @@ async function sendUsageWarningEmail(
       Upgrade to Advisory for unlimited Ask CFO access at any time.
     </p>
     <p style="margin:0 0 24px;">
-      <a href="${billingUrl}"
+      <a href="${escapeHtml(billingUrl)}"
          style="display:inline-block;background:#2CA6A4;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 24px;border-radius:8px;">
         View your usage &rarr;
       </a>
@@ -87,17 +87,12 @@ async function sendUsageWarningEmail(
 </body>
 </html>`;
 
-  try {
-    const resend = new Resend(process.env.RESEND_API_KEY!);
-    await resend.emails.send({
-      from: "Elidan <no-reply@elidan.ai>",
-      to: userEmail,
-      subject: `You've used ${used} of your ${limit} Ask CFO questions this month`,
-      html,
-    });
-  } catch (err) {
-    console.error("usageGate:sendUsageWarningEmail:error", err);
-  }
+  return sendEmail({
+    from: "Elidan <no-reply@elidan.ai>",
+    to: userEmail,
+    subject: `You've used ${used} of your ${limit} Ask CFO questions this month`,
+    html,
+  }, "usage_warning");
 }
 
 const UPGRADE_MESSAGES: Record<Metric, string> = {
@@ -168,15 +163,23 @@ export async function checkAndIncrementUsage(
 
   const newCount = usage.count + 1;
 
-  // Warning email: Growth + ask_cfo_questions at 100/150, sent once
+  // Warn from 100/150; retry on subsequent eligible requests if acceptance failed.
   if (
     featureTier === "growth" &&
     metric === "ask_cfo_questions" &&
-    newCount === 100 &&
+    newCount >= 100 &&
     !usage.warning_sent_at
   ) {
-    await sendUsageWarningEmail(userEmail, newCount, limit);
-    await markWarningSent(userId, metric, periodStart, client);
+    const accepted = await sendUsageWarningEmail(userEmail, newCount, limit);
+    if (accepted) {
+      try {
+        await markWarningSent(userId, metric, periodStart, client);
+      } catch {
+        // Usage already committed. Ancillary email bookkeeping must not turn
+        // it into a failed request; a later attempt may send a duplicate.
+        console.error("usageGate:warning:markFailed", { metric });
+      }
+    }
   }
 
   return { allowed: true, throttled: false, used: newCount, limit };
