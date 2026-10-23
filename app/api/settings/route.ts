@@ -4,6 +4,10 @@ import { upsertBusinessProfile } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) => {
   let body: unknown;
   try {
@@ -11,22 +15,20 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
+  }
 
   const {
-    runway_warning_threshold,
-    runway_danger_threshold,
-    min_cash_reserve,
-    burn_rate_warning_pct,
+    runway_warning_threshold: warn,
+    runway_danger_threshold: danger,
+    min_cash_reserve: reserve,
+    burn_rate_warning_pct: burnPct,
   } = body as Record<string, unknown>;
 
-  const warn = Number(runway_warning_threshold);
-  const danger = Number(runway_danger_threshold);
-  const reserve = Number(min_cash_reserve);
-  const burnPct = Number(burn_rate_warning_pct);
-
-  if ([warn, danger, reserve, burnPct].some(Number.isNaN)) {
+  if (!isFiniteNumber(warn) || !isFiniteNumber(danger) || !isFiniteNumber(reserve) || !isFiniteNumber(burnPct)) {
     return NextResponse.json(
-      { error: "All threshold values must be numbers." },
+      { error: "All threshold values must be finite numbers." },
       { status: 400 }
     );
   }
@@ -44,7 +46,12 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
       { status: 400 }
     );
   }
+  const storedBurnPct = burnPct / 100;
+  if (storedBurnPct === 0) {
+    return NextResponse.json({ error: "Burn rate warning percentage is too small to store." }, { status: 400 });
+  }
 
+  const requestId = crypto.randomUUID();
   try {
     await upsertBusinessProfile(
       userId,
@@ -53,16 +60,16 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
         runway_danger_threshold: danger,
         min_cash_reserve: reserve,
         // UI collects % (e.g. 10), store as decimal (0.10)
-        burn_rate_warning_pct: burnPct / 100,
+        burn_rate_warning_pct: storedBurnPct,
       },
       supabase
     );
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch {
+    console.error("settings:thresholds:save:error", { requestId, userId });
     return NextResponse.json(
-      { error: "Failed to save thresholds.", detail: message },
+      { error: "Failed to save thresholds.", requestId },
       { status: 500 }
     );
   }
