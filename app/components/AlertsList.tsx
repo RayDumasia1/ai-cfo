@@ -11,18 +11,6 @@ interface AlertsListProps {
   onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
 
-const SEVERITY_ORDER: Record<Alert["severity"], number> = {
-  danger: 0,
-  warning: 1,
-  success: 2,
-};
-
-function sortAlerts(alerts: Alert[]): Alert[] {
-  return [...alerts].sort(
-    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
-  );
-}
-
 export default function AlertsList({
   initialAlerts,
   snoozeDuration,
@@ -39,11 +27,6 @@ export default function AlertsList({
   function onDismissed(alertCode: string) {
     setAlerts((prev) => prev.filter((a) => a.code !== alertCode));
   }
-
-  function onRestored(alert: Alert) {
-    setAlerts((prev) => sortAlerts([...prev, alert]));
-  }
-
   if (alerts.length === 0 && emptyMessage) {
     return (
       <div
@@ -71,7 +54,6 @@ export default function AlertsList({
             alert={alert}
             snoozeType={snoozeDuration}
             onDismissed={onDismissed}
-            onRestored={onRestored}
             onCreateAction={onCreateAction}
           />
         ))}

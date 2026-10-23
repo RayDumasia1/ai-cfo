@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Plus, X } from "lucide-react";
 import type { ActionInsert, Alert, SnoozeType } from "@/lib/types";
 import { alertToActionPrefill } from "@/lib/actions";
+import { isProtectedAlertCode } from "@/lib/alertPolicy";
+import { DATA_RELOAD_DISMISS_ERROR, DISMISS_ALERT_ERROR, requestAlertDismissal } from "@/lib/alertDismissal";
 
 interface DismissibleAlertProps {
   alert: Alert;
   snoozeType: SnoozeType;
   onDismissed: (alertCode: string) => void;
-  onRestored: (alert: Alert) => void;
   /** When provided, danger/warning alerts show a "Create action" button. */
   onCreateAction?: (prefill: Partial<ActionInsert>) => void;
 }
@@ -18,9 +19,9 @@ const severityStyles: Record<
   Alert["severity"],
   { border: string; icon: string; titleColor: string; bg: string }
 > = {
-  danger:  { border: "#ef4444", icon: "✕", titleColor: "#ef4444", bg: "#fef2f2" },
-  warning: { border: "#f59e0b", icon: "⚠", titleColor: "#b45309", bg: "#fffbeb" },
-  success: { border: "#22c55e", icon: "✓", titleColor: "var(--color-success-text)", bg: "#f0fdf4" },
+  danger:  { border: "var(--danger)", icon: "✕", titleColor: "var(--danger)", bg: "color-mix(in srgb, var(--danger) 6%, var(--surface))" },
+  warning: { border: "var(--warning)", icon: "⚠", titleColor: "var(--ink)", bg: "color-mix(in srgb, var(--warning) 6%, var(--surface))" },
+  success: { border: "var(--success)", icon: "✓", titleColor: "var(--color-success-text)", bg: "color-mix(in srgb, var(--success) 6%, var(--surface))" },
 };
 
 const TOOLTIP_TEXT: Record<SnoozeType, string> = {
@@ -39,13 +40,15 @@ function Toast({
 }) {
   return (
     <div
+      role={visible ? "alert" : undefined}
+      aria-hidden={!visible}
       style={{
         position: "fixed",
         bottom: 24,
         right: 24,
         zIndex: 9999,
-        backgroundColor: "#0A1A2F",
-        color: "#FFFFFF",
+        backgroundColor: "var(--navy)",
+        color: "var(--surface)",
         fontSize: 13,
         fontWeight: 500,
         padding: "10px 16px",
@@ -66,40 +69,37 @@ export default function DismissibleAlert({
   alert,
   snoozeType,
   onDismissed,
-  onRestored,
   onCreateAction,
 }: DismissibleAlertProps) {
   const s = severityStyles[alert.severity];
   const actionPrefill = onCreateAction ? alertToActionPrefill(alert) : null;
-  const canDismiss = alert.severity !== "danger";
+  const canDismiss = alert.severity !== "danger" && !isProtectedAlertCode(alert.code);
+  const [pending, setPending] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState(DISMISS_ALERT_ERROR);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
   async function handleDismiss() {
-    // Optimistic remove
-    onDismissed(alert.code);
-
+    if (!canDismiss || pending) return;
+    setPending(true);
+    setToastVisible(false);
     try {
-      const res = await fetch("/api/alerts/dismiss", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          alert_code: alert.code,
-          snooze_type: snoozeType,
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error("dismiss failed");
-      }
-    } catch {
-      // Restore on failure
-      onRestored(alert);
-
-      // Show toast for 3 seconds
+      await requestAlertDismissal(alert.code, snoozeType);
+      // Keep the component mounted until confirmation so failure feedback
+      // remains visible and a failed request never hides the alert.
+      onDismissed(alert.code);
+    } catch (error) {
+      setToastMessage(error instanceof Error && error.message === DATA_RELOAD_DISMISS_ERROR
+        ? DATA_RELOAD_DISMISS_ERROR : DISMISS_ALERT_ERROR);
       setToastVisible(true);
       if (toastTimer.current) clearTimeout(toastTimer.current);
-      toastTimer.current = setTimeout(() => setToastVisible(false), 3000);
+      toastTimer.current = setTimeout(() => setToastVisible(false), 6000);
+    } finally {
+      setPending(false);
     }
   }
 
@@ -123,7 +123,7 @@ export default function DismissibleAlert({
         <span
           style={{
             fontSize: 13,
-            fontWeight: 600,
+            fontWeight: 500,
             color: s.titleColor,
             flexShrink: 0,
             paddingTop: 1,
@@ -169,9 +169,12 @@ export default function DismissibleAlert({
 
         {canDismiss && (
           <button
+            type="button"
+            disabled={pending}
+            aria-busy={pending}
             onClick={handleDismiss}
-            title={TOOLTIP_TEXT[snoozeType]}
-            aria-label={TOOLTIP_TEXT[snoozeType]}
+            title={pending ? "Dismissing alert..." : TOOLTIP_TEXT[snoozeType]}
+            aria-label={pending ? "Dismissing alert..." : TOOLTIP_TEXT[snoozeType]}
             style={{
               position: "absolute",
               top: 12,
@@ -180,9 +183,9 @@ export default function DismissibleAlert({
               height: 20,
               borderRadius: "50%",
               background: "transparent",
-              color: "#6B7A8D",
+              color: "var(--dim)",
               border: "none",
-              cursor: "pointer",
+              cursor: pending ? "wait" : "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -192,20 +195,20 @@ export default function DismissibleAlert({
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background =
                 "rgba(0,0,0,0.06)";
-              (e.currentTarget as HTMLButtonElement).style.color = "#344150";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.background =
                 "transparent";
-              (e.currentTarget as HTMLButtonElement).style.color = "#6B7A8D";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--dim)";
             }}
           >
-            <X size={12} strokeWidth={2.5} />
+            {pending ? <Loader2 size={12} className="animate-spin" /> : <X size={12} strokeWidth={2.5} />}
           </button>
         )}
       </div>
 
-      <Toast message="Could not dismiss — please try again" visible={toastVisible} />
+      <Toast message={toastMessage} visible={toastVisible} />
     </>
   );
 }

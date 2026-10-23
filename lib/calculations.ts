@@ -18,8 +18,7 @@ import type {
   RiskLevel,
 } from "./types";
 
-/** Alert codes that can never be snoozed — always shown regardless of dismissal records. */
-const UNSNOOZABLE: Set<string> = new Set(["RUNWAY_DANGER", "CASH_BELOW_RESERVE"]);
+import { isProtectedAlertCode } from "./alertPolicy";
 
 /**
  * Returns true when an alert is currently snoozed and should be hidden.
@@ -36,7 +35,7 @@ export function isAlertSnoozed(
   dismissedAlerts: DismissedAlert[],
   currentDataVersion: string | null
 ): boolean {
-  if (UNSNOOZABLE.has(alertCode)) return false;
+  if (isProtectedAlertCode(alertCode)) return false;
 
   const record = dismissedAlerts.find((d) => d.alert_code === alertCode);
   if (!record) return false;

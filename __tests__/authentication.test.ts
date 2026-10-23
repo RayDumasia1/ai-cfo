@@ -152,7 +152,7 @@ describe("verified-email API authorization", () => {
 });
 
 describe("proxy email-verification and billing boundaries", () => {
-  it.each(["/api/import", "/api/data", "/api/actions", "/api/stripe/checkout", "/api/stripe/portal", "/api/auth/password", "/api/notify-me"])("rejects unverified sessions on %s", async path => {
+  it.each(["/api/import", "/api/data", "/api/actions", "/api/stripe/checkout", "/api/stripe/portal", "/api/auth/password", "/api/notify-me", "/api/alerts/dismiss"])("rejects unverified sessions on %s", async path => {
     session({ ...user(), email_confirmed_at: undefined });
     const response = await proxy(request(path));
     expect(response.status).toBe(403);
@@ -202,7 +202,7 @@ describe("proxy email-verification and billing boundaries", () => {
     expect(hasPaidSubscription).not.toHaveBeenCalled();
   });
 
-  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions", "/api/import", "/api/data"])("preserves the paid-subscription boundary on %s", async path => {
+  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions", "/api/import", "/api/data", "/api/alerts/dismiss"])("preserves the paid-subscription boundary on %s", async path => {
     vi.mocked(hasPaidSubscription).mockResolvedValue(false);
     expect((await proxy(request(path))).status).toBe(402);
   });

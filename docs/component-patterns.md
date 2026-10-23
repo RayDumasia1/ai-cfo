@@ -172,7 +172,7 @@ padding:       24px
 - `danger` alerts (RUNWAY_DANGER, CASH_BELOW_RESERVE): no X button, cannot be dismissed
 - `warning` and `success`: X button visible, dismissible with snooze
 - Snooze options: `data_reload` | `24h` | `7d` (set in Settings)
-- Optimistic UI: alert disappears immediately, restores on API failure
+- Confirmed UI: alert stays visible with a disabled/spinning dismissal control until the API confirms success; failures leave it visible with accessible feedback
 - `data_reload` snooze: alert reappears when user imports new data (data_version changes)
 
 **Alert panel layout:**
@@ -564,6 +564,16 @@ Session cookies are finalized after Proxy finishes its Auth and subscription che
 An invalid refresh token is an Auth/session condition, independent of Stripe cancellation and Founding Member identity. Supabase-provided cookie removals must reach the browser even when Proxy redirects an unauthenticated dashboard request to login. This prevents a dropped cleanup response from repeatedly presenting the same rejected cookie; it does not guarantee that refresh errors can never occur. Regression tests exercise the real Proxy and cookie adapter with a mocked Auth provider, including refresh, cleanup, verification/billing redirects, 403/402 responses, and public/webhook exclusions. Hosted-browser validation remains necessary after deployment.
 
 The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
+
+### Validated and confirmed alert dismissal
+
+`POST /api/alerts/dismiss` requires a non-null/non-array JSON object, an exact supported alert code, and one of `data_reload`, `24h`, or `7d`. Malformed JSON and unknown/incorrectly typed values return 400 before database work. `lib/alertPolicy.ts` defines the shared protected/dismissible code policy used by the route, UI, and `isAlertSnoozed()`. Critical runway and cash-below-reserve alerts remain non-dismissible: the API returns 403, the UI omits their control even if severity metadata is inconsistent, and calculations keep them visible despite any stored dismissal.
+
+The route looks up the authenticated user's data_version and checks the query error before writing. A failed lookup returns 500 without saving a dismissal. Data-reload snoozing without a non-null version returns 409 without writing, because such a record cannot suppress an alert under the existing calculation rules. Timed snoozes can still work without a version. Expiry is generated from server time (24 hours or 7 days), and supplied account IDs, expiry, and data_version are ignored. Writes use the validated user ID and session client. Write failures return generic 500 JSON with requestId and safe `alerts:dismiss:error` logging. Auth/email verification and paid-subscription gating are unchanged.
+
+The client uses `lib/alertDismissal.ts` and removes an alert only after an OK JSON response containing `success: true`. HTTP errors, malformed/HTML responses, or a network failure keep the alert visible. Missing-version conflicts provide guidance to import data or choose a timed snooze; unconfirmed results ask the user to refresh before retrying. The control is disabled/spinning with aria-busy while pending; failure feedback is announced as an alert. Its timer is cleaned up on unmount. Removing the optimistic parent removal also prevents the failure-toast owner from being unmounted before it can report an error. No restore callback or reinsert ordering is required.
+
+Tests reproduced previous malformed-input, permissive-value, ignored-lookup-error, ineffective-snooze, and uncaught-write failures with mocked database calls. Coverage includes Auth/account scoping, server-generated expiry, protected alerts with existing dismissal records, version changes, timed expiry, response confirmation, and rendered controls. Browser interaction still requires preview validation. Lookup and dismissal remain separate requests: an intervening import can make the recorded version stale, in which case the new-version alert remains visible on refresh. This change does not serialize dismissal with imports or provide exactly-once delivery. No schema/RLS migration, billing change, or stored-record cleanup is included.
 
 ### Account-scoped alert preference loading and saving
 
