@@ -138,6 +138,33 @@ export async function upsertFinancialMonths(
   return data ?? [];
 }
 
+// ─── Atomic Financial Imports ─────────────────────────────────────────────────
+
+/**
+ * Replaces an account's imported financial dataset in one database transaction.
+ * The API must validate the Auth user and pass a service client; the RPC is not
+ * executable by browser roles. Never fall back to separate deletes/inserts.
+ */
+export async function replaceFinancialImport(
+  userId: string,
+  months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
+  profile: Partial<Omit<BusinessProfileInsert, "user_id">>,
+  filename: string,
+  serviceClient: SupabaseClient
+): Promise<{ replaced: boolean; months_imported: number }> {
+  const { data, error } = await serviceClient.rpc("replace_financial_import", {
+    p_user_id: userId,
+    p_months: months,
+    p_profile: profile,
+    p_filename: filename,
+  });
+  if (error) throw error;
+  if (!data || typeof data.replaced !== "boolean" || data.months_imported !== months.length) {
+    throw new Error("Invalid financial import result");
+  }
+  return data;
+}
+
 // ─── Expense Categories ───────────────────────────────────────────────────────
 
 /**

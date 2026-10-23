@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/utils/supabase/service";
 import { parseExcelBuffer } from "@/lib/excelParser";
 import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 import {
-  getOrCreateBusinessProfile,
-  upsertBusinessProfile,
+  hasPaidSubscription,
+  replaceFinancialImport,
   logDataImport,
-  getSubscription,
 } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -40,12 +40,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (!hasVerifiedEmail(user)) return emailVerificationRequired();
+    if (!(await hasPaidSubscription(user.id, supabase))) {
+      return NextResponse.json(
+        { error: "An active subscription is required" },
+        { status: 402, headers: { "Cache-Control": "no-store" } }
+      );
+    }
 
     // ── File ──────────────────────────────────────────────────────────────────
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "Invalid upload form" }, { status: 400 });
+    }
+    const file = formData.get("file");
 
-    filename = file?.name ?? null;
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    filename = file.name;
 
     console.log("import:file", {
       requestId,
@@ -54,16 +68,34 @@ export async function POST(request: NextRequest) {
       size: file?.size ?? null,
     });
 
-    if (!file) {
-      console.warn("import:no-file", { requestId, userId });
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
-    }
-
-    // ── Parse ─────────────────────────────────────────────────────────────────
-    console.log("import:parse:start", { requestId, userId, filename });
-
     const buffer = await file.arrayBuffer();
-    const parsed = parseExcelBuffer(buffer);
+    let parsed;
+    try {
+      parsed = parseExcelBuffer(buffer);
+    } catch {
+      return NextResponse.json(
+        { error: "The file could not be read. Please upload a valid workbook.", requestId },
+        { status: 400 }
+      );
+    }
+    if (parsed.months.length === 0 && parsed.errors.length === 0) {
+      parsed.errors.push("The workbook must contain at least one financial month.");
+    }
+    const dates = new Set<string>();
+    for (const month of parsed.months) {
+      if (dates.has(month.month_date)) {
+        parsed.errors.push(`Duplicate month: ${month.month_date}. Include each month only once.`);
+      }
+      dates.add(month.month_date);
+      if (!/^\d{4}-(0[1-9]|1[0-2])-01$/.test(month.month_date)) {
+        parsed.errors.push(`Invalid month: ${month.month_date}.`);
+      }
+    }
+    if ([...parsed.months, parsed.profile].some(row =>
+      Object.values(row).some(value => typeof value === "number" && !Number.isFinite(value))
+    )) {
+      parsed.errors.push("Financial and business profile numbers must be finite.");
+    }
 
     console.log("import:parse:result", {
       requestId,
@@ -88,117 +120,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── Check for existing data ───────────────────────────────────────────────
-    const { count: existingCount } = await supabase
-      .from("financial_months")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
-
-    const isReplacing = (existingCount ?? 0) > 0;
-
-    console.log("import:db:existing", {
-      requestId,
-      userId,
-      existingCount,
-      isReplacing,
-    });
-
-    // Log the pending import
-    await logDataImport(
-      user.id,
-      {
-        import_type: "excel",
-        filename: file.name,
-        months_imported: 0,
-        status: "pending",
-        error_message: null,
-      },
-      supabase
+    // All replacement writes, the data version, and the success audit commit
+    // together. Missing RPC/migration or any database error must fail closed.
+    const { replaced: isReplacing } = await replaceFinancialImport(
+      user.id, parsed.months, parsed.profile, file.name, createServiceClient()
     );
-
-    // ── Replace strategy: delete all existing rows first ─────────────────────
-    if (isReplacing) {
-      console.log("import:db:delete:start", { requestId, userId });
-
-      const { error: delMonthsErr } = await supabase
-        .from("financial_months")
-        .delete()
-        .eq("user_id", user.id);
-
-      if (delMonthsErr) throw delMonthsErr;
-
-      const { error: delCatsErr } = await supabase
-        .from("expense_categories")
-        .delete()
-        .eq("user_id", user.id);
-
-      if (delCatsErr) throw delCatsErr;
-
-      console.log("import:db:delete:success", { requestId, userId });
-    }
-
-    // ── Profile ───────────────────────────────────────────────────────────────
-    const profile = await getOrCreateBusinessProfile(user.id, supabase);
-
-    if (Object.keys(parsed.profile).length > 0) {
-      console.log("import:db:upsert-profile", {
-        requestId,
-        userId,
-        profileFields: Object.keys(parsed.profile),
-      });
-      await upsertBusinessProfile(user.id, parsed.profile, supabase);
-    }
-
-    // ── Insert months ─────────────────────────────────────────────────────────
-    const months = parsed.months.map((m) => ({
-      ...m,
-      user_id: user.id,
-      business_id: profile.id,
-    }));
-
-    console.log("import:db:insert:start", {
-      requestId,
-      userId,
-      count: months.length,
-      firstMonth: months[0]?.month_date ?? null,
-      lastMonth: months[months.length - 1]?.month_date ?? null,
-    });
-
-    if (months.length > 0) {
-      const { error: insertErr } = await supabase
-        .from("financial_months")
-        .insert(months);
-
-      if (insertErr) throw insertErr;
-    }
-
-    console.log("import:db:insert:success", {
-      requestId,
-      userId,
-      count: months.length,
-    });
-
-    // Stamp data_version so 'snooze until data reload' dismissals expire.
-    const dataVersion = new Date().toISOString();
-    await supabase
-      .from("business_profiles")
-      .update({ data_version: dataVersion })
-      .eq("user_id", user.id);
-
-    await logDataImport(
-      user.id,
-      {
-        import_type: "excel",
-        filename: file.name,
-        months_imported: months.length,
-        status: "success",
-        error_message: null,
-      },
-      supabase
-    );
-
-    // Ensure a subscription row exists for every user who imports data.
-    await getSubscription(user.id, supabase);
+    const months = parsed.months;
 
     const sorted = months.map((m) => m.month_date).sort();
     const latestMonth = sorted[sorted.length - 1];
@@ -225,7 +152,9 @@ export async function POST(request: NextRequest) {
       requestId,
     });
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorMessage = err instanceof Error ? err.message
+      : err && typeof err === "object" && "message" in err && typeof err.message === "string"
+        ? err.message : "Unknown import failure";
     const errorStack = err instanceof Error ? err.stack : null;
 
     console.error("import:error", {
@@ -260,7 +189,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: "Import failed", detail: errorMessage, requestId },
+      { error: "Import failed. Your replacement could not be confirmed. Please refresh before retrying.", requestId },
       { status: 500 }
     );
   }
