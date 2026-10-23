@@ -72,7 +72,7 @@ export default function ImportUploader({
       onSuccess?.();
     } catch {
       setClearState("idle");
-      fail("Failed to clear data. Please try again.");
+      fail("Could not confirm whether data was cleared. Refresh the dashboard before trying again.");
     }
   }
 

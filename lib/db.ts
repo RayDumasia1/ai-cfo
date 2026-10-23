@@ -165,6 +165,16 @@ export async function replaceFinancialImport(
   return data;
 }
 
+/** Clears one account atomically; requires the API's explicitly supplied service client. */
+export async function clearFinancialData(
+  userId: string,
+  serviceClient: SupabaseClient
+): Promise<void> {
+  const { data, error } = await serviceClient.rpc("clear_financial_data", { p_user_id: userId });
+  if (error) throw error;
+  if (!data || data.cleared !== true) throw new Error("Invalid clear-data result");
+}
+
 // ─── Expense Categories ───────────────────────────────────────────────────────
 
 /**

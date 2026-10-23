@@ -1,56 +1,29 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
-import { logDataImport } from "@/lib/db";
+import { clearFinancialData, hasPaidSubscription } from "@/lib/db";
+import { createServiceClient } from "@/utils/supabase/service";
 
 export const dynamic = "force-dynamic";
 
 export const DELETE = requireAuth(async (_req, { userId, supabase }) => {
+  const requestId = crypto.randomUUID();
   try {
-    const { error: delMonthsErr } = await supabase
-      .from("financial_months")
-      .delete()
-      .eq("user_id", userId);
-
-    if (delMonthsErr) throw delMonthsErr;
-
-    const { error: delCatsErr } = await supabase
-      .from("expense_categories")
-      .delete()
-      .eq("user_id", userId);
-
-    if (delCatsErr) throw delCatsErr;
-
-    const { error: resetProfileErr } = await supabase
-      .from("business_profiles")
-      .update({
-        min_cash_reserve: null,
-        runway_warning_threshold: 6,
-        runway_danger_threshold: 3,
-        burn_rate_warning_pct: 0.1,
-        invoice_overdue_days: 30,
-      })
-      .eq("user_id", userId);
-
-    if (resetProfileErr) throw resetProfileErr;
-
-    await logDataImport(
-      userId,
-      {
-        import_type: "manual",
-        filename: null,
-        months_imported: 0,
-        status: "success",
-        error_message: "User cleared data",
-      },
-      supabase
-    );
-
+    if (!(await hasPaidSubscription(userId, supabase))) {
+      return NextResponse.json(
+        { error: "An active subscription is required" },
+        { status: 402, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    // Never fall back to separate deletes if the RPC/migration is unavailable.
+    await clearFinancialData(userId, createServiceClient());
     return NextResponse.json({ success: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("data:clear:error", { userId, message });
+    const message = err instanceof Error ? err.message
+      : err && typeof err === "object" && "message" in err && typeof err.message === "string"
+        ? err.message : "Unknown clear-data failure";
+    console.error("data:clear:error", { requestId, userId, message });
     return NextResponse.json(
-      { error: "Failed to clear data", detail: message },
+      { error: "Clear could not be confirmed. Refresh the dashboard before retrying.", requestId },
       { status: 500 }
     );
   }
