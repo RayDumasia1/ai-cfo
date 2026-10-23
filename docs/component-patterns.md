@@ -565,6 +565,14 @@ An invalid refresh token is an Auth/session condition, independent of Stripe can
 
 The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
 
+### Subscription initialization and concurrent checkout
+
+`lib/db.ts:getSubscription()` initializes a missing subscription as Starter using `ON CONFLICT (user_id) DO NOTHING` (`ignoreDuplicates: true`). If a checkout webhook or another request creates the row after the initial read, initialization never overwrites its plan, feature tier, status, Stripe identifiers, or Founding identity. After initialization, the helper rereads the account-scoped stored row rather than returning assumed Starter values. Existing rows require only the original read.
+
+Read and initialization errors propagate to callers; an unreadable or missing row after initialization is an error, not an inferred active subscription. The existing unique constraint on `subscriptions.user_id` provides conflict detection; no migration or RLS change is required. A default Starter row alone remains insufficient for paid access under `hasPaidSubscription()`. Founding cancellation, reinstatement, permanent member identity, and Stripe webhook behavior are unchanged.
+
+Regression tests model a webhook arriving between read and insert, including Core, pending-cancellation Founding, and cancelled/suspended Founding rows; they also cover simultaneous initialization, account isolation, and database failures. These tests use an in-memory database double and do not establish that this race previously occurred in a deployed database. No production records were inspected or repaired.
+
 ### Stripe webhook status and cancellation rules
 
 The `subscriptions.status` CHECK permits `active`, `cancelled`, `past_due`, `trialing`, `paused`, and `pending_cancellation`. Stripe's billing statuses are a separate domain. `lib/subscriptionStatus.ts` normalizes every checkout-completion, subscription-update, and invoice-state write:

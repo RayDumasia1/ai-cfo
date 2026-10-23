@@ -445,18 +445,6 @@ export interface SubscriptionResult {
   founding_member_grace_ends_at: string | null;
 }
 
-const DEFAULT_STARTER: SubscriptionResult = {
-  plan: "starter",
-  feature_tier: "starter",
-  status: "active",
-  billing_period_end: null,
-  founding_member_expires_at: null,
-  founding_member_number: null,
-  founding_member_is_test: false,
-  founding_member_cancelled_at: null,
-  founding_member_grace_ends_at: null,
-};
-
 /**
  * Returns the user's subscription row.
  * Always call with the server client from utils/supabase/server.ts.
@@ -465,7 +453,7 @@ export async function getSubscription(
   userId: string,
   client: SupabaseClient = supabase
 ): Promise<SubscriptionResult> {
-  const { data, error } = await client
+  const readSubscription = () => client
     .from("subscriptions")
     .select(
       "plan, feature_tier, status, billing_period_end, founding_member_expires_at, founding_member_number, founding_member_is_test, founding_member_cancelled_at, founding_member_grace_ends_at"
@@ -473,18 +461,25 @@ export async function getSubscription(
     .eq("user_id", userId)
     .maybeSingle();
 
+  const { data, error } = await readSubscription();
   if (error) throw error;
 
   if (!data) {
-    // Insert a default starter row so every user has a subscription record.
-    // Uses upsert to be safe against concurrent calls — won't overwrite existing rows.
-    await client
+    // A webhook may create a paid row after our read. Never update it with
+    // defaults: ON CONFLICT DO NOTHING preserves billing state and identity.
+    const { error: insertError } = await client
       .from("subscriptions")
       .upsert(
         { user_id: userId, plan: "starter", feature_tier: "starter", status: "active" },
-        { onConflict: "user_id" }
+        { onConflict: "user_id", ignoreDuplicates: true }
       );
-    return DEFAULT_STARTER;
+    if (insertError) throw insertError;
+
+    // Return the stored row, which may belong to the concurrent webhook.
+    const { data: initialized, error: readError } = await readSubscription();
+    if (readError) throw readError;
+    if (!initialized) throw new Error("Subscription unavailable after initialization");
+    return initialized as SubscriptionResult;
   }
 
   return data as SubscriptionResult;
