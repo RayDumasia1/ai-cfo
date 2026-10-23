@@ -565,6 +565,16 @@ An invalid refresh token is an Auth/session condition, independent of Stripe can
 
 The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
 
+### Shared authenticated API error boundary
+
+`lib/apiAuth.ts` awaits the wrapped handler inside its try/catch. Previously it returned the promise directly, so asynchronous handler failures (including a rejected subscription lookup) escaped the intended JSON error boundary. Unexpected application failures during session-client creation, Auth lookup, or handler execution now return 500 JSON `{ error: "Internal server error", requestId }` with `Cache-Control: no-store`.
+
+The fallback logs `requireAuth:error` with the same requestId and a phase (`authentication` or `handler`). It does not log raw exception messages/objects, submitted values, email addresses, tokens, or query strings. Next.js `unstable_rethrow()` runs first in the catch, as documented by the installed framework, so redirects, not-found signals, and request-time rendering exceptions remain under framework control. This matters because session-client creation calls `cookies()`.
+
+Deliberate route responses are returned unchanged, including status, body, headers, and cookies. Existing 401/403 checks, authenticated user/client/context forwarding, paid-subscription Proxy checks, feature gates, and Founding Member behavior are unchanged. Route-specific error handling still takes precedence; this fallback does not validate request bodies, sanitize other routes' own logs, cover unwrapped routes, or roll back writes completed before an error. Callers must not assume a 500 means no mutation occurred.
+
+Regression tests reproduce asynchronous rejection through the real subscription route and cover synchronous/non-Error failures, Auth/client rejection, safe correlated logging, unchanged responses/context, and framework control flow. No database migration, RLS change, external configuration, or production service access is required.
+
 ### Validated and confirmed alert dismissal
 
 `POST /api/alerts/dismiss` requires a non-null/non-array JSON object, an exact supported alert code, and one of `data_reload`, `24h`, or `7d`. Malformed JSON and unknown/incorrectly typed values return 400 before database work. `lib/alertPolicy.ts` defines the shared protected/dismissible code policy used by the route, UI, and `isAlertSnoozed()`. Critical runway and cash-below-reserve alerts remain non-dismissible: the API returns 403, the UI omits their control even if severity metadata is inconsistent, and calculations keep them visible despite any stored dismissal.
