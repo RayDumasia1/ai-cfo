@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, Lock, Star } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import FoundingMemberReturnCard from "@/app/components/billing/FoundingMemberReturnCard";
 import type { ReturningFoundingMember } from "@/lib/foundingMemberState";
+import { NOTIFY_REGISTRATION_ERROR, registerFeatureNotification } from "@/lib/notifyRegistration";
 
 type PlanKey = "founding_member" | "starter";
 
@@ -243,15 +244,19 @@ function CheckoutButton({
   );
 }
 
-function ComingSoonCard({
+export function ComingSoonCard({
   tier,
   notified,
   pending,
+  disabled,
+  error,
   onNotify,
 }: {
   tier: ComingSoonTier;
   notified: boolean;
   pending: boolean;
+  disabled: boolean;
+  error?: string;
   onNotify: () => void;
 }) {
   return (
@@ -280,13 +285,18 @@ function ComingSoonCard({
       <FeatureList features={tier.features} dark={false} />
 
       {notified ? (
-        <p style={{ marginTop: "auto", paddingTop: 20, marginBottom: 0, fontSize: 13, color: "var(--teal)" }}>
+        <p role="status" style={{ marginTop: "auto", paddingTop: 20, marginBottom: 0, fontSize: 13, color: "var(--teal)" }}>
           ✓ You&apos;re on the list
         </p>
       ) : (
-        <button type="button" className="welcome-notify" disabled={pending} onClick={onNotify}>
+        <button type="button" className="welcome-notify" disabled={disabled || pending} aria-busy={pending} aria-describedby={error ? `${tier.key}-notify-error` : undefined} onClick={onNotify}>
           {pending ? "Adding you..." : "Notify me when available"}
         </button>
+      )}
+      {error && !notified && (
+        <p id={`${tier.key}-notify-error`} role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: "var(--danger)" }}>
+          {error}
+        </p>
       )}
     </div>
   );
@@ -307,19 +317,18 @@ export default function WelcomeClient({
   const [error, setError] = useState<string | null>(null);
   const [notifiedTiers, setNotifiedTiers] = useState<Set<string>>(new Set());
   const [pendingTier, setPendingTier] = useState<ComingSoonTierKey | null>(null);
+  const [notifyErrors, setNotifyErrors] = useState<Partial<Record<ComingSoonTierKey, string>>>({});
   const foundingAvailable = spotsRemaining > 0;
 
   async function notifyMe(feature: ComingSoonTierKey) {
+    if (pendingTier !== null) return;
     setPendingTier(feature);
+    setNotifyErrors(prev => ({ ...prev, [feature]: undefined }));
     try {
-      const res = await fetch("/api/notify-me", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail, feature }),
-      });
-      if (res.ok) setNotifiedTiers((prev) => new Set(prev).add(feature));
+      await registerFeatureNotification(userEmail, feature);
+      setNotifiedTiers((prev) => new Set(prev).add(feature));
     } catch {
-      // leave the link in place so the user can retry
+      setNotifyErrors(prev => ({ ...prev, [feature]: NOTIFY_REGISTRATION_ERROR }));
     } finally {
       setPendingTier(null);
     }
@@ -548,6 +557,8 @@ export default function WelcomeClient({
             tier={tier}
             notified={notifiedTiers.has(tier.key)}
             pending={pendingTier === tier.key}
+            disabled={pendingTier !== null}
+            error={notifyErrors[tier.key]}
             onNotify={() => notifyMe(tier.key)}
           />
         ))}

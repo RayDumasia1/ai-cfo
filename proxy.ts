@@ -27,6 +27,9 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES = [
   "/api/stripe",
   "/api/founding",
 ];
+// Joining a coming-soon list does not require purchasing a current plan.
+// Keep this exact so unrelated endpoints retain their subscription guard.
+const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set(["/api/notify-me"]);
 
 export async function proxy(request: NextRequest) {
   if (PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path)) ||
@@ -66,7 +69,7 @@ export async function proxy(request: NextRequest) {
       return finishResponse(NextResponse.redirect(new URL("/dashboard", request.url)));
     }
 
-    const isAllowed = ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
+    const isAllowed = ALLOWED_WITHOUT_SUBSCRIPTION_PATHS.has(pathname) || ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
       pathname.startsWith(prefix)
     );
     if (!isAllowed && !(await hasPaidSubscription(user.id, supabase))) {
