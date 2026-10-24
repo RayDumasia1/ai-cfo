@@ -7,6 +7,7 @@ import {
   getDismissedAlerts,
   getSubscription,
   getActions,
+  getFinancialImportStatus,
 } from "@/lib/db";
 import { alertEngine, isAlertSnoozed, currentRunway } from "@/lib/calculations";
 import { isNewUser as isNewUserCheck, parseSuperuserEmails } from "@/lib/onboarding";
@@ -21,6 +22,7 @@ import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanne
 import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
 import PendingCancellationBanner from "@/app/components/billing/PendingCancellationBanner";
 import SubscriptionEndedBanner from "@/app/components/billing/SubscriptionEndedBanner";
+import FinancialDataStatusCard from "@/app/components/FinancialDataStatusCard";
 
 export default async function DashboardPage({
   searchParams,
@@ -34,7 +36,7 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions] = await Promise.all([
+  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions, importStatus] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     user ? getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase) : [],
@@ -49,6 +51,7 @@ export default async function DashboardPage({
           return [];
         })
       : [],
+    user ? getFinancialImportStatus(user.id,supabase) : {available:false,lastImportedAt:null},
   ]);
 
   const dataVersion = profile?.data_version ?? null;
@@ -137,7 +140,7 @@ export default async function DashboardPage({
         dataVersion={dataVersion}
         snoozeDuration={snoozeDuration}
         hasData={recentMonths.length > 0}
-        isNewUser={isNewUser}
+        financialDataStatus={<FinancialDataStatusCard months={recentMonths.map(month=>month.month_date)} importStatus={importStatus} />}
       >
         {/* Stat cards */}
         <div className="mb-8" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "stretch" }}>

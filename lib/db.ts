@@ -15,6 +15,7 @@ import { supabase } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
+import type { FinancialImportStatus } from "./financialDataStatus";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
 import { DASHBOARD_MONTH_LIMIT, importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
 import { isMonthList, type ImportReviewState } from "./financialImportReview";
@@ -278,6 +279,23 @@ export async function upsertExpenseCategories(
 }
 
 // ─── Data Imports ─────────────────────────────────────────────────────────────
+
+/** Latest successful source import, excluding manual Clear Data audit records. */
+export async function getFinancialImportStatus(userId: string, client: SupabaseClient = supabase): Promise<FinancialImportStatus> {
+  const {data,error} = await client.from("data_imports")
+    .select("created_at")
+    .eq("user_id",userId)
+    .eq("status","success")
+    .in("import_type",["excel","csv","quickbooks"])
+    .order("created_at",{ascending:false})
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("financialData:importStatus:error",{code:error.code});
+    return {available:false,lastImportedAt:null};
+  }
+  return {available:true,lastImportedAt:data?.created_at ?? null};
+}
 
 /**
  * Records a completed (or failed) import run for audit purposes.

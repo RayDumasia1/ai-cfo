@@ -4,6 +4,7 @@ import { ReactNode, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  Database,
   FileText,
   LayoutDashboard,
   ListChecks,
@@ -35,6 +36,7 @@ function RisingColumnMark({ className }: { className?: string }) {
 
 const navItems: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
+  { label: "Financial data", href: "/dashboard/financial-data", icon: Database },
   { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
   { label: "Reports",         href: "/reports",            icon: FileText },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },
@@ -108,6 +110,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <a
                 key={item.label}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={`w-full text-left flex items-center px-3 py-2 text-sm transition-colors ${
                   isActive ? "font-medium" : "font-light hover:text-white"
                 }`}

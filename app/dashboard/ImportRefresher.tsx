@@ -11,10 +11,13 @@ interface ImportRefresherProps {
 export default function ImportRefresher({ hasData, isNewUser }: ImportRefresherProps) {
   const router = useRouter();
   return (
-    <ImportUploader
-      hasData={hasData}
-      isNewUser={isNewUser}
-      onSuccess={() => router.refresh()}
-    />
+    <div className="space-y-4">
+      <ImportUploader
+        hasData={hasData}
+        isNewUser={isNewUser}
+        onSuccess={() => router.refresh()}
+      />
+      <a href="/dashboard" className="inline-block text-sm underline" style={{color:"var(--teal)"}}>View dashboard</a>
+    </div>
   );
 }

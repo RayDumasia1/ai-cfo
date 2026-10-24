@@ -10,7 +10,7 @@ export type UploadState = "idle" | "reviewing" | "review" | "uploading" | "succe
 
 /**
  * Review/confirm upload workflow; selecting a file does not commit its data.
- * Shared by ImportUploader (dashboard card) and the onboarding modal.
+ * Shared by ImportUploader (Financial data page) and the onboarding modal.
  */
 export function useImportUpload(onSuccess?: (result: ImportSuccessPayload) => void) {
   const [state, setState] = useState<UploadState>("idle");

@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from "recharts";
 import { BarChart2 } from "lucide-react";
+import Link from "next/link";
 import { getRevenueVsBurnChartData } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
 
@@ -122,16 +123,12 @@ export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
           >
             Upload your financial data to see your revenue vs burn trend.
           </p>
-          <a
-            href="#import"
-            onClick={(e) => {
-              e.preventDefault();
-              document.getElementById("import-section")?.scrollIntoView({ behavior: "smooth" });
-            }}
+          <Link
+            href="/dashboard/financial-data"
             style={{ fontSize: 13, color: "#2CA6A4", textDecoration: "none" }}
           >
             Upload data →
-          </a>
+          </Link>
         </div>
       </div>
     );

@@ -10,7 +10,6 @@ import ActionTrackerPanel from "@/app/components/ActionTrackerPanel";
 import ActionModal from "@/app/components/ActionModal";
 import { useActionManager } from "@/app/components/useActionManager";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
-import ImportRefresher from "./ImportRefresher";
 
 interface DashboardClientProps {
   featureTier: FeatureTier;
@@ -20,13 +19,13 @@ interface DashboardClientProps {
   dataVersion: string | null;
   snoozeDuration: SnoozeType;
   hasData: boolean;
-  isNewUser: boolean;
+  financialDataStatus: ReactNode;
   /** Server-rendered content between TopAlerts and BottomAlerts (stat cards, chart). */
   children: ReactNode;
 }
 
 /**
- * Interactive dashboard sections: alerts (with "Create action"), import/scenario
+ * Interactive dashboard sections: alerts (with "Create action"), data status/scenario
  * row, Action Tracker, upgrade strip. Owns the single ActionModal instance and
  * the actions list so alert-created and panel-created actions share state.
  */
@@ -38,7 +37,7 @@ export default function DashboardClient({
   dataVersion,
   snoozeDuration,
   hasData,
-  isNewUser,
+  financialDataStatus,
   children,
 }: DashboardClientProps) {
   const { actions, actionError, openModal, modalKey, modalProps } = useActionManager(initialActions);
@@ -67,11 +66,9 @@ export default function DashboardClient({
         />
       </div>
 
-      {/* Two-column data row: Import | What-If Scenario */}
+      {/* Two-column data row: financial data status | What-If Scenario */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        <div id="import-section">
-          <ImportRefresher hasData={hasData} isNewUser={isNewUser} />
-        </div>
+        {financialDataStatus}
 
         <ScenarioPanel hasData={hasData} />
       </div>
