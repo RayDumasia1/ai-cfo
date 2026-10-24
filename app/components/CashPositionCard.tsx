@@ -2,6 +2,7 @@
 
 import StatCard from "./StatCard";
 import type { CashPositionResult } from "@/lib/db";
+import { financialMonthLabel } from "@/lib/financialDataStatus";
 
 interface CashPositionCardProps {
   initialData: CashPositionResult | null;
@@ -35,6 +36,9 @@ export default function CashPositionCard({
   }
 
   const { cash, month, previousCash } = initialData;
+  if (cash === null) {
+    return <StatCard label="Cash Position" value="—" subtext={`Closing cash missing for ${financialMonthLabel(month)}`} />;
+  }
 
   // Colour logic
   let borderColor = "var(--teal)";

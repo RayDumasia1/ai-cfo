@@ -2,6 +2,7 @@
 
 import { monthlyBurnRate, runwayMonths, runoutDate } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
+import StatCard from "./StatCard";
 
 interface CashOutCardProps {
   /** Closing cash of the most recent month. */
@@ -30,6 +31,9 @@ const cardBase: React.CSSProperties = {
 };
 
 export default function CashOutCard({ cash, months, isNewUser = false }: CashOutCardProps) {
+  if (cash === null && months.length > 0) {
+    return <StatCard label="Cash-Out Date" value="—" subtext="Latest month is missing closing cash" />;
+  }
   const expenses = months.map((m) => m.total_expenses);
   const avgBurn = monthlyBurnRate(expenses);
 

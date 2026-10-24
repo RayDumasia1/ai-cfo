@@ -6,6 +6,7 @@ import {
   runwayChangeMoM,
 } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
+import StatCard from "./StatCard";
 
 interface RunwayCardProps {
   /** Closing cash of the most recent month. */
@@ -28,6 +29,9 @@ export default function RunwayCard({
   isNewUser = false,
 }: RunwayCardProps) {
   const threshold = runwayWarningThreshold ?? 6;
+  if (cash === null && months.length > 0) {
+    return <StatCard label="Runway" value="—" subtext="Latest month is missing closing cash" />;
+  }
 
   // ── Core calculations ──────────────────────────────────────────────────────
   const expenses = months.map((m) => m.total_expenses);

@@ -347,8 +347,8 @@ export async function getOrCreateBusinessProfile(
 }
 
 export interface CashPositionResult {
-  /** Closing cash of the most recent month. */
-  cash: number;
+  /** Closing cash of the most recent month; null means not supplied. */
+  cash: number | null;
   /** ISO date of the most recent month, e.g. "2026-04-01". */
   month: string;
   /** Closing cash of the previous month, null if only one month exists. */
@@ -375,7 +375,7 @@ export async function getCurrentCashPosition(
   if (!data || data.length === 0) return null;
 
   return {
-    cash: data[0].closing_cash ?? 0,
+    cash: data[0].closing_cash ?? null,
     month: data[0].month_date,
     previousCash: data[1]?.closing_cash ?? null,
   };
