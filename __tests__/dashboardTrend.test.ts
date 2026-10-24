@@ -55,7 +55,7 @@ describe("twelve-month dashboard trends", () => {
     expect(markup).toContain("Oct 2025 – Dec 2025");
     expect(markup).toContain("2");
     expect(markup).toContain("stored");
-    expect(markup).toContain("1 missing month is not shown");
+    expect(markup).toContain("1 missing month; gaps break the lines");
     expect(markup).not.toContain("Last 2 months");
   });
 });

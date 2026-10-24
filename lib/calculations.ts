@@ -198,8 +198,27 @@ export function runwayChangeMoM(
   return runwayMonths(currentCash, burn) - runwayMonths(previousCash, burn);
 }
 
+export interface RevenueExpensesPoint {
+  monthIndex: number;
+  monthDate: string;
+  label: string;
+  revenue: number | null;
+  expenses: number | null;
+  difference: number | null;
+  /** A presentation-only gap marker, never a persisted or zero-valued financial row. */
+  missingThrough: string | null;
+}
+
+export function financialChartMonthLabel(index: number): string {
+  const date = `${String(Math.floor(index / 12)).padStart(4,"0")}-${String(index % 12 + 1).padStart(2,"0")}-01`;
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US",{month:"short",year:"numeric",timeZone:"UTC"});
+}
+
 export interface RevenueVsBurnChartData {
   labels: string[];
+  /** Stored records plus one null marker per gap, on a calendar-proportional numeric axis. */
+  points: RevenueExpensesPoint[];
+  ticks: number[];
   /** Calendar months absent between the first and last displayed records. */
   missingMonths: number;
   /** null means the source month had no total_revenue recorded. */
@@ -210,7 +229,7 @@ export interface RevenueVsBurnChartData {
 }
 
 /**
- * Prepares the latest twelve stored months of revenue and burn for charting.
+ * Prepares the latest twelve stored months of revenue and expenses for charting.
  * Input is newest-first (as returned by getFinancialMonths).
  * Output is sorted chronologically (oldest → newest) for left-to-right display.
  * Returns null when months is empty so the component can render a placeholder.
@@ -240,9 +259,29 @@ export function getRevenueVsBurnChartData(
       : null
   );
 
-  const monthIndex = (date: string) => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7));
+  const monthIndex = (date: string) => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
   const missingMonths = monthIndex(recent[recent.length - 1].month_date) - monthIndex(recent[0].month_date) + 1 - recent.length;
-  return { labels, revenue, burn, netCashFlow, missingMonths };
+  const monthDate = (index: number) => `${String(Math.floor(index / 12)).padStart(4,"0")}-${String(index % 12 + 1).padStart(2,"0")}-01`;
+  const points: RevenueExpensesPoint[] = [];
+  for (let i = 0; i < recent.length; i++) {
+    const month = recent[i];
+    const index = monthIndex(month.month_date);
+    const previous = recent[i-1];
+    if (previous && index - monthIndex(previous.month_date) > 1) {
+      const firstMissing = monthIndex(previous.month_date) + 1;
+      points.push({monthIndex:firstMissing,monthDate:monthDate(firstMissing),label:financialChartMonthLabel(firstMissing),
+        revenue:null,expenses:null,difference:null,missingThrough:monthDate(index-1)});
+    }
+    points.push({monthIndex:index,monthDate:month.month_date,label:labels[i],revenue:month.total_revenue,
+      expenses:month.total_expenses,difference:month.total_revenue != null && month.total_expenses != null
+        ? month.total_revenue - month.total_expenses : null,missingThrough:null});
+  }
+  const firstIndex = points[0].monthIndex;
+  const lastIndex = points[points.length-1].monthIndex;
+  // Keep tick generation bounded for very sparse, long historical ranges.
+  const ticks = lastIndex-firstIndex < 24 ? Array.from({length:lastIndex-firstIndex+1},(_,i)=>firstIndex+i)
+    : points.map(point=>point.monthIndex);
+  return { labels, revenue, burn, netCashFlow, missingMonths, points, ticks };
 }
 
 /**
