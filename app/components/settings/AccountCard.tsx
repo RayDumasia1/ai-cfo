@@ -7,6 +7,7 @@ import LogoutButton from "@/app/components/LogoutButton";
 import FoundingMemberBadge from "@/app/components/billing/FoundingMemberBadge";
 import { useSubscription } from "@/hooks/useSubscription";
 import type { Plan } from "@/lib/featureGates";
+import BusinessNameField from "./BusinessNameField";
 
 interface AccountCardProps {
   email: string;
@@ -33,17 +34,10 @@ const PLAN_BADGE: Record<
   founding_member: { bg: "#FBF5EC", border: "#D4AF7F", color: "#7D4E00", label: "FOUNDING MEMBER" },
 };
 
-type SaveState = "idle" | "saving" | "saved" | "error";
 type EmailState = "idle" | "saving" | "sent" | "error";
 
 export default function AccountCard({ email, memberSince, businessName }: AccountCardProps) {
   const { subscription, loading } = useSubscription();
-
-  // Business name state
-  const [name, setName] = useState(businessName ?? "");
-  const [nameEditing, setNameEditing] = useState(false);
-  const [nameSave, setNameSave] = useState<SaveState>("idle");
-  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Email state
   const [emailEditing, setEmailEditing] = useState(false);
@@ -55,37 +49,6 @@ export default function AccountCard({ email, memberSince, businessName }: Accoun
 
   const plan = subscription?.plan ?? "starter";
   const badge = PLAN_BADGE[plan] ?? PLAN_BADGE.starter;
-
-  // ── Business name handlers ────────────────────────────────────────────────
-
-  function startNameEdit() {
-    setNameEditing(true);
-    setNameSave("idle");
-    setTimeout(() => nameInputRef.current?.focus(), 0);
-  }
-
-  async function handleNameSave() {
-    setNameSave("saving");
-    try {
-      const res = await fetch("/api/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ business_name: name }),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      setNameSave("saved");
-      setNameEditing(false);
-      setTimeout(() => setNameSave("idle"), 2000);
-    } catch {
-      setNameSave("error");
-    }
-  }
-
-  function cancelNameEdit() {
-    setNameEditing(false);
-    setName(businessName ?? "");
-    setNameSave("idle");
-  }
 
   // ── Email handlers ────────────────────────────────────────────────────────
 
@@ -147,77 +110,7 @@ export default function AccountCard({ email, memberSince, businessName }: Accoun
 
       <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
 
-        {/* Business Name — editable */}
-        <div>
-          <span style={rowLabelStyle}>Business Name</span>
-          <div style={{ position: "relative", marginTop: 4 }}>
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              readOnly={!nameEditing}
-              placeholder="Your business name"
-              style={{
-                width: "100%",
-                height: 40,
-                border: "1.5px solid #D8E2EC",
-                borderRadius: 10,
-                padding: "0 40px 0 12px",
-                fontSize: 14,
-                color: name ? "#0A1A2F" : "#6B7A8D",
-                backgroundColor: nameEditing ? "#FFFFFF" : "#FAFBFC",
-                outline: "none",
-                boxSizing: "border-box",
-                cursor: nameEditing ? "text" : "default",
-              }}
-              onFocus={(e) => {
-                if (nameEditing) {
-                  e.currentTarget.style.borderColor = "#2CA6A4";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(44,166,164,0.12)";
-                }
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "#D8E2EC";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-              onKeyDown={(e) => { if (e.key === "Enter" && nameEditing) handleNameSave(); }}
-            />
-            {!nameEditing && (
-              <button
-                type="button"
-                onClick={startNameEdit}
-                aria-label="Edit business name"
-                style={pencilBtnStyle}
-              >
-                <Pencil size={14} />
-              </button>
-            )}
-          </div>
-          {nameEditing && (
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-              <button
-                type="button"
-                onClick={handleNameSave}
-                disabled={nameSave === "saving"}
-                style={saveBtnStyle(nameSave === "saving")}
-              >
-                {nameSave === "saving" ? "Saving…" : "Save"}
-              </button>
-              <button type="button" onClick={cancelNameEdit} style={cancelBtnStyle}>
-                Cancel
-              </button>
-              {nameSave === "error" && (
-                <span style={{ fontSize: 13, color: "#E84545" }}>Could not save — try again.</span>
-              )}
-            </div>
-          )}
-          {nameSave === "saved" && !nameEditing && (
-            <span style={{ fontSize: 13, color: "#2CA6A4", display: "block", marginTop: 4 }}>
-              Saved ✓
-            </span>
-          )}
-        </div>
+        <BusinessNameField key={`${email}:${businessName ?? ""}`} initialName={businessName} />
 
         {/* Email — editable */}
         <div>
