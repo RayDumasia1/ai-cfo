@@ -161,4 +161,16 @@ describe("reviewed financial upload", () => {
     expect(markup).toContain("&lt;script&gt;");
     expect(markup).not.toContain("<em>");
   });
+
+  it.each(["update_months", "replace_all"] as const)("shows missing-month consequences before the %s confirmation", mode => {
+    const missing = buildImportReview(file.name,mode,existingMonths.filter(date => date !== "2025-03-01"),
+      {state_version:"a".repeat(32),months:existingMonths},[]);
+    const markup = renderToStaticMarkup(createElement(ImportReviewCard,{review:missing,onConfirm:vi.fn(),onCancel:vi.fn()}));
+    expect(markup).toContain("Missing from this file: March 2025.");
+    expect(markup).toContain(mode === "update_months" ? "will be kept" : "will be removed because Replace all is selected");
+    expect(markup).toContain("You can continue with this upload, or cancel and correct the workbook.");
+    expect(markup).toContain(mode === "update_months" ? "Update 11 months" : "Replace all data with 11 months");
+    expect(markup).toContain('type="button"');
+    expect(markup).toContain("Cancel");
+  });
 });

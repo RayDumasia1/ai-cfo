@@ -18,6 +18,51 @@ export interface ImportReview {
   warnings: string[];
 }
 
+function monthIndex(date: string): number {
+  return Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
+}
+
+function monthLabel(index: number): string {
+  const date = `${String(Math.floor(index / 12)).padStart(4, "0")}-${String(index % 12 + 1).padStart(2, "0")}-01`;
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "long", year: "numeric", timeZone: "UTC",
+  });
+}
+
+/** Compress consecutive missing months into ranges without hiding which dates are affected. */
+function monthRanges(indices: number[]): string {
+  const ranges: string[] = [];
+  for (let i = 0; i < indices.length; i++) {
+    const first = indices[i];
+    while (i + 1 < indices.length && indices[i + 1] === indices[i] + 1) i++;
+    const last = indices[i];
+    ranges.push(first === last ? monthLabel(first) : `${monthLabel(first)}–${monthLabel(last)}`);
+  }
+  return ranges.join(", ");
+}
+
+function missingMonthWarnings(dates: string[], current: Set<string>, mode: FinancialImportMode): string[] {
+  if (dates.length < 2) return [];
+  const uploaded = new Set(dates.map(monthIndex));
+  const saved = new Set([...current].map(monthIndex));
+  const kept: number[] = [];
+  const removed: number[] = [];
+  const gaps: number[] = [];
+  // Only internal gaps count: a partial year or single-month correction is valid.
+  for (let index = monthIndex(dates[0]) + 1; index < monthIndex(dates[dates.length - 1]); index++) {
+    if (uploaded.has(index)) continue;
+    if (!saved.has(index)) gaps.push(index);
+    else if (mode === "update_months") kept.push(index);
+    else removed.push(index);
+  }
+  const notices: string[] = [];
+  if (kept.length) notices.push(`Missing from this file: ${monthRanges(kept)}. Your saved data for these months will be kept.`);
+  if (removed.length) notices.push(`Missing from this file: ${monthRanges(removed)}. Your saved data for these months will be removed because Replace all is selected.`);
+  if (gaps.length) notices.push(`Missing from this file: ${monthRanges(gaps)}. No saved data exists for these months; your financial timeline will contain gaps. Missing values will not be filled with zero.`);
+  if (notices.length) notices.push("You can continue with this upload, or cancel and correct the workbook.");
+  return notices;
+}
+
 export function buildImportReview(filename: string, mode: FinancialImportMode, incoming: string[], state: ImportReviewState, warnings: string[]): ImportReview {
   const current = new Set(state.months);
   const dates = [...incoming].sort();
@@ -34,7 +79,7 @@ export function buildImportReview(filename: string, mode: FinancialImportMode, i
     outsideDashboardMonths: dates.filter(date => !visible.has(date)),
     currentLatestMonth: latest, resultingLatestMonth: resulting.at(-1)!,
     resultingMonthsTotal: resulting.length, dashboardMonthsLimit: DASHBOARD_MONTH_LIMIT,
-    warnings: [...warnings],
+    warnings: [...warnings, ...missingMonthWarnings(dates, current, mode)],
   };
 }
 

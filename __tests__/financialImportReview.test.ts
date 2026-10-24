@@ -58,6 +58,49 @@ describe("financial import review effects", () => {
   });
 });
 
+describe("missing calendar months in upload reviews", () => {
+  const withoutMarch = current.filter(date => date !== "2025-03-01");
+  const empty = { state_version: state.state_version, months: [] };
+
+  it("identifies a missing month in an eleven-month file and keeps saved values in update mode", () => {
+    const review = buildImportReview("eleven.xlsx", "update_months", withoutMarch, state, []);
+    expect(review.warnings).toContain("Missing from this file: March 2025. Your saved data for these months will be kept.");
+    expect(review.resultingMonthsTotal).toBe(12);
+    expect(review.removedMonths).toEqual([]);
+    expect(importReviewAction(review)).toBe("Update 11 months");
+  });
+
+  it.each(["update_months", "replace_all"] as const)("explains gaps without saved data in %s", mode => {
+    const review = buildImportReview("eleven.xlsx", mode, withoutMarch, empty, []);
+    expect(review.warnings).toContain("Missing from this file: March 2025. No saved data exists for these months; your financial timeline will contain gaps. Missing values will not be filled with zero.");
+    expect(review.resultingMonthsTotal).toBe(11);
+    expect(review.incomingMonths).not.toContain("2025-03-01");
+  });
+
+  it("explicitly warns when Replace all will remove a saved internal month", () => {
+    const review = buildImportReview("eleven.xlsx", "replace_all", withoutMarch, state, []);
+    expect(review.warnings).toContain("Missing from this file: March 2025. Your saved data for these months will be removed because Replace all is selected.");
+    expect(review.removedMonths).toEqual(["2025-03-01"]);
+    expect(review.resultingMonthsTotal).toBe(11);
+  });
+
+  it.each([current, current.slice(0,6), ["2025-03-01"], ["2024-12-01","2025-01-01"]].map(dates => ({dates})))(
+    "does not invent missing months outside a contiguous file range: $dates", ({dates}) => {
+      expect(buildImportReview("partial.xlsx", "update_months", dates, state, []).warnings).toEqual([]);
+    });
+
+  it("groups consecutive cross-year gaps and distinguishes kept data from missing data", () => {
+    const warnings = ["Existing parser warning"];
+    const review = buildImportReview("mixed.xlsx", "update_months", ["2025-03-01","2024-10-01"],
+      { ...state, months: ["2024-11-01","2024-12-01","2025-02-01"] }, warnings);
+    expect(review.warnings).toContain("Missing from this file: November 2024–December 2024, February 2025. Your saved data for these months will be kept.");
+    expect(review.warnings).toContain("Missing from this file: January 2025. No saved data exists for these months; your financial timeline will contain gaps. Missing values will not be filled with zero.");
+    expect(review.warnings[0]).toBe("Existing parser warning");
+    expect(warnings).toEqual(["Existing parser warning"]);
+    expect(review.warnings.at(-1)).toBe("You can continue with this upload, or cancel and correct the workbook.");
+  });
+});
+
 describe("account/file/mode-bound expiring review tokens", () => {
   it("retains the reviewed state and accepts a valid token until expiration", () => {
     const token = issueImportReviewToken(identity,state.state_version,now);

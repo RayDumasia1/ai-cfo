@@ -261,6 +261,17 @@ describe("explicit import modes", () => {
 });
 
 describe("read-only upload review and guarded confirmation", () => {
+  it("returns missing-month consequences in a read-only review without changing the commit contract", async () => {
+    parsed.months = [month("2025-02-01"),month("2025-04-01")];
+    rpc.mockResolvedValue({ data: {state_version:reviewedState,months:["2025-03-01"]}, error:null });
+    const response = await REVIEW(request());
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.review.warnings).toContain("Missing from this file: March 2025. Your saved data for these months will be kept.");
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("financial_import_review_state",{p_user_id:user.id});
+    expect(from).not.toHaveBeenCalled();
+    expect(logDataImport).not.toHaveBeenCalled();
+  });
   it("prepares historical additions without financial writes, profiles, revisions or audit calls", async () => {
     parsed.months = [month("2024-01-01")];
     rpc.mockResolvedValue({ data: { state_version: reviewedState,
