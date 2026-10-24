@@ -50,7 +50,7 @@ export const PATCH = requireAuth<Ctx>(async (req: NextRequest, { userId, supabas
       }
     }
 
-    // Audit log is written inside updateAction when status changes
+    // The database commits the update and any status history together.
     const action = await updateAction(userId, id, parsed.value, {}, supabase);
     return NextResponse.json(action);
   } catch (err) {

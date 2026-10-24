@@ -834,7 +834,7 @@ export async function createAction(
 
 /**
  * Partially updates an action.
- * If status changes, also writes an audit log entry.
+ * Locks/updates the action and writes status history in one database transaction.
  * Always call with the server client.
  */
 export async function updateAction(
@@ -844,41 +844,16 @@ export async function updateAction(
   options: { auditNote?: string } = {},
   client: SupabaseClient = supabase
 ): Promise<Action> {
-  // Fetch current status for audit log comparison
-  let oldStatus: ActionStatus | null = null;
-  if (updates.status !== undefined) {
-    const { data: current, error: fetchError } = await client
-      .from("actions")
-      .select("status")
-      .eq("id", actionId)
-      .eq("user_id", userId)
-      .single();
-    if (fetchError) throw fetchError;
-    oldStatus = current.status as ActionStatus;
-  }
-
-  const { data, error } = await client
-    .from("actions")
-    .update(updates)
-    .eq("id", actionId)
-    .eq("user_id", userId)
-    .select()
-    .single();
-
+  const { data, error } = await client.rpc("update_action_with_audit", {
+    p_user_id: userId,
+    p_action_id: actionId,
+    p_updates: updates,
+    p_audit_note: options.auditNote ?? null,
+  });
   if (error) throw error;
-
-  // Write audit log when status changed
-  if (updates.status !== undefined && updates.status !== oldStatus) {
-    await client.from("action_audit_log").insert({
-      action_id: actionId,
-      user_id: userId,
-      old_status: oldStatus,
-      new_status: updates.status,
-      note: options.auditNote ?? null,
-    });
-    // Audit log failures are non-fatal — log but don't throw
+  if (!data || data.id !== actionId || data.user_id !== userId) {
+    throw new Error("Could not confirm action update");
   }
-
   return data;
 }
 
