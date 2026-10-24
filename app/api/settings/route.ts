@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { upsertBusinessProfile } from "@/lib/db";
+import { percentageToDecimal } from "@/lib/calculations";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
     burn_rate_warning_pct: burnPct,
   } = body as Record<string, unknown>;
 
-  if (!isFiniteNumber(warn) || !isFiniteNumber(danger) || !isFiniteNumber(reserve) || !isFiniteNumber(burnPct)) {
+  if (!isFiniteNumber(warn) || !isFiniteNumber(danger) || (reserve !== null && !isFiniteNumber(reserve)) || !isFiniteNumber(burnPct)) {
     return NextResponse.json(
       { error: "All threshold values must be finite numbers." },
       { status: 400 }
@@ -40,20 +41,20 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
     );
   }
 
-  if (warn <= 0 || danger <= 0 || reserve < 0 || burnPct <= 0) {
+  if (warn <= 0 || danger <= 0 || (reserve !== null && reserve < 0) || burnPct <= 0) {
     return NextResponse.json(
       { error: "All values must be positive (cash reserve may be 0)." },
       { status: 400 }
     );
   }
-  const storedBurnPct = burnPct / 100;
+  const storedBurnPct = percentageToDecimal(burnPct);
   if (storedBurnPct === 0) {
     return NextResponse.json({ error: "Burn rate warning percentage is too small to store." }, { status: 400 });
   }
 
   const requestId = crypto.randomUUID();
   try {
-    await upsertBusinessProfile(
+    const saved = await upsertBusinessProfile(
       userId,
       {
         runway_warning_threshold: warn,
@@ -64,8 +65,13 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
       },
       supabase
     );
+    if (!saved || saved.user_id !== userId || saved.runway_warning_threshold !== warn ||
+        saved.runway_danger_threshold !== danger || saved.min_cash_reserve !== reserve ||
+        saved.burn_rate_warning_pct !== storedBurnPct) {
+      throw new Error("Could not confirm persisted thresholds");
+    }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     console.error("settings:thresholds:save:error", { requestId, userId });
     return NextResponse.json(

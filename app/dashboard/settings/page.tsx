@@ -13,6 +13,7 @@ import BillingHistoryCard from "@/app/components/billing/BillingHistoryCard";
 import FoundingMemberCTA from "@/app/components/billing/FoundingMemberCTA";
 import FoundingMemberReturnCard from "@/app/components/billing/FoundingMemberReturnCard";
 import { getReturningFoundingMember } from "@/lib/foundingMemberState";
+import { thresholdEditorKey } from "@/lib/thresholdSettings";
 
 export default async function SettingsPage({
   searchParams,
@@ -119,7 +120,7 @@ export default async function SettingsPage({
         <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
           <AlertPreferencesCard key={user?.id} />
 
-          {profile && <ThresholdsCard profile={profile} />}
+          {profile && <ThresholdsCard key={thresholdEditorKey(profile)} profile={profile} />}
         </div>
       )}
     </div>

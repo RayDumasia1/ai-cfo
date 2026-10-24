@@ -19,6 +19,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   getUser.mockResolvedValue({ data: { user }, error: null });
   vi.mocked(createClient).mockResolvedValue(client as unknown as Awaited<ReturnType<typeof createClient>>);
+  vi.mocked(upsertBusinessProfile).mockImplementation(async (userId, values) => ({ user_id: userId, ...values }) as never);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -30,6 +31,7 @@ describe("financial threshold API validation", () => {
   });
   it.each(["runway_warning_threshold", "runway_danger_threshold", "min_cash_reserve", "burn_rate_warning_pct"])("rejects coercible non-number values for %s before writing", async field => {
     for (const value of [null, false, true, [], [4], "", "6", "Infinity", {}]) {
+      if (field === "min_cash_reserve" && value === null) continue; // Explicitly unset is a valid stored state.
       const response = await PATCH(request(JSON.stringify({ ...valid, [field]: value })), {});
       expect(response.status, `${field}: ${JSON.stringify(value)}`).toBe(400);
     }
@@ -64,6 +66,16 @@ describe("financial threshold API validation", () => {
     expect((await PATCH(request(JSON.stringify({ ...valid, runway_warning_threshold: 6.5,
       runway_danger_threshold: 2.5, min_cash_reserve: 0, burn_rate_warning_pct: 150 })), {})).status).toBe(200);
     expect(upsertBusinessProfile).toHaveBeenCalledWith(user.id, expect.objectContaining({ min_cash_reserve: 0, burn_rate_warning_pct: 1.5 }), client);
+  });
+  it("preserves an unset cash reserve and fractional percentage while saving other thresholds", async () => {
+    const response = await PATCH(request(JSON.stringify({ ...valid, min_cash_reserve: null, burn_rate_warning_pct: 28.6 })), {});
+    expect(response.status).toBe(200);
+    expect(upsertBusinessProfile).toHaveBeenCalledWith(user.id, expect.objectContaining({ min_cash_reserve: null, burn_rate_warning_pct: 0.286 }), client);
+  });
+  it.each([null, { ...valid, user_id: "another-user", burn_rate_warning_pct: 0.105 },
+    { ...valid, user_id: user.id, burn_rate_warning_pct: 0.11 }])("does not confirm missing, mis-scoped, or rounded stored data %#", async saved => {
+    vi.mocked(upsertBusinessProfile).mockResolvedValue(saved as never);
+    expect((await PATCH(request(JSON.stringify({ ...valid, burn_rate_warning_pct: 10.5 })), {})).status).toBe(500);
   });
   it.each(["missing", "invalid", "unverified"])("rejects %s authentication before parsing or writing thresholds", async condition => {
     getUser.mockResolvedValue({ data: { user: condition === "missing" ? null : condition === "unverified" ? { ...user, email_confirmed_at: null } : user },

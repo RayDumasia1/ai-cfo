@@ -1,170 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { RotateCcw } from "lucide-react";
 import type { BusinessProfile } from "@/lib/types";
+import { createThresholdEditor, thresholdValuesFromProfile, type ThresholdValues as Values } from "@/lib/thresholdSettings";
 
-interface ThresholdsCardProps {
-  profile: BusinessProfile;
-}
-
-interface Values {
-  runway_warning_threshold: string;
-  runway_danger_threshold: string;
-  min_cash_reserve: string;
-  burn_rate_warning_pct: string;
-}
-
-type SaveState = "idle" | "saving" | "success" | "error";
-
-function initValues(profile: BusinessProfile): Values {
-  return {
-    runway_warning_threshold: String(profile.runway_warning_threshold ?? 6),
-    runway_danger_threshold:  String(profile.runway_danger_threshold ?? 3),
-    min_cash_reserve:         String(profile.min_cash_reserve ?? ""),
-    burn_rate_warning_pct:    String(
-      profile.burn_rate_warning_pct != null
-        ? Math.round(profile.burn_rate_warning_pct * 100)
-        : 10
-    ),
-  };
-}
+interface ThresholdsCardProps { profile: BusinessProfile; }
 
 function formatSaved(field: keyof Values, raw: string): string {
   if (field === "min_cash_reserve") {
-    const n = Number(raw);
-    return "$" + (Number.isNaN(n) ? raw : n.toLocaleString());
+    if (raw === "") return "Not set";
+    return "$" + Number(raw).toLocaleString();
   }
   if (field === "burn_rate_warning_pct") return raw + "%";
   return raw;
 }
 
 const columnHeaderStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 500,
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  color: "#6B7A8D",
-  margin: "0 0 16px",
+  fontSize: 10, fontWeight: 500, textTransform: "uppercase",
+  letterSpacing: "0.08em", color: "var(--dim)", margin: "0 0 16px",
 };
 
 export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
-  const [savedValues,    setSavedValues]    = useState<Values>(() => initValues(profile));
-  const [currentValues,  setCurrentValues]  = useState<Values>(() => initValues(profile));
-  // previousValues: fields that were changed in the last save — session-only, starts empty
-  const [previousValues, setPreviousValues] = useState<Partial<Values>>({});
-  const [saveState,      setSaveState]      = useState<SaveState>("idle");
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [serverError,    setServerError]    = useState<string | null>(null);
-
+  const [editor] = useState(() => createThresholdEditor(thresholdValuesFromProfile(profile)));
+  const { current: currentValues, saved: savedValues, previous: previousValues,
+    status: saveState, validationError, serverError } = useSyncExternalStore(editor.subscribe, editor.getSnapshot, editor.getSnapshot);
   const dirtyCount = (Object.keys(currentValues) as (keyof Values)[])
-    .filter((k) => currentValues[k] !== savedValues[k]).length;
-
-  function handleChange(field: keyof Values, value: string) {
-    setCurrentValues((prev) => ({ ...prev, [field]: value }));
-    setValidationError(null);
-    setServerError(null);
-  }
-
-  function resetField(field: keyof Values) {
-    setCurrentValues((prev) => ({ ...prev, [field]: savedValues[field] }));
-  }
-
-  function validate(): boolean {
-    const warn   = Number(currentValues.runway_warning_threshold);
-    const danger = Number(currentValues.runway_danger_threshold);
-
-    if (Number.isNaN(warn) || Number.isNaN(danger) ||
-        Number.isNaN(Number(currentValues.min_cash_reserve)) ||
-        Number.isNaN(Number(currentValues.burn_rate_warning_pct))) {
-      setValidationError("All fields must be valid numbers.");
-      return false;
-    }
-    if (danger >= warn) {
-      setValidationError("Danger threshold must be less than warning threshold.");
-      return false;
-    }
-    if (warn <= 0 || danger <= 0 || Number(currentValues.burn_rate_warning_pct) <= 0) {
-      setValidationError("All values must be greater than zero.");
-      return false;
-    }
-    if (Number(currentValues.min_cash_reserve) < 0) {
-      setValidationError("Minimum cash reserve cannot be negative.");
-      return false;
-    }
-    return true;
-  }
-
-  async function saveToDb(values: Values): Promise<boolean> {
-    const res = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        runway_warning_threshold: Number(values.runway_warning_threshold),
-        runway_danger_threshold:  Number(values.runway_danger_threshold),
-        min_cash_reserve:         Number(values.min_cash_reserve),
-        burn_rate_warning_pct:    Number(values.burn_rate_warning_pct),
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setServerError(json.error ?? "Failed to save.");
-      setSaveState("error");
-      return false;
-    }
-    return true;
-  }
-
-  async function handleSave() {
-    if (!validate()) return;
-
-    setSaveState("saving");
-    setServerError(null);
-
-    try {
-      const ok = await saveToDb(currentValues);
-      if (!ok) return;
-
-      // Capture only the fields that actually changed as "previous"
-      const changed: Partial<Values> = {};
-      (Object.keys(currentValues) as (keyof Values)[]).forEach((k) => {
-        if (currentValues[k] !== savedValues[k]) changed[k] = savedValues[k];
-      });
-      setPreviousValues(changed);
-      setSavedValues({ ...currentValues });
-      setSaveState("success");
-      setTimeout(() => setSaveState("idle"), 2000);
-    } catch {
-      setServerError("Network error. Please try again.");
-      setSaveState("error");
-    }
-  }
-
-  // Called when user clicks ↺ on a "Previous: X" indicator.
-  // Restores the field to its previous value AND saves to the database.
-  async function resetToPrevious(field: keyof Values) {
-    const prev = previousValues[field];
-    if (prev === undefined) return;
-
-    const newCurrent = { ...currentValues, [field]: prev };
-    const newSaved   = { ...savedValues,   [field]: prev };
-
-    setCurrentValues(newCurrent);
-    setSavedValues(newSaved);
-    setPreviousValues((p) => { const n = { ...p }; delete n[field]; return n; });
-    setServerError(null);
-    setSaveState("saving");
-
-    try {
-      const ok = await saveToDb(newSaved);
-      if (!ok) return;
-      setSaveState("success");
-      setTimeout(() => setSaveState("idle"), 2000);
-    } catch {
-      setServerError("Network error. Please try again.");
-      setSaveState("error");
-    }
-  }
+    .filter(key => currentValues[key] !== savedValues[key]).length;
+  const handleChange = editor.change;
+  const resetField = editor.reset;
+  const resetToPrevious = editor.restore;
 
   // Derive per-field indicator state
   function fieldIndicator(field: keyof Values): "dirty" | "previous" | "clean" {
@@ -181,7 +46,9 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
       <p style={cardDescStyle}>
         These thresholds control when alerts are triggered on your dashboard.
       </p>
-
+      <form noValidate aria-busy={saveState === "saving"} onSubmit={event => { event.preventDefault(); void editor.save(); }}>
+      <fieldset disabled={saveState === "saving"} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <legend className="sr-only">Financial alert thresholds</legend>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginTop: 16 }}>
         {/* Left column — Runway */}
         <div>
@@ -199,7 +66,7 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
               onChange={(v) => handleChange("runway_warning_threshold", v)}
               onReset={() => resetField("runway_warning_threshold")}
               onResetToPrevious={() => resetToPrevious("runway_warning_threshold")}
-              type="number" min={1}
+              type="number" min={0}
             />
             <Field
               id="runway-danger-threshold"
@@ -213,20 +80,20 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
               onChange={(v) => handleChange("runway_danger_threshold", v)}
               onReset={() => resetField("runway_danger_threshold")}
               onResetToPrevious={() => resetToPrevious("runway_danger_threshold")}
-              type="number" min={1}
+              type="number" min={0}
             />
           </div>
         </div>
 
         {/* Right column — Cash & Burn */}
-        <div style={{ borderLeft: "1px solid #D8E2EC", paddingLeft: 24 }}>
+        <div style={{ borderLeft: "1px solid var(--line)", paddingLeft: 24 }}>
           <p style={columnHeaderStyle}>Cash & Burn</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <Field
               id="min-cash-reserve"
               name="min_cash_reserve"
               label="Minimum cash reserve ($)"
-              helper="Alert when cash drops below this amount"
+              helper="Alert when cash drops below this amount. Leave blank to disable this alert."
               value={currentValues.min_cash_reserve}
               indicator={fieldIndicator("min_cash_reserve")}
               savedDisplay={formatSaved("min_cash_reserve", savedValues.min_cash_reserve)}
@@ -248,27 +115,27 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
               onChange={(v) => handleChange("burn_rate_warning_pct", v)}
               onReset={() => resetField("burn_rate_warning_pct")}
               onResetToPrevious={() => resetToPrevious("burn_rate_warning_pct")}
-              type="number" min={1} suffix="%"
+              type="number" min={0} suffix="%"
             />
           </div>
         </div>
       </div>
 
       {validationError && (
-        <p style={{ fontSize: 12, color: "#ef4444", marginTop: 16 }}>
+        <p role="alert" style={{ fontSize: 12, color: "var(--danger)", marginTop: 16 }}>
           {validationError}
         </p>
       )}
       {serverError && (
-        <p style={{ fontSize: 12, color: "#ef4444", marginTop: 16 }}>
+        <p role="alert" style={{ fontSize: 12, color: "var(--danger)", marginTop: 16 }}>
           {serverError}
         </p>
       )}
 
       <div style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 12 }}>
         <button
-          onClick={handleSave}
-          disabled={saveState === "saving"}
+          type="submit"
+          disabled={saveState === "saving" || dirtyCount === 0}
           style={{
             ...primaryBtnStyle,
             opacity: saveState === "saving" ? 0.7 : 1,
@@ -278,13 +145,15 @@ export default function ThresholdsCard({ profile }: ThresholdsCardProps) {
           {saveState === "saving" ? "Saving…" : "Save thresholds"}
         </button>
         {saveState === "success" ? (
-          <span style={{ fontSize: 13, color: "#2CA6A4" }}>Thresholds saved ✓</span>
+          <span role="status" style={{ fontSize: 13, color: "var(--color-success-text)" }}>Thresholds saved ✓</span>
         ) : dirtyCount > 0 ? (
-          <span style={{ fontSize: 12, color: "#6B7A8D" }}>
+          <span style={{ fontSize: 12, color: "var(--dim)" }}>
             {dirtyCount} unsaved change{dirtyCount > 1 ? "s" : ""}
           </span>
         ) : null}
       </div>
+      </fieldset>
+      </form>
     </section>
   );
 }
@@ -327,7 +196,7 @@ function Field({
           {prefix && (
             <span style={{
               position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-              fontSize: 14, color: "#6B7A8D", pointerEvents: "none",
+              fontSize: 14, color: "var(--dim)", pointerEvents: "none",
             }}>
               {prefix}
             </span>
@@ -337,6 +206,8 @@ function Field({
             name={name}
             type={type}
             min={min}
+            step={type === "number" ? "any" : undefined}
+            aria-describedby={`${id}-help`}
             autoComplete="off"
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -346,12 +217,12 @@ function Field({
               width: "100%",
               padding: prefix ? "8px 12px 8px 24px" : suffix ? "8px 32px 8px 12px" : "8px 12px",
               fontSize: 14,
-              color: "#344150",
-              backgroundColor: "#FFFFFF",
-              border: showTeal ? "1.5px solid #2CA6A4" : "1.5px solid #D8E2EC",
+              color: "var(--ink)",
+              backgroundColor: "var(--surface)",
+              border: showTeal ? "1.5px solid var(--teal)" : "1.5px solid var(--line)",
               borderRadius: 10,
               outline: "none",
-              boxShadow: showTeal ? "0 0 0 3px rgba(44,166,164,0.12)" : "none",
+              boxShadow: showTeal ? "0 0 0 3px color-mix(in srgb, var(--teal) 12%, transparent)" : "none",
               boxSizing: "border-box",
               transition: "border-color 0.15s, box-shadow 0.15s",
             }}
@@ -359,7 +230,7 @@ function Field({
           {suffix && (
             <span style={{
               position: "absolute", right: 12, top: "50%",
-              transform: "translateY(-50%)", fontSize: 14, color: "#6B7A8D",
+              transform: "translateY(-50%)", fontSize: 14, color: "var(--dim)",
               pointerEvents: "none",
             }}>
               {suffix}
@@ -373,21 +244,21 @@ function Field({
             whiteSpace: "nowrap", flexShrink: 0,
             animation: "fadeIn 0.15s ease",
           }}>
-            <span style={{ fontSize: 12, color: "#6B7A8D" }}>
+            <span style={{ fontSize: 12, color: "var(--dim)" }}>
               {indicator === "dirty" ? `Saved: ${savedDisplay}` : `Previous: ${previousDisplay}`}
             </span>
             <button
               type="button"
               onClick={indicator === "dirty" ? onReset : onResetToPrevious}
-              title="Reset to saved value"
-              aria-label="Reset to saved value"
+              title={indicator === "dirty" ? "Reset to saved value" : "Restore previous value"}
+              aria-label={`${indicator === "dirty" ? "Reset to saved value" : "Restore previous value"}: ${label}`}
               style={{
                 background: "none", border: "none", padding: "2px",
                 cursor: "pointer", display: "inline-flex", alignItems: "center",
-                color: "#6B7A8D", flexShrink: 0,
+                color: "var(--dim)", flexShrink: 0,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#2CA6A4")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#6B7A8D")}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--teal)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--dim)")}
             >
               <RotateCcw size={11} />
             </button>
@@ -395,7 +266,7 @@ function Field({
         )}
       </div>
       {/* Row 3 — helper text */}
-      <p style={helperStyle}>{helper}</p>
+      <p id={`${id}-help`} style={helperStyle}>{helper}</p>
     </div>
   );
 }
@@ -403,23 +274,23 @@ function Field({
 // ── Shared styles ────────────────────────────────────────────────────────────
 
 const cardStyle: React.CSSProperties = {
-  backgroundColor: "#FFFFFF",
-  border: "1px solid #D8E2EC",
+  backgroundColor: "var(--surface)",
+  border: "1px solid var(--line)",
   borderRadius: 16,
-  boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
+  boxShadow: "var(--shadow-sm)",
   padding: 24,
 };
 
 const cardTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 500,
-  color: "#0A1A2F",
+  color: "var(--navy)",
   margin: 0,
 };
 
 const cardDescStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#6B7A8D",
+  color: "var(--dim)",
   marginTop: 4,
   marginBottom: 0,
 };
@@ -427,7 +298,7 @@ const cardDescStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 500,
-  color: "#344150",
+  color: "var(--ink)",
   display: "block",
   textTransform: "uppercase",
   letterSpacing: "0.08em",
@@ -435,13 +306,13 @@ const labelStyle: React.CSSProperties = {
 
 const helperStyle: React.CSSProperties = {
   fontSize: 12,
-  color: "#6B7A8D",
+  color: "var(--dim)",
   marginTop: 4,
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  backgroundColor: "#2CA6A4",
-  color: "#FFFFFF",
+  backgroundColor: "var(--teal)",
+  color: "var(--surface)",
   border: "none",
   borderRadius: 6,
   padding: "8px 16px",

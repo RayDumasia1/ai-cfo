@@ -20,6 +20,20 @@ import type {
 
 import { isProtectedAlertCode } from "./alertPolicy";
 
+/** Shift the shortest decimal representation without multiplication/division noise. */
+function scaleDecimal(value: number, exponent: number): number {
+  const [coefficient, power = "0"] = String(value).split("e");
+  return Number(`${coefficient}e${Number(power) + exponent}`);
+}
+
+export function percentageFromDecimal(value: number): number {
+  return scaleDecimal(value, 2);
+}
+
+export function percentageToDecimal(value: number): number {
+  return scaleDecimal(value, -2);
+}
+
 /**
  * Returns true when an alert is currently snoozed and should be hidden.
  *
