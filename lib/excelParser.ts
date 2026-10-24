@@ -1,12 +1,14 @@
 import "server-only";
 import * as XLSX from "xlsx";
 import type { FinancialMonthInsert, BusinessProfileInsert } from "./types";
+import type { ImportNotice } from "./importNotices";
 
 export interface ParseResult {
   months: Omit<FinancialMonthInsert, "user_id" | "business_id">[];
   profile: Partial<Omit<BusinessProfileInsert, "user_id">>;
   errors: string[];
   warnings: string[];
+  notices?: ImportNotice[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -199,8 +201,13 @@ function findHeaderRowIndex(rows: unknown[][]): number {
 export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const notices: ImportNotice[] = [];
+  function warn(code: string, title: string, message: string) {
+    warnings.push(message);
+    notices.push({ code, title, message, category: "warning" });
+  }
   const months: Omit<FinancialMonthInsert, "user_id" | "business_id">[] = [];
-  let profile: Partial<Omit<BusinessProfileInsert, "user_id">> = {};
+  const profile: Partial<Omit<BusinessProfileInsert, "user_id">> = {};
 
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
 
@@ -336,7 +343,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   // Warn about missing optional columns (excluding notes — plain text, less critical).
   for (const opt of OPTIONAL_FIELDS) {
     if (!colMap.has(opt) && opt !== "notes") {
-      warnings.push(
+      warn("missing_column", "Missing optional column",
         `Optional column not found: "${opt.replace(/_/g, " ")}". It will be left empty.`
       );
     }
@@ -363,9 +370,9 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
 
     if (!monthDate) {
       // Non-parseable date value (e.g. "12-MONTH TOTALS / AVERAGES") — stop reading.
-      warnings.push(
+      warn("reading_stopped", "File reading stopped early",
         `Stopped reading at row ${humanRow} — non-date value found in Month column. ` +
-          `${months.length} month${months.length === 1 ? "" : "s"} imported.`
+          `${months.length} month${months.length === 1 ? "" : "s"} ready to import. Check that no financial rows follow it.`
       );
       break;
     }
@@ -412,7 +419,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
     const requiredNumeric = ["opening_cash", "closing_cash", "total_revenue", "total_expenses"] as const;
     const allNull = requiredNumeric.every((f) => numericValues[f] === null);
     if (allNull) {
-      warnings.push(`Row ${humanRow}: all required numeric fields are empty — row skipped.`);
+      warn("empty_row", "Financial row skipped", `Row ${humanRow}: all required numeric fields are empty — row skipped.`);
       continue;
     }
 
@@ -432,7 +439,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
     // Warnings
     const monthDateObj = new Date(monthDate + "T12:00:00Z");
     if (monthDateObj > now) {
-      warnings.push(`Row ${humanRow}: month ${monthDate} is in the future.`);
+      warn("future_month", "Future-dated month", `Row ${humanRow}: month ${monthDate} is in the future.`);
     }
 
     const allZero = [
@@ -443,7 +450,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
     ].every((v) => v === 0 || v === null);
 
     if (allZero) {
-      warnings.push(`Row ${humanRow}: all numeric fields are zero.`);
+      warn("zero_values", "Check zero values", `Row ${humanRow}: all numeric fields are zero.`);
     }
 
     // Notes (optional free-text column)
@@ -472,5 +479,5 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
 
   console.log("parser:profile", profile);
 
-  return { months, profile, errors, warnings };
+  return { months, profile, errors, warnings, notices };
 }

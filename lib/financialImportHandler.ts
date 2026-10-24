@@ -160,7 +160,7 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
 
     if (operation === "review") {
       const state = await getFinancialImportReviewState(user.id, createServiceClient());
-      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), state, parsed.warnings);
+      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), state, parsed.warnings, parsed.notices);
       const reviewToken = issueImportReviewToken(identity, state.state_version);
       return NextResponse.json({ success: true, review, reviewToken, requestId }, { headers: { "Cache-Control": "no-store" } });
     }

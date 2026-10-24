@@ -1,5 +1,7 @@
 import { isFinancialImportMode, type FinancialImportMode } from "./financialImportPolicy";
 import { DASHBOARD_MONTH_LIMIT } from "./financialImportPolicy";
+import { WORKBOOK_BUSINESS_WARNING, WORKBOOK_THRESHOLD_WARNING } from "./financialImportPolicy";
+import { isImportNotice, type ImportNotice } from "./importNotices";
 
 export interface ImportReviewState { state_version: string; months: string[]; }
 export interface ImportReview {
@@ -16,6 +18,7 @@ export interface ImportReview {
   resultingMonthsTotal: number;
   dashboardMonthsLimit: number;
   warnings: string[];
+  notices?: ImportNotice[];
 }
 
 function monthIndex(date: string): number {
@@ -41,7 +44,7 @@ function monthRanges(indices: number[]): string {
   return ranges.join(", ");
 }
 
-function missingMonthWarnings(dates: string[], current: Set<string>, mode: FinancialImportMode): string[] {
+function missingMonthNotices(dates: string[], current: Set<string>, mode: FinancialImportMode): ImportNotice[] {
   if (dates.length < 2) return [];
   const uploaded = new Set(dates.map(monthIndex));
   const saved = new Set([...current].map(monthIndex));
@@ -55,21 +58,41 @@ function missingMonthWarnings(dates: string[], current: Set<string>, mode: Finan
     else if (mode === "update_months") kept.push(index);
     else removed.push(index);
   }
-  const notices: string[] = [];
-  if (kept.length) notices.push(`Missing from this file: ${monthRanges(kept)}. Your saved data for these months will be kept.`);
-  if (removed.length) notices.push(`Missing from this file: ${monthRanges(removed)}. Your saved data for these months will be removed because Replace all is selected.`);
-  if (gaps.length) notices.push(`Missing from this file: ${monthRanges(gaps)}. No saved data exists for these months; your financial timeline will contain gaps. Missing values will not be filled with zero.`);
-  if (notices.length) notices.push("You can continue with this upload, or cancel and correct the workbook.");
+  const notices: ImportNotice[] = [];
+  if (kept.length) notices.push({code:"missing_kept", category:"info", title:"Saved months will be kept",
+    message:`Missing from this file: ${monthRanges(kept)}. Your saved data for these months will be kept.`});
+  if (removed.length) notices.push({code:"missing_removed", category:"danger", title:"Missing saved months will be removed",
+    message:`Missing from this file: ${monthRanges(removed)}. Your saved data for these months will be removed because Replace all is selected.`});
+  if (gaps.length) notices.push({code:"missing_gap", category:"warning", title:"Missing months",
+    message:`Missing from this file: ${monthRanges(gaps)}. No saved data exists for these months; your financial timeline will contain gaps. Missing values will not be filled with zero.`});
   return notices;
 }
 
-export function buildImportReview(filename: string, mode: FinancialImportMode, incoming: string[], state: ImportReviewState, warnings: string[]): ImportReview {
+/** Known routine notes can be disclosed; unknown warnings always stay visible. */
+function warningNotice(message: string): ImportNotice {
+  if (message === WORKBOOK_THRESHOLD_WARNING || message === WORKBOOK_BUSINESS_WARNING) {
+    return {code:"account_settings", category:"info", title:"Workbook settings", message};
+  }
+  return {code:"workbook_warning", category:"warning", title:"Check your workbook", message};
+}
+
+export function getImportReviewNotices(review: ImportReview): ImportNotice[] {
+  const notices = [...(review.notices ?? [])];
+  // Compatibility with older review responses and previously unclassified messages.
+  for (const warning of review.warnings) {
+    if (!notices.some(notice => notice.message === warning)) notices.push(warningNotice(warning));
+  }
+  return notices;
+}
+
+export function buildImportReview(filename: string, mode: FinancialImportMode, incoming: string[], state: ImportReviewState, warnings: string[], parserNotices: ImportNotice[] = []): ImportReview {
   const current = new Set(state.months);
   const dates = [...incoming].sort();
   const uploaded = new Set(dates);
   const resulting = [...new Set(mode === "replace_all" ? dates : [...state.months, ...dates])].sort();
   const latest = [...state.months].sort().at(-1) ?? null;
   const visible = new Set(resulting.slice(-DASHBOARD_MONTH_LIMIT));
+  const missing = missingMonthNotices(dates, current, mode);
   return {
     filename, mode, incomingMonths: dates,
     addedMonths: dates.filter(date => !current.has(date)),
@@ -79,7 +102,11 @@ export function buildImportReview(filename: string, mode: FinancialImportMode, i
     outsideDashboardMonths: dates.filter(date => !visible.has(date)),
     currentLatestMonth: latest, resultingLatestMonth: resulting.at(-1)!,
     resultingMonthsTotal: resulting.length, dashboardMonthsLimit: DASHBOARD_MONTH_LIMIT,
-    warnings: [...warnings, ...missingMonthWarnings(dates, current, mode)],
+    warnings: [...warnings, ...missing.map(notice => notice.message),
+      ...(missing.length ? ["You can continue with this upload, or cancel and correct the workbook."] : [])],
+    notices: [...warnings.map(message => parserNotices.find(notice => notice.message === message) ?? warningNotice(message)),
+      ...missing, ...(missing.length ? [{code:"missing_continue",category:"info" as const,title:"Your choice",
+        message:"You can continue with this upload, or cancel and correct the workbook."}] : [])],
   };
 }
 
@@ -93,7 +120,8 @@ export function isImportReview(value: unknown, mode: FinancialImportMode): value
   const v = value as Record<string, unknown>;
   const lists = ["incomingMonths", "addedMonths", "updatedMonths", "removedMonths", "olderMonths", "outsideDashboardMonths"] as const;
   if (!isFinancialImportMode(v.mode) || v.mode !== mode || typeof v.filename !== "string" || !v.filename ||
-    !lists.every(field => isMonthList(v[field])) || !Array.isArray(v.warnings) || !v.warnings.every(w => typeof w === "string")) return false;
+    !lists.every(field => isMonthList(v[field])) || !Array.isArray(v.warnings) || !v.warnings.every(w => typeof w === "string") ||
+    (v.notices !== undefined && (!Array.isArray(v.notices) || !v.notices.every(isImportNotice)))) return false;
   const review = value as ImportReview;
   const incoming = new Set(review.incomingMonths);
   const added = new Set(review.addedMonths);
