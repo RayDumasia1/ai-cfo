@@ -1,6 +1,6 @@
 "use client";
 
-import { monthlyBurnRate, burnRateChangeMoM } from "@/lib/calculations";
+import { monthlyBurnRate, burnRateChangeMoM, areConsecutiveFinancialMonths } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
 
 interface BurnRateCardProps {
@@ -25,11 +25,12 @@ export default function BurnRateCard({ months, isNewUser = false }: BurnRateCard
   const expenses = months.map((m) => m.total_expenses);
   const avgBurn = monthlyBurnRate(expenses);
 
-  // MoM change: compare the two most recent individual months.
+  // MoM change requires the immediately preceding calendar month and a positive baseline.
   let momChange: number | null = null;
   const e0 = expenses[0];
   const e1 = expenses[1];
-  if (e0 != null && e1 != null) {
+  const consecutive = areConsecutiveFinancialMonths(months[0]?.month_date, months[1]?.month_date);
+  if (consecutive && e0 != null && e1 != null && e1 > 0) {
     momChange = burnRateChangeMoM(e0, e1);
   }
 
@@ -71,7 +72,8 @@ export default function BurnRateCard({ months, isNewUser = false }: BurnRateCard
   let subtextNode: React.ReactNode;
   if (momChange === null) {
     subtextNode = (
-      <span style={{ color: "var(--dim)" }}>— vs last month</span>
+      <span style={{ color: "var(--dim)" }}>{consecutive && e0 != null && e1 != null && e1 <= 0
+        ? "Percentage change unavailable" : "Previous-month data unavailable"}</span>
     );
   } else {
     const pct = Math.abs(momChange).toFixed(1);

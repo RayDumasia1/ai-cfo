@@ -4,6 +4,7 @@ import {
   monthlyBurnRate,
   runwayMonths,
   runwayChangeMoM,
+  areConsecutiveFinancialMonths,
 } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
 import StatCard from "./StatCard";
@@ -45,7 +46,8 @@ export default function RunwayCard({
   // MoM runway delta — uses closing_cash from the two most recent months.
   const prevCash = months[1]?.closing_cash ?? null;
   const momDelta =
-    runway != null && prevCash != null && avgBurn != null
+    runway != null && prevCash != null && avgBurn != null &&
+    areConsecutiveFinancialMonths(months[0]?.month_date, months[1]?.month_date)
       ? runwayChangeMoM(cash!, prevCash, avgBurn)
       : null;
 
@@ -134,7 +136,7 @@ export default function RunwayCard({
   // ── Sub-label line 2: MoM delta ───────────────────────────────────────────
   let momLabel: React.ReactNode;
   if (momDelta === null) {
-    momLabel = <span style={{ color: "var(--dim)" }}>— vs last month</span>;
+    momLabel = <span style={{ color: "var(--dim)" }}>Previous-month data unavailable</span>;
   } else {
     const improved = momDelta >= 0;
     const abs = Math.abs(momDelta).toFixed(1);

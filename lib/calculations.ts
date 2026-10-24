@@ -146,6 +146,15 @@ export function monthlyBurnRate(
   return sample.reduce((sum, v) => sum + v, 0) / sample.length;
 }
 
+/** Financial rows use first-of-month dates. Compare calendar keys without timezone arithmetic. */
+export function areConsecutiveFinancialMonths(current?: string | null, previous?: string | null): boolean {
+  const valid = (date: string | null | undefined): date is string =>
+    typeof date === "string" && /^\d{4}-(0[1-9]|1[0-2])-01$/.test(date);
+  if (!valid(current) || !valid(previous)) return false;
+  const index = (date: string) => Number(date.slice(0,4)) * 12 + Number(date.slice(5,7));
+  return index(current) - index(previous) === 1;
+}
+
 /**
  * Current runway in months from closing cash and recent expenses (newest-first).
  * Mirrors RunwayCard: 3-month average burn, null when cash is unknown or
@@ -249,6 +258,7 @@ export function alertEngine(
 
   const m0 = months[0];
   const m1 = months[1];
+  const comparableMonths = areConsecutiveFinancialMonths(m0?.month_date, m1?.month_date);
 
   // Derive shared metrics
   const expenses = months.map((m) => m.total_expenses);
@@ -284,6 +294,7 @@ export function alertEngine(
 
   // Rule 3 — BURN_RATE_SPIKE
   if (
+    comparableMonths &&
     m0?.total_expenses != null &&
     m1?.total_expenses != null &&
     m1.total_expenses > 0
@@ -329,6 +340,7 @@ export function alertEngine(
 
   // Rule 6 — REVENUE_GROWTH
   if (
+    comparableMonths &&
     m0?.total_revenue != null &&
     m1?.total_revenue != null &&
     m1.total_revenue > 0

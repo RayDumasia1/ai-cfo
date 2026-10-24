@@ -47,7 +47,7 @@ export default function CashPositionCard({
   }
 
   // MoM change subtext — only shown when previous month data exists
-  let subtext: string | undefined;
+  let subtext = "Previous-month cash unavailable";
   if (previousCash !== null) {
     const delta = cash - previousCash;
     const deltaStr = formatCurrency(Math.abs(delta));

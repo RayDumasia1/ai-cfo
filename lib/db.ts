@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
 import type { FinancialImportStatus } from "./financialDataStatus";
+import { areConsecutiveFinancialMonths } from "./calculations";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
 import { DASHBOARD_MONTH_LIMIT, importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
 import { isMonthList, type ImportReviewState } from "./financialImportReview";
@@ -351,7 +352,7 @@ export interface CashPositionResult {
   cash: number | null;
   /** ISO date of the most recent month, e.g. "2026-04-01". */
   month: string;
-  /** Closing cash of the previous month, null if only one month exists. */
+  /** Closing cash of the preceding calendar month; null if absent or unknown. */
   previousCash: number | null;
 }
 
@@ -377,7 +378,8 @@ export async function getCurrentCashPosition(
   return {
     cash: data[0].closing_cash ?? null,
     month: data[0].month_date,
-    previousCash: data[1]?.closing_cash ?? null,
+    previousCash: areConsecutiveFinancialMonths(data[0].month_date, data[1]?.month_date)
+      ? data[1]?.closing_cash ?? null : null,
   };
 }
 
