@@ -21,7 +21,7 @@ export default function OnboardingImportZone({
 }: OnboardingImportZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const { state, errorMsg, upload, fail, reset } = useImportUpload(onImported);
+  const { state, success, errorMsg, upload, fail, reset } = useImportUpload(onImported);
 
   function handleFile(file: File | undefined) {
     if (!file) return;
@@ -47,6 +47,9 @@ export default function OnboardingImportZone({
         <CheckCircle2 size={40} className="text-success" />
         <p className="mt-3 text-lg font-medium text-navy">Import successful!</p>
         <p className="mt-1 text-sm text-dim">Your dashboard is ready.</p>
+        {success?.warnings.map((warning, index) => (
+          <p key={index} className="mt-2 text-xs text-dim">{warning}</p>
+        ))}
         <button
           type="button"
           onClick={onContinue}

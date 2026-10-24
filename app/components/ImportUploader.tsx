@@ -302,6 +302,10 @@ export default function ImportUploader({
           </a>
         </div>
 
+        <p className="mt-2 text-xs" style={{ color: "var(--dim)" }}>
+          Uploads preserve existing account details and alert thresholds. Manage your business name and thresholds in Settings.
+        </p>
+
         {localHasData && (
           <button
             onClick={() => setClearState("confirming")}

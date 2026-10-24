@@ -62,6 +62,12 @@ BEGIN
     '[{"month_date":"2026-09-01","closing_cash":90}]',
     '{"min_cash_reserve":123,"runway_warning_threshold":9,"runway_danger_threshold":4,"burn_rate_warning_pct":0.2,"invoice_overdue_days":45}',
     'atomic-clear-verification-seed.xlsx');
+  -- Uploads no longer apply workbook thresholds. Seed settings directly so
+  -- this verifier still tests a real reset after preserve-import-settings.
+  UPDATE public.business_profiles SET min_cash_reserve = 123,
+    runway_warning_threshold = 9, runway_danger_threshold = 4,
+    burn_rate_warning_pct = 0.2, invoice_overdue_days = 45
+  WHERE user_id = account_a;
   INSERT INTO public.expense_categories (user_id, business_id, month_date, category, amount)
     SELECT account_a, id, '2026-09-01', 'Clear rollback fixture', 2
     FROM public.business_profiles WHERE user_id = account_a;

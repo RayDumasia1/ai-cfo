@@ -113,6 +113,41 @@ describe("atomic import route and database adapter", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).monthsImported).toBeGreaterThan(0);
     expect(rpc).toHaveBeenCalledOnce();
+    const payload = rpc.mock.calls[0][1].p_profile;
+    expect(payload).not.toHaveProperty("min_cash_reserve");
+    expect(payload).not.toHaveProperty("runway_warning_threshold");
+    expect(payload).not.toHaveProperty("runway_danger_threshold");
+    expect(payload).not.toHaveProperty("burn_rate_warning_pct");
+    expect(payload).not.toHaveProperty("invoice_overdue_days");
+  });
+
+  it("warns when workbook thresholds are ignored while still importing business details", async () => {
+    parsed.profile = { business_name: "Updated business", min_cash_reserve: 25000,
+      runway_warning_threshold: 6, runway_danger_threshold: 3, burn_rate_warning_pct: 0.1,
+      invoice_overdue_days: 30 };
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect((await response.json()).warnings).toContain(
+      "Workbook alert thresholds were ignored. Manage your alert thresholds in Settings."
+    );
+    expect(rpc.mock.calls[0][1].p_profile).toEqual({ business_name: "Updated business" });
+    expect(parsed.profile).toMatchObject({ min_cash_reserve: 25000, burn_rate_warning_pct: 0.1 });
+  });
+
+  it.each([null, 0, 25000])("excludes workbook settings from direct adapter calls, including reserve %s", async reserve => {
+    await replaceFinancialImport(user.id, parsed.months, {
+      business_name: "Business", min_cash_reserve: reserve, runway_warning_threshold: 6,
+      runway_danger_threshold: 3, burn_rate_warning_pct: 0.1, invoice_overdue_days: 30,
+    }, "legacy.xlsx", service);
+    expect(rpc.mock.calls[0][1].p_profile).toEqual({ business_name: "Business" });
+  });
+
+  it("does not add account warnings for a financial-only workbook", async () => {
+    parsed.profile = {};
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect((await response.json()).warnings).toEqual(["A warning"]);
+    expect(rpc.mock.calls[0][1].p_profile).toEqual({});
   });
 
   it.each([false, true])("returns the committed result for replaced=%s and uses only the signed-in account", async replaced => {
@@ -121,7 +156,8 @@ describe("atomic import route and database adapter", () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true, replaced, monthsImported: 2,
-      warnings: ["A warning"], dateRange: { from: "2026-08-01", to: "2026-09-01" }, currentCash: 90 });
+      warnings: ["A warning", "Workbook business details only fill empty fields during onboarding. Existing account details are preserved."],
+      dateRange: { from: "2026-08-01", to: "2026-09-01" }, currentCash: 90 });
     expect(rpc).toHaveBeenCalledExactlyOnceWith("replace_financial_import", {
       p_user_id: user.id, p_months: parsed.months, p_profile: parsed.profile, p_filename: "import.xlsx",
     });

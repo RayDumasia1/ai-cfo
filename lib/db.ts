@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
+import { importedBusinessDetails } from "./financialImportPolicy";
 import type {
   Action,
   ActionAuditLog,
@@ -155,7 +156,7 @@ export async function replaceFinancialImport(
   const { data, error } = await serviceClient.rpc("replace_financial_import", {
     p_user_id: userId,
     p_months: months,
-    p_profile: profile,
+    p_profile: importedBusinessDetails(profile),
     p_filename: filename,
   });
   if (error) throw error;

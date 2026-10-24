@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { parseExcelBuffer } from "@/lib/excelParser";
+import {
+  WORKBOOK_BUSINESS_FIELDS, WORKBOOK_BUSINESS_WARNING,
+  WORKBOOK_THRESHOLD_FIELDS, WORKBOOK_THRESHOLD_WARNING,
+} from "@/lib/financialImportPolicy";
 import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 import {
   hasPaidSubscription,
@@ -118,6 +122,13 @@ export async function POST(request: NextRequest) {
         { success: false, errors: parsed.errors, requestId },
         { status: 400 }
       );
+    }
+
+    if (WORKBOOK_THRESHOLD_FIELDS.some(field => Object.hasOwn(parsed.profile, field))) {
+      parsed.warnings.push(WORKBOOK_THRESHOLD_WARNING);
+    }
+    if (WORKBOOK_BUSINESS_FIELDS.some(field => Object.hasOwn(parsed.profile, field))) {
+      parsed.warnings.push(WORKBOOK_BUSINESS_WARNING);
     }
 
     // All replacement writes, the data version, and the success audit commit

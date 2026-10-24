@@ -75,6 +75,10 @@ BEGIN
     SELECT account_a, id, '2026-08-01', 'Verification fixture', 1
     FROM public.business_profiles WHERE user_id = account_a;
 
+  -- Initialize a genuinely empty onboarding field, rather than relying on
+  -- workbook replacement of a name already saved in account settings.
+  UPDATE public.business_profiles SET business_name = NULL, onboarding_completed_at = NULL
+    WHERE user_id = account_a;
   result := public.replace_financial_import(account_a,
     '[{"month_date":"2026-09-01","closing_cash":90},{"month_date":"2026-10-01","closing_cash":80}]',
     '{"business_name":"Atomic import verification"}', 'atomic-verification-success.xlsx');
