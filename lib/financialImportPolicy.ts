@@ -2,6 +2,7 @@ import type { BusinessProfileInsert } from "./types";
 
 export type FinancialImportMode = "update_months" | "replace_all";
 export const DEFAULT_IMPORT_MODE: FinancialImportMode = "update_months";
+export const DASHBOARD_MONTH_LIMIT = 12;
 export function isFinancialImportMode(value: unknown): value is FinancialImportMode {
   return value === "update_months" || value === "replace_all";
 }

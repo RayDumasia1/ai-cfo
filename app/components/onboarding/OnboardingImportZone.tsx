@@ -3,9 +3,10 @@
 import { useRef, useState } from "react";
 import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { useImportUpload } from "@/app/components/useImportUpload";
+import ImportReviewCard from "@/app/components/ImportReviewCard";
 
 interface OnboardingImportZoneProps {
-  /** Fired once /api/import succeeds. */
+  /** Fired only after the reviewed import is confirmed successfully. */
   onImported: () => void;
   /** "See my dashboard →" on the success state. */
   onContinue: () => void;
@@ -21,7 +22,7 @@ export default function OnboardingImportZone({
 }: OnboardingImportZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const { state, success, errorMsg, upload, fail, reset } = useImportUpload(onImported);
+  const { state, success, review, errorMsg, upload, confirm, fail, reset } = useImportUpload(onImported);
 
   function handleFile(file: File | undefined) {
     if (!file) return;
@@ -32,11 +33,14 @@ export default function OnboardingImportZone({
     upload(file);
   }
 
-  if (state === "uploading") {
+  if (state === "review" && review) {
+    return <ImportReviewCard review={review} onConfirm={confirm} onCancel={reset} />;
+  }
+  if (state === "uploading" || state === "reviewing") {
     return (
       <div className="flex flex-col items-center gap-3 py-10" role="status">
         <Loader2 size={32} className="animate-spin text-teal" />
-        <p className="text-sm text-dim">Importing your data...</p>
+        <p className="text-sm text-dim">{state === "reviewing" ? "Checking your file for review…" : "Saving your reviewed upload…"}</p>
       </div>
     );
   }

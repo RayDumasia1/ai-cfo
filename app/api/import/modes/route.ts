@@ -3,8 +3,8 @@ import { POST as importFinancialData } from "../route";
 
 export const dynamic = "force-dynamic";
 
-// A distinct endpoint prevents a new client from asking an older deployment
-// to update months when that deployment only understands full replacement.
+// Compatibility endpoint: the shared handler now requires the review flow
+// instead of permitting an older client to write immediately.
 export async function POST(request: NextRequest) {
   return importFinancialData(request);
 }

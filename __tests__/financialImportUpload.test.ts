@@ -2,94 +2,163 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ImportUploader from "../app/components/ImportUploader";
+import ImportReviewCard from "../app/components/ImportReviewCard";
 import { createImportUploadRequest } from "../lib/financialImportUpload";
+import { buildImportReview } from "../lib/financialImportReview";
 import type { FinancialImportMode } from "../lib/financialImportPolicy";
 
 const file = new File(["synthetic"], "months.xlsx");
+const existingMonths = Array.from({ length: 12 }, (_, i) => "2025-" + String(i + 1).padStart(2,"0") + "-01");
+const review = (mode: FinancialImportMode = "update_months") => buildImportReview(file.name,mode,["2024-01-01"],
+  { state_version: "a".repeat(32), months: existingMonths },[]);
+const prepared = (mode: FinancialImportMode = "update_months") => ({ success: true, review: review(mode), reviewToken: "synthetic.token" });
 const success = (mode: FinancialImportMode = "update_months") => ({ success: true, mode, replaced: true,
-  monthsImported: 1, monthsTotal: 3, dateRange: { from: "2026-01-01", to: "2026-03-01" },
-  currentCash: 1234, warnings: [] });
+  monthsImported: 1, monthsTotal: mode === "replace_all" ? 1 : 13,
+  dateRange: { from: "2024-01-01", to: mode === "replace_all" ? "2024-01-01" : "2025-12-01" }, currentCash: 1234, warnings: [] });
 afterEach(() => vi.restoreAllMocks());
 
-describe("mode-aware financial upload", () => {
-  it("defaults the rendered uploader to preserving other months", () => {
-    const markup = renderToStaticMarkup(createElement(ImportUploader, { hasData: true }));
+describe("reviewed financial upload", () => {
+  it("defaults the uploader to preserving other months", () => {
+    const markup = renderToStaticMarkup(createElement(ImportUploader,{ hasData: true }));
     expect(markup).toContain('<option value="update_months" selected="">');
     expect(markup).toContain("Keep other months.");
-    expect(markup).toContain('value="replace_all"');
-    expect(markup).toContain("Upload behavior");
     expect(markup).toContain("aria-describedby=");
   });
 
-  it.each(["update_months", "replace_all"] as const)("sends an explicit %s choice and validates its result", async mode => {
-    const payload = { ...success(mode), monthsTotal: mode === "replace_all" ? 1 : 3 };
-    const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
+  it.each(["update_months","replace_all"] as const)("reviews before sending a %s confirmation", async mode => {
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared(mode))).mockResolvedValueOnce(Response.json(success(mode)));
     const client = createImportUploadRequest(send);
-    expect(await client.upload(file, mode)).toEqual(payload);
-    expect(send).toHaveBeenCalledOnce();
-    const [url, options] = send.mock.calls[0];
-    expect(url).toBe("/api/import/modes");
-    const form = options?.body as FormData;
+    expect(await client.prepare(file,mode)).toEqual(review(mode));
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0]).toBe("/api/import/review");
+    expect(client.hasReview()).toBe(true);
+    expect(await client.confirm()).toEqual(success(mode));
+    expect(send.mock.calls[1][0]).toBe("/api/import/confirm");
+    const form = send.mock.calls[1][1]?.body as FormData;
     expect(form.get("mode")).toBe(mode);
-    expect((form.get("file") as File).name).toBe("months.xlsx");
+    expect(form.get("reviewToken")).toBe("synthetic.token");
+    expect((form.get("file") as File).name).toBe(file.name);
+    expect(await (form.get("file") as File).text()).toBe("synthetic");
     expect(form.has("user_id")).toBe(false);
+    expect(client.hasReview()).toBe(false);
   });
 
-  it("blocks overlapping submissions synchronously, including a different mode", async () => {
+  it("cancels a review without a confirmation request", async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json(prepared()));
+    const client = createImportUploadRequest(send);
+    await client.prepare(file,"update_months");
+    client.cancel();
+    expect(await client.confirm()).toBeNull();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(client.hasReview()).toBe(false);
+  });
+
+  it("cannot confirm without a prepared review", async () => {
+    const send = vi.fn<typeof fetch>();
+    expect(await createImportUploadRequest(send).confirm()).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("blocks overlapping prepares and confirmation while preparing", async () => {
     let resolve!: (response: Response) => void;
     const send = vi.fn<typeof fetch>().mockReturnValue(new Promise(r => { resolve = r; }));
     const client = createImportUploadRequest(send);
-    const first = client.upload(file, "update_months");
+    const first = client.prepare(file,"update_months");
     expect(client.isPending()).toBe(true);
-    expect(await client.upload(file, "replace_all")).toBeNull();
-    expect(send).toHaveBeenCalledOnce();
-    resolve(Response.json(success()));
+    expect(await client.prepare(file,"replace_all")).toBeNull();
+    expect(await client.confirm()).toBeNull();
+    resolve(Response.json(prepared()));
     await first;
-    expect(client.isPending()).toBe(false);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps pending state scoped to each uploader", async () => {
-    const send = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(success()));
-    const first = createImportUploadRequest(send);
-    const second = createImportUploadRequest(send);
-    await Promise.all([first.upload(file, "update_months"), second.upload(file, "update_months")]);
+  it("blocks duplicate confirmations before and after the first response", async () => {
+    let resolve!: (response: Response) => void;
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared()))
+      .mockImplementationOnce(() => new Promise(r => { resolve = r; }));
+    const client = createImportUploadRequest(send);
+    await client.prepare(file,"update_months");
+    const first = client.confirm();
+    expect(await client.confirm()).toBeNull();
+    resolve(Response.json(success()));
+    await first;
+    expect(await client.confirm()).toBeNull();
     expect(send).toHaveBeenCalledTimes(2);
   });
 
-  it("releases the submission guard after failure and permits a deliberate retry", async () => {
-    const send = vi.fn<typeof fetch>().mockRejectedValueOnce(new Error("Private transport detail"))
-      .mockResolvedValueOnce(Response.json(success()));
+  it("keeps review state scoped to each uploader", async () => {
+    const send = vi.fn<typeof fetch>().mockImplementation(async () => Response.json(prepared()));
+    const first = createImportUploadRequest(send);
+    const second = createImportUploadRequest(send);
+    await first.prepare(file,"update_months");
+    expect(await second.confirm()).toBeNull();
+    first.cancel();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires a fresh review after a stale confirmation", async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared()))
+      .mockResolvedValueOnce(Response.json({ error: "Your financial data changed. Review again." },{status:409}));
     const client = createImportUploadRequest(send);
-    await expect(client.upload(file, "update_months")).rejects.toThrow("Refresh the dashboard before retrying");
+    await client.prepare(file,"update_months");
+    await expect(client.confirm()).rejects.toThrow("Review again");
+    expect(client.hasReview()).toBe(false);
+    expect(await client.confirm()).toBeNull();
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a lost confirmation response as unknown and does not retry", async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared())).mockRejectedValueOnce(new Error("Private network detail"));
+    const client = createImportUploadRequest(send);
+    await client.prepare(file,"update_months");
+    await expect(client.confirm()).rejects.toThrow("Refresh the dashboard before retrying");
     expect(client.isPending()).toBe(false);
-    expect(await client.upload(file, "update_months")).toMatchObject({ success: true });
+    expect(await client.confirm()).toBeNull();
   });
 
-  it.each([{}, [], { success: true }, { ...success(), mode: "replace_all" },
-    { ...success(), monthsTotal: 0 }, { ...success(), warnings: [123] },
-    { ...success(), currentCash: "1234" }, { ...success(), dateRange: null }])("rejects malformed/legacy success responses: %j", async payload => {
+  it.each([{},[],{success:true},{...prepared(),reviewToken:""},{...prepared(),review:{...review(),mode:"replace_all"}},
+    {...prepared(),review:{...review(),filename:"other.xlsx"}},
+    {...prepared(),review:{...review(),addedMonths:[],updatedMonths:[]}}])("rejects malformed/legacy review responses: %j", async payload => {
     const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json(payload));
-    await expect(createImportUploadRequest(send).upload(file, "update_months")).rejects.toThrow("could not be confirmed");
+    const client = createImportUploadRequest(send);
+    await expect(client.prepare(file,"update_months")).rejects.toThrow("could not be reviewed");
+    expect(await client.confirm()).toBeNull();
   });
 
-  it.each([200, 500])("handles an HTML response with status %s without raw response text", async status => {
-    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response("<html>Private provider details</html>", { status }));
-    await expect(createImportUploadRequest(send).upload(file, "update_months")).rejects.toThrow("could not be confirmed");
+  it.each([{},[],{success:true},{...success(),mode:"replace_all"},{...success(),monthsTotal:0},
+    {...success(),warnings:[123]},{...success(),currentCash:"1234"},{...success(),dateRange:null}])("rejects malformed confirmation responses: %j", async payload => {
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared())).mockResolvedValueOnce(Response.json(payload));
+    const client = createImportUploadRequest(send);
+    await client.prepare(file,"update_months");
+    await expect(client.confirm()).rejects.toThrow("could not be confirmed");
   });
 
-  it("displays actionable workbook validation errors", async () => {
-    const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ errors: ["Duplicate month: 2026-01-01."] }, { status: 400 }));
-    await expect(createImportUploadRequest(send).upload(file, "update_months")).rejects.toThrow("Duplicate month: 2026-01-01.");
+  it("preserves actionable workbook errors", async () => {
+    const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json({errors:["Duplicate month: 2024-01-01."]},{status:400}));
+    await expect(createImportUploadRequest(send).prepare(file,"update_months")).rejects.toThrow("Duplicate month");
   });
 
-  it("does not display provider errors on server failures", async () => {
-    const send = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ error: "Private database details" }, { status: 500 }));
-    await expect(createImportUploadRequest(send).upload(file, "update_months")).rejects.toThrow("could not be confirmed");
+  it.each([200,404,500])("does not fall back to a legacy endpoint on HTML status %s", async status => {
+    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response("<html>Private details</html>",{status}));
+    await expect(createImportUploadRequest(send).prepare(file,"update_months")).rejects.toThrow("could not be reviewed");
+    expect(send).toHaveBeenCalledExactlyOnceWith("/api/import/review",expect.anything());
   });
 
-  it("does not retry through the legacy full-replacement endpoint on an older deployment", async () => {
-    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response("Not found", { status: 404 }));
-    await expect(createImportUploadRequest(send).upload(file, "update_months")).rejects.toThrow("could not be confirmed");
-    expect(send).toHaveBeenCalledExactlyOnceWith("/api/import/modes", expect.anything());
+  it("shows historical retention without promising unavailable features", () => {
+    const markup = renderToStaticMarkup(createElement(ImportReviewCard,{review:review(),onConfirm:vi.fn(),onCancel:vi.fn()}));
+    expect(markup).toContain("Review your upload");
+    expect(markup).toContain("latest 12 stored months");
+    expect(markup).toContain("Historical browsing and forecasting are not available yet.");
+    expect(markup).toContain("Add 1 month");
+  });
+
+  it("identifies newer months that replacement will remove and escapes user text", () => {
+    const changed = {...review("replace_all"),filename:"<script>unsafe</script>",warnings:["<em>unsafe</em>"]};
+    const markup = renderToStaticMarkup(createElement(ImportReviewCard,{review:changed,onConfirm:vi.fn(),onCancel:vi.fn()}));
+    expect(markup).toContain("12 saved months");
+    expect(markup).toContain("Replace all data with 1 month");
+    expect(markup).not.toContain("<script>");
+    expect(markup).toContain("&lt;script&gt;");
+    expect(markup).not.toContain("<em>");
   });
 });

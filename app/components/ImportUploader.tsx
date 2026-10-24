@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { useImportUpload } from "./useImportUpload";
+import ImportReviewCard from "./ImportReviewCard";
 import { DEFAULT_IMPORT_MODE, type FinancialImportMode } from "@/lib/financialImportPolicy";
 
 type ClearState = "idle" | "confirming" | "clearing";
@@ -44,8 +45,10 @@ export default function ImportUploader({
   const {
     state,
     success,
+    review,
     errorMsg,
     upload,
+    confirm,
     fail,
     reset: resetUpload,
   } = useImportUpload(() => {
@@ -149,9 +152,13 @@ export default function ImportUploader({
   }
 
   // ── Uploading ──────────────────────────────────────────────────────────────
-  if (state === "uploading") {
+  if (state === "review" && review) {
+    return <ImportReviewCard review={review} onConfirm={confirm} onCancel={reset} />;
+  }
+
+  if (state === "uploading" || state === "reviewing") {
     return (
-      <div
+      <div role="status"
         className="flex items-center gap-4 bg-surface px-6 py-5"
         style={{
           borderRadius: "var(--radius-lg)",
@@ -164,7 +171,7 @@ export default function ImportUploader({
           style={{ borderColor: "var(--teal)", borderTopColor: "transparent" }}
         />
         <p className="text-sm font-light" style={{ color: "var(--ink)" }}>
-          Processing your file…
+          {state === "reviewing" ? "Checking your file for review…" : "Saving your reviewed upload…"}
         </p>
       </div>
     );

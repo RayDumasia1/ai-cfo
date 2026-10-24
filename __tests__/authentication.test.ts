@@ -23,7 +23,7 @@ import { stripe } from "../lib/stripe";
 import { parseExcelBuffer } from "../lib/excelParser";
 import { requireAuth } from "../lib/apiAuth";
 import { proxy } from "../proxy";
-import { POST as importData } from "../app/api/import/route";
+import { POST as importData } from "../app/api/import/review/route";
 import { POST as portal } from "../app/api/stripe/portal/route";
 import { GET as invoices } from "../app/api/billing/invoices/route";
 import { GET as subscription } from "../app/api/subscription/route";

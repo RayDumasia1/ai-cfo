@@ -137,11 +137,11 @@ export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
     );
   }
 
-  const { labels, revenue, burn } = chartResult;
+  const { labels, revenue, burn, missingMonths } = chartResult;
   const count = labels.length;
 
   // Dynamic title suffix
-  const periodLabel = count === 1 ? "Last month" : `Last ${count} months`;
+  const periodLabel = count === 1 ? labels[0] : `${labels[0]} – ${labels[count - 1]}`;
 
   const chartData = labels.map((label, i) => ({
     label,
@@ -175,12 +175,16 @@ export default function RevenueBurnChart({ months }: RevenueBurnChartProps) {
         <p
           style={{
             fontSize: 13,
-            fontWeight: 600,
-            color: "#0A1A2F",
+            fontWeight: 500,
+            color: "var(--ink)",
             margin: 0,
           }}
         >
           Revenue vs Burn &nbsp;·&nbsp; {periodLabel}
+        </p>
+        <p style={{ fontSize: 12, color: "var(--dim)", marginTop: 4 }}>
+          {count} stored {count === 1 ? "month" : "months"}
+          {missingMonths > 0 && ` · ${missingMonths} missing ${missingMonths === 1 ? "month is" : "months are"} not shown`}
         </p>
         <p style={{ fontSize: 12, color: insightColor, marginTop: 4 }}>
           {insightText}

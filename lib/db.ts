@@ -16,7 +16,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
-import { importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
+import { DASHBOARD_MONTH_LIMIT, importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
+import { isMonthList, type ImportReviewState } from "./financialImportReview";
 import type {
   Action,
   ActionAuditLog,
@@ -76,11 +77,11 @@ export async function upsertBusinessProfile(
 
 /**
  * Returns months ordered newest-first.
- * Default limit of 12 covers a trailing-year view.
+ * Default limit matches the dashboard's latest twelve stored months.
  */
 export async function getFinancialMonths(
   userId: string,
-  limit = 12,
+  limit = DASHBOARD_MONTH_LIMIT,
   client: SupabaseClient = supabase
 ): Promise<FinancialMonth[]> {
   const { data, error } = await client
@@ -178,6 +179,29 @@ export async function importFinancialData(
   const { data, error } = await serviceClient.rpc("import_financial_data", {
     p_user_id: userId, p_months: months, p_profile: importedBusinessDetails(profile),
     p_filename: filename, p_mode: mode,
+  });
+  if (error) throw error;
+  if (!isFinancialImportResult(data, mode, months.length)) throw new Error("Invalid financial import result");
+  return data;
+}
+
+export async function getFinancialImportReviewState(userId: string, serviceClient: SupabaseClient): Promise<ImportReviewState> {
+  const { data, error } = await serviceClient.rpc("financial_import_review_state", { p_user_id: userId });
+  if (error) throw error;
+  if (!data || typeof data.state_version !== "string" || !/^[a-f0-9]{32}$/.test(data.state_version) || !isMonthList(data.months)) {
+    throw new Error("Invalid financial import review state");
+  }
+  return data;
+}
+
+export async function commitReviewedFinancialImport(
+  userId: string, months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
+  profile: Partial<Omit<BusinessProfileInsert, "user_id">>, filename: string,
+  mode: FinancialImportMode, expectedState: string, serviceClient: SupabaseClient
+): Promise<FinancialImportResult> {
+  const { data, error } = await serviceClient.rpc("import_reviewed_financial_data", {
+    p_user_id: userId, p_months: months, p_profile: importedBusinessDetails(profile),
+    p_filename: filename, p_mode: mode, p_expected_state: expectedState,
   });
   if (error) throw error;
   if (!isFinancialImportResult(data, mode, months.length)) throw new Error("Invalid financial import result");

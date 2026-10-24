@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
+import { DASHBOARD_MONTH_LIMIT } from "@/lib/financialImportPolicy";
 import {
   getCurrentCashPosition,
   getOrCreateBusinessProfile,
@@ -36,7 +37,7 @@ export default async function DashboardPage({
   const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
-    user ? getFinancialMonths(user.id, 6, supabase) : [],
+    user ? getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase) : [],
     user ? getDismissedAlerts(user.id, supabase) : [],
     user ? getSubscription(user.id, supabase) : null,
     // Action Tracker failing to load shouldn't take down the dashboard — panel shows its empty state

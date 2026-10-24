@@ -8,6 +8,7 @@
  *     page (or a future data-layer hook) changes — nothing here.
  */
 
+import { DASHBOARD_MONTH_LIMIT } from "./financialImportPolicy";
 import type {
   Alert,
   BusinessProfile,
@@ -190,6 +191,8 @@ export function runwayChangeMoM(
 
 export interface RevenueVsBurnChartData {
   labels: string[];
+  /** Calendar months absent between the first and last displayed records. */
+  missingMonths: number;
   /** null means the source month had no total_revenue recorded. */
   revenue: (number | null)[];
   /** null means the source month had no total_expenses recorded. */
@@ -198,7 +201,7 @@ export interface RevenueVsBurnChartData {
 }
 
 /**
- * Prepares the last 6 months of revenue and burn data for charting.
+ * Prepares the latest twelve stored months of revenue and burn for charting.
  * Input is newest-first (as returned by getFinancialMonths).
  * Output is sorted chronologically (oldest → newest) for left-to-right display.
  * Returns null when months is empty so the component can render a placeholder.
@@ -208,7 +211,7 @@ export function getRevenueVsBurnChartData(
 ): RevenueVsBurnChartData | null {
   if (months.length === 0) return null;
 
-  const recent = months.slice(0, 6).reverse(); // oldest → newest
+  const recent = months.slice(0, DASHBOARD_MONTH_LIMIT).reverse(); // oldest → newest
 
   const labels = recent.map((m) => {
     const d = new Date(m.month_date + "T12:00:00Z");
@@ -228,7 +231,9 @@ export function getRevenueVsBurnChartData(
       : null
   );
 
-  return { labels, revenue, burn, netCashFlow };
+  const monthIndex = (date: string) => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7));
+  const missingMonths = monthIndex(recent[recent.length - 1].month_date) - monthIndex(recent[0].month_date) + 1 - recent.length;
+  return { labels, revenue, burn, netCashFlow, missingMonths };
 }
 
 /**
