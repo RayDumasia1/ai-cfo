@@ -814,7 +814,8 @@ export async function getAction(
 
 /**
  * Creates a new action.
- * Callers must check getActiveActionCount against USAGE_LIMITS before calling.
+ * Callers preflight the tier limit; the database capacity trigger is authoritative
+ * when concurrent creates/reopens compete for the remaining active slots.
  */
 export async function createAction(
   userId: string,

@@ -7,7 +7,7 @@ import {
   getSubscription,
   updateAction,
 } from "@/lib/db";
-import { getActionLimitState, validateActionUpdate } from "@/lib/actions";
+import { getActionCapacityError, getActionLimitState, validateActionUpdate } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -54,9 +54,11 @@ export const PATCH = requireAuth<Ctx>(async (req: NextRequest, { userId, supabas
     const action = await updateAction(userId, id, parsed.value, {}, supabase);
     return NextResponse.json(action);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("actions:update:error", message);
-    return NextResponse.json({ error: "Failed to update action." }, { status: 500 });
+    const capacity = getActionCapacityError(err);
+    if (capacity) return NextResponse.json({ error: "limit_reached", limit: capacity.limit }, { status: 403 });
+    const requestId = crypto.randomUUID();
+    console.error("actions:update:error", { requestId, userId });
+    return NextResponse.json({ error: "Failed to update action.", requestId }, { status: 500 });
   }
 });
 

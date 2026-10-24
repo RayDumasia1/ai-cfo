@@ -128,6 +128,17 @@ export type ActionLimitState = {
   nearLimit: boolean;
 };
 
+/** Recognize only the dedicated database capacity signal, never arbitrary errors. */
+export function getActionCapacityError(error: unknown): { limit: number } | null {
+  if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+  const value = error as Record<string, unknown>;
+  if (value.code !== "P0001" || value.message !== "action_limit_reached" ||
+      typeof value.details !== "string" || !/^(0|[1-9]\d*)$/.test(value.details)) return null;
+  const limit = Number(value.details);
+  const supported = Object.values(USAGE_LIMITS).some(tier => tier.actions_active === limit);
+  return Number.isSafeInteger(limit) && supported ? { limit } : null;
+}
+
 export function isActiveAction(action: Pick<Action, "status">): boolean {
   return action.status !== "completed";
 }

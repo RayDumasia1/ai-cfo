@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { createAction, getActiveActionCount, getSubscription } from "@/lib/db";
-import { getActionLimitState, validateActionCreate } from "@/lib/actions";
+import { getActionCapacityError, getActionLimitState, validateActionCreate } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +35,10 @@ export const POST = requireAuth(async (req: NextRequest, { userId, supabase }) =
     const action = await createAction(userId, parsed.value, supabase);
     return NextResponse.json(action, { status: 201 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("actions:create:error", message);
-    return NextResponse.json({ error: "Failed to create action." }, { status: 500 });
+    const capacity = getActionCapacityError(err);
+    if (capacity) return NextResponse.json({ error: "limit_reached", limit: capacity.limit }, { status: 403 });
+    const requestId = crypto.randomUUID();
+    console.error("actions:create:error", { requestId, userId });
+    return NextResponse.json({ error: "Failed to create action.", requestId }, { status: 500 });
   }
 });
