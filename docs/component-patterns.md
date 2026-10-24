@@ -298,7 +298,7 @@ Position: between AlertPreferencesCard and AccountCard.
 - Show/hide toggle (Eye/EyeOff) on each field
 - `aria-label` updates: "Show password" / "Hide password"
 - Client-side validation: min 8 chars, passwords match
-- Server-side: re-authenticates with current password before updating
+- Server-side: validates body/password types, re-authenticates the signed-in account with the current password, and checks returned identity before updating
 - Success: "Password updated ✓", fields cleared, fades after 3s
 
 ---
@@ -564,6 +564,18 @@ Session cookies are finalized after Proxy finishes its Auth and subscription che
 An invalid refresh token is an Auth/session condition, independent of Stripe cancellation and Founding Member identity. Supabase-provided cookie removals must reach the browser even when Proxy redirects an unauthenticated dashboard request to login. This prevents a dropped cleanup response from repeatedly presenting the same rejected cookie; it does not guarantee that refresh errors can never occur. Regression tests exercise the real Proxy and cookie adapter with a mocked Auth provider, including refresh, cleanup, verification/billing redirects, 403/402 responses, and public/webhook exclusions. Hosted-browser validation remains necessary after deployment.
 
 The bypass was verified using mocked authenticated-but-unconfirmed sessions, including direct handler calls. This does not establish that the deployed Auth provider currently issues such sessions; the application must enforce its policy independently. No Supabase Auth settings, database constraints, or RLS policies were changed. Direct browser-to-Supabase access is governed by RLS and is outside an application Proxy's protection. Real signup/confirmation and hosted-provider flows still need preview verification.
+
+### Validated and confirmed password changes
+
+`PATCH /api/auth/password` accepts only a non-null, non-array JSON object containing non-empty string passwords. The existing minimum of 8 characters for the new password is unchanged; Supabase's configured password policy remains authoritative. Passwords are passed unchanged (no trimming). Invalid input returns 400 before password verification or update calls. Existing `requireAuth` session and verified-email checks remain in force. This account-security endpoint remains accessible without an active paid subscription under the existing Proxy policy.
+
+Reauthentication uses the validated session's email, ignores posted identity fields, and requires both the returned user and session user to match the original authenticated UUID before `updateUser({ password })` runs. A missing authenticated email is rejected. Missing/mismatched reauthentication data fails closed with 503; missing/mismatched update identity never produces success. These checks are defensive provider-contract validation, not evidence of a demonstrated cross-account exploit. The existing session client is retained, so successful reauthentication can refresh session cookies; this change does not introduce a service-role password update.
+
+Provider error codes distinguish an incorrect current password (400, `CURRENT_PASSWORD_INCORRECT`), rate limiting (429, `PASSWORD_RATE_LIMITED`), new-password policy/same-password rejection (422, `PASSWORD_REJECTED`), and unavailable reauthentication (503, `PASSWORD_CHANGE_UNAVAILABLE`). Unknown update failures return 500, `PASSWORD_CHANGE_FAILED`. Unexpected returned provider failures and identity mismatches log only `auth:password:error`, requestId, and a fixed phase; thrown failures use the shared API boundary. Raw provider messages and password values are not logged or echoed by this route. No rate-limit, Auth, or password-policy settings were changed.
+
+The form requires HTTP success and JSON `success: true` before clearing fields or announcing completion. Known status/code pairs map to fixed, safe messages, with field-specific guidance for incorrect/current or rejected/new passwords and form-level feedback for other failures. Network errors, HTML/empty responses, and malformed success bodies never confirm success; guidance acknowledges that a lost response can follow a completed password update. A synchronous submission guard and disabled fieldset prevent repeated submissions/edits while pending. Error/help IDs are linked to inputs, errors use alert announcements, success uses a status announcement, and the success timer is cleared on unmount/retry. Passwords are not persisted in browser storage.
+
+API/client tests mock Auth and fetch, covering invalid input before mutations, account scoping/order, provider failures, ambiguous outcomes, response confirmation, and rendered form accessibility. Actual browser interaction and password rotation/login still need a dedicated preview account; no real passwords were changed during automated verification. This work does not change recovery flows, MFA/reauthentication-nonce behavior, other-session revocation, billing/Founding Member policy, schema, or RLS. No SQL migration is required.
 
 ### Shared authenticated API error boundary
 
