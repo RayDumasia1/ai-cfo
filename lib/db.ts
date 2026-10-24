@@ -189,7 +189,7 @@ export async function clearFinancialData(
   userId: string,
   serviceClient: SupabaseClient
 ): Promise<void> {
-  const { data, error } = await serviceClient.rpc("clear_financial_data", { p_user_id: userId });
+  const { data, error } = await serviceClient.rpc("clear_financial_data_preserving_settings", { p_user_id: userId });
   if (error) throw error;
   if (!data || data.cleared !== true) throw new Error("Invalid clear-data result");
 }

@@ -1,5 +1,6 @@
 -- PREVIEW ONLY. Never run in production, including on production test accounts.
 -- Run AFTER 2026-10-23-financial-revision-history.sql.
+-- Also apply 2026-10-24-preserve-settings-on-financial-clear.sql for the current clear policy.
 -- Set preview_confirmed and TWO distinct dedicated preview-account UUIDs below.
 -- Run this COMPLETE script through ROLLBACK. If it fails, run ROLLBACK before retrying.
 BEGIN;
@@ -263,9 +264,9 @@ BEGIN
   ASSERT NOT EXISTS (SELECT 1 FROM public.financial_data_revisions WHERE user_id = account_a);
   ASSERT NOT EXISTS (SELECT 1 FROM public.financial_months WHERE user_id = account_a);
   ASSERT NOT EXISTS (SELECT 1 FROM public.expense_categories WHERE user_id = account_a);
-  ASSERT (SELECT min_cash_reserve IS NULL AND runway_warning_threshold = 6
-    AND runway_danger_threshold = 3 AND burn_rate_warning_pct = 0.1
-    AND invoice_overdue_days = 30 FROM public.business_profiles WHERE user_id = account_a);
+  ASSERT (pg_temp.revision_verification_snapshot(account_a)->'profile'->0) - ARRAY['data_version','updated_at']
+    = (baseline->'profile'->0) - ARRAY['data_version','updated_at'],
+    'Clear changed account details or settings';
   ASSERT pg_temp.revision_verification_snapshot(account_b) = other_before, 'Another account changed';
   ASSERT pg_temp.revision_verification_snapshot(account_a)->'subscription' = subscription_before, 'Billing changed';
 END;

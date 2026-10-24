@@ -95,8 +95,9 @@ export default function ImportUploader({
           Clear all financial data?
         </p>
         <p className="mt-1 text-xs font-light" style={{ color: "var(--dim)" }}>
-          This will permanently delete all your financial data. This cannot be
-          undone.
+          This will permanently delete your financial data and saved financial
+          history. Your account details and alert thresholds will be kept.
+          This cannot be undone.
         </p>
         <div className="mt-4 flex items-center gap-3">
           <button

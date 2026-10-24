@@ -55,7 +55,7 @@ describe("atomic clear-data route", () => {
     const response = await DELETE(request(), {});
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("clear_financial_data", { p_user_id: user.id });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("clear_financial_data_preserving_settings", { p_user_id: user.id });
     expect(hasPaidSubscription).toHaveBeenCalledWith(user.id, expect.anything());
     expect(from).not.toHaveBeenCalled();
   });
@@ -70,6 +70,7 @@ describe("atomic clear-data route", () => {
     expect(body.detail).toBeUndefined();
     expect(body.error).toContain("Refresh");
     expect(JSON.stringify(body)).not.toContain("Internal");
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("clear_financial_data_preserving_settings", { p_user_id: user.id });
     expect(from).not.toHaveBeenCalled();
   });
 

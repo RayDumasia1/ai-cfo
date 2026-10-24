@@ -1,5 +1,5 @@
 -- PREVIEW ONLY: never run in production, including on production test accounts.
--- Run after both atomic import and atomic clear migrations.
+-- Run after financial revision history AND 2026-10-24-preserve-settings-on-financial-clear.sql.
 -- Uses two dedicated preview accounts and rolls ALL test changes back.
 -- Replace the two NULLs below. Run the COMPLETE script, including ROLLBACK.
 -- If it fails, run ROLLBACK in the same session before retrying.
@@ -30,6 +30,7 @@ LANGUAGE sql SET search_path = '' AS $$
     'months', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM public.financial_months t WHERE user_id = account_id),
     'categories', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM public.expense_categories t WHERE user_id = account_id),
     'imports', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM public.data_imports t WHERE user_id = account_id),
+    'revisions', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM public.financial_data_revisions t WHERE user_id = account_id),
     'subscription', (SELECT jsonb_agg(to_jsonb(t) ORDER BY t.user_id) FROM public.subscriptions t WHERE user_id = account_id)
   );
 $$;
@@ -63,7 +64,7 @@ BEGIN
     '{"min_cash_reserve":123,"runway_warning_threshold":9,"runway_danger_threshold":4,"burn_rate_warning_pct":0.2,"invoice_overdue_days":45}',
     'atomic-clear-verification-seed.xlsx');
   -- Uploads no longer apply workbook thresholds. Seed settings directly so
-  -- this verifier still tests a real reset after preserve-import-settings.
+  -- this verifier can assert exact preservation of customized settings.
   UPDATE public.business_profiles SET min_cash_reserve = 123,
     runway_warning_threshold = 9, runway_danger_threshold = 4,
     burn_rate_warning_pct = 0.2, invoice_overdue_days = 45
@@ -96,16 +97,14 @@ BEGIN
   ASSERT result = '{"cleared":true}'::jsonb;
   ASSERT NOT EXISTS (SELECT 1 FROM public.financial_months WHERE user_id = account_a);
   ASSERT NOT EXISTS (SELECT 1 FROM public.expense_categories WHERE user_id = account_a);
-  ASSERT (SELECT min_cash_reserve IS NULL AND runway_warning_threshold = 6 AND runway_danger_threshold = 3
-    AND burn_rate_warning_pct = 0.1 AND invoice_overdue_days = 30
-    FROM public.business_profiles WHERE user_id = account_a);
+  ASSERT NOT EXISTS (SELECT 1 FROM public.financial_data_revisions WHERE user_id = account_a);
   ASSERT (SELECT data_version::text FROM public.business_profiles WHERE user_id = account_a) IS DISTINCT FROM old_version;
   ASSERT (SELECT count(*) FROM public.data_imports WHERE user_id = account_a) = audits_before + 1;
   ASSERT (pg_temp.clear_verification_snapshot(account_a)->'profile'->0)
-    - ARRAY['min_cash_reserve','runway_warning_threshold','runway_danger_threshold','burn_rate_warning_pct','invoice_overdue_days','data_version','updated_at']
+    - ARRAY['data_version','updated_at']
     = (baseline->'profile'->0)
-    - ARRAY['min_cash_reserve','runway_warning_threshold','runway_danger_threshold','burn_rate_warning_pct','invoice_overdue_days','data_version','updated_at'],
-    'Clear changed unrelated profile fields';
+    - ARRAY['data_version','updated_at'],
+    'Clear changed account details or settings';
   ASSERT pg_temp.clear_verification_snapshot(account_a)->'subscription' = baseline->'subscription', 'Clear changed billing';
   ASSERT pg_temp.clear_verification_snapshot(account_b) = before_b, 'Clear changed another account';
 
