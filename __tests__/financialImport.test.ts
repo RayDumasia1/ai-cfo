@@ -17,8 +17,8 @@ vi.mock("../lib/db", async importOriginal => ({
 import { createClient } from "../utils/supabase/server";
 import { createServiceClient } from "../utils/supabase/service";
 import { parseExcelBuffer } from "../lib/excelParser";
-import { hasPaidSubscription, logDataImport, replaceFinancialImport } from "../lib/db";
-import { POST } from "../app/api/import/route";
+import { hasPaidSubscription, logDataImport, replaceFinancialImport, importFinancialData } from "../lib/db";
+import { POST } from "../app/api/import/modes/route";
 
 const rpc = vi.fn();
 const getUser = vi.fn();
@@ -31,10 +31,11 @@ function month(date = "2026-09-01") {
   return { month_date: date, opening_cash: 100, closing_cash: 90, total_revenue: 50,
     total_expenses: 60, payroll: null, ar_outstanding: null, ap_outstanding: null, notes: null };
 }
-function request(file: File | string | null = new File(["synthetic workbook"], "import.xlsx")) {
+function request(file: File | string | null = new File(["synthetic workbook"], "import.xlsx"), modes: (string | File)[] = []) {
   const body = new FormData();
   if (file !== null) body.append("file", file);
   body.append("user_id", "another-account");
+  for (const mode of modes) body.append("mode", mode);
   return new NextRequest("https://app.example.invalid/api/import?user_id=another-account", { method: "POST", body });
 }
 
@@ -49,7 +50,12 @@ beforeEach(() => {
   vi.mocked(createServiceClient).mockReturnValue(service);
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
   vi.mocked(parseExcelBuffer).mockImplementation(() => parsed);
-  rpc.mockImplementation(async (_name, args) => ({ data: { replaced: false, months_imported: args.p_months.length }, error: null }));
+  rpc.mockImplementation(async (name, args) => {
+    const dates = args.p_months.map((m: { month_date: string }) => m.month_date).sort();
+    return { data: { replaced: false, months_imported: args.p_months.length,
+      ...(name === "import_financial_data" ? { mode: args.p_mode, months_total: dates.length,
+        date_from: dates[0], date_to: dates.at(-1), current_cash: 90 } : {}) }, error: null };
+  });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -152,14 +158,16 @@ describe("atomic import route and database adapter", () => {
 
   it.each([false, true])("returns the committed result for replaced=%s and uses only the signed-in account", async replaced => {
     parsed.months = [month("2026-09-01"), { ...month("2026-08-01"), closing_cash: 110 }];
-    rpc.mockResolvedValue({ data: { replaced, months_imported: 2 }, error: null });
+    rpc.mockResolvedValue({ data: { replaced, months_imported: 2, mode: "update_months", months_total: 2,
+      date_from: "2026-08-01", date_to: "2026-09-01", current_cash: 90 }, error: null });
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true, replaced, monthsImported: 2,
       warnings: ["A warning", "Workbook business details only fill empty fields during onboarding. Existing account details are preserved."],
       dateRange: { from: "2026-08-01", to: "2026-09-01" }, currentCash: 90 });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("replace_financial_import", {
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("import_financial_data", {
       p_user_id: user.id, p_months: parsed.months, p_profile: parsed.profile, p_filename: "import.xlsx",
+      p_mode: "update_months",
     });
     expect(from).not.toHaveBeenCalled();
     // Success auditing belongs to the database transaction, not a later request.
@@ -193,5 +201,48 @@ describe("atomic import route and database adapter", () => {
   it.each([null, {}, { replaced: true, months_imported: 0 }])("rejects an unconfirmed RPC result: %j", async data => {
     rpc.mockResolvedValue({ data, error: null });
     await expect(replaceFinancialImport(user.id, parsed.months, parsed.profile, "test.xlsx", service)).rejects.toThrow("Invalid financial import result");
+  });
+});
+
+describe("explicit import modes", () => {
+  it.each(["update_months", "replace_all"])("passes %s without accepting account IDs from the form", async mode => {
+    const response = await POST(request(undefined, [mode]));
+    expect(response.status).toBe(200);
+    expect((await response.json()).mode).toBe(mode);
+    expect(rpc).toHaveBeenCalledWith("import_financial_data", expect.objectContaining({ p_mode: mode, p_user_id: user.id }));
+  });
+
+  it.each([[""], ["merge"], ["REPLACE_ALL"], [" replace_all"], ["update_months", "replace_all"],
+    [new File(["replace_all"], "mode.txt")]].map(modes => ({ modes })))("rejects invalid or repeated mode fields before parsing: $modes", async ({ modes }) => {
+    expect((await POST(request(undefined, modes))).status).toBe(400);
+    expect(parseExcelBuffer).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("uses the resulting dataset summary when older months are uploaded", async () => {
+    rpc.mockResolvedValue({ data: { replaced: true, months_imported: 1, mode: "update_months", months_total: 12,
+      date_from: "2026-01-01", date_to: "2026-12-01", current_cash: 4321 }, error: null });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ monthsImported: 1, monthsTotal: 12,
+      dateRange: { from: "2026-01-01", to: "2026-12-01" }, currentCash: 4321 });
+  });
+
+  it.each([null, {}, { replaced: true, months_imported: 1 },
+    { mode: "replace_all" }, { months_total: 0 }, { date_to: "2025-01-01" },
+    { current_cash: "90" }, { current_cash: Infinity }])("rejects absent, legacy or inconsistent mode-aware acknowledgments: %j", async patch => {
+    const base = { replaced: true, months_imported: 1, mode: "update_months", months_total: 1,
+      date_from: "2026-09-01", date_to: "2026-09-01", current_cash: 90 };
+    const data = patch === null || Object.keys(patch).length === 0 || "replaced" in patch ? patch : { ...base, ...patch };
+    rpc.mockResolvedValue({ data, error: null });
+    await expect(importFinancialData(user.id, parsed.months, parsed.profile, "file.xlsx", "update_months", service))
+      .rejects.toThrow("Invalid financial import result");
+  });
+
+  it("never falls back to full replacement if the new RPC is missing", async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "Missing migration" } });
+    expect((await POST(request())).status).toBe(500);
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("import_financial_data", expect.anything());
+    expect(from).not.toHaveBeenCalled();
   });
 });

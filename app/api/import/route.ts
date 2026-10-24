@@ -5,11 +5,12 @@ import { parseExcelBuffer } from "@/lib/excelParser";
 import {
   WORKBOOK_BUSINESS_FIELDS, WORKBOOK_BUSINESS_WARNING,
   WORKBOOK_THRESHOLD_FIELDS, WORKBOOK_THRESHOLD_WARNING,
+  DEFAULT_IMPORT_MODE, isFinancialImportMode,
 } from "@/lib/financialImportPolicy";
 import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 import {
   hasPaidSubscription,
-  replaceFinancialImport,
+  importFinancialData,
   logDataImport,
 } from "@/lib/db";
 
@@ -64,6 +65,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
     filename = file.name;
+    const modes = formData.getAll("mode");
+    const mode = modes.length === 0 ? DEFAULT_IMPORT_MODE : modes[0];
+    if (modes.length > 1 || !isFinancialImportMode(mode)) {
+      return NextResponse.json({ error: "Choose update months or replace all data.", requestId }, { status: 400 });
+    }
 
     console.log("import:file", {
       requestId,
@@ -133,32 +139,33 @@ export async function POST(request: NextRequest) {
 
     // All replacement writes, the data version, and the success audit commit
     // together. Missing RPC/migration or any database error must fail closed.
-    const { replaced: isReplacing } = await replaceFinancialImport(
-      user.id, parsed.months, parsed.profile, file.name, createServiceClient()
+    const result = await importFinancialData(
+      user.id, parsed.months, parsed.profile, file.name, mode, createServiceClient()
     );
     const months = parsed.months;
 
-    const sorted = months.map((m) => m.month_date).sort();
-    const latestMonth = sorted[sorted.length - 1];
-    const currentCash =
-      months.find((m) => m.month_date === latestMonth)?.closing_cash ?? null;
+    const latestMonth = result.date_to;
+    const currentCash = result.current_cash;
 
     console.log("import:complete", {
       requestId,
       userId,
       filename,
       monthsImported: months.length,
-      isReplacing,
+      isReplacing: result.replaced,
+      mode,
       latestMonth,
       currentCash,
     });
 
     return NextResponse.json({
       success: true,
-      replaced: isReplacing,
+      replaced: result.replaced,
+      mode,
+      monthsTotal: result.months_total,
       monthsImported: months.length,
       warnings: parsed.warnings,
-      dateRange: { from: sorted[0], to: latestMonth },
+      dateRange: { from: result.date_from, to: latestMonth },
       currentCash,
       requestId,
     });

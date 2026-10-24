@@ -1,16 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { createImportUploadRequest, type ImportSuccessPayload } from "@/lib/financialImportUpload";
+import { DEFAULT_IMPORT_MODE, type FinancialImportMode } from "@/lib/financialImportPolicy";
+export type { ImportSuccessPayload } from "@/lib/financialImportUpload";
 
 export type UploadState = "idle" | "uploading" | "success" | "error";
-
-export interface ImportSuccessPayload {
-  replaced: boolean;
-  monthsImported: number;
-  dateRange: { from: string; to: string };
-  currentCash: number | null;
-  warnings: string[];
-}
 
 /**
  * Upload state machine for POST /api/import.
@@ -20,34 +15,25 @@ export function useImportUpload(onSuccess?: (result: ImportSuccessPayload) => vo
   const [state, setState] = useState<UploadState>("idle");
   const [success, setSuccess] = useState<ImportSuccessPayload | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [client] = useState(() => createImportUploadRequest());
 
-  async function upload(file: File) {
+  async function upload(file: File, mode: FinancialImportMode = DEFAULT_IMPORT_MODE) {
+    if (client.isPending()) return;
     setState("uploading");
     setErrorMsg(null);
     setSuccess(null);
 
-    const form = new FormData();
-    form.append("file", file);
-
+    let result: ImportSuccessPayload | null;
     try {
-      const res = await fetch("/api/import", { method: "POST", body: form });
-      const json = await res.json();
-
-      if (!res.ok || !json.success) {
-        const msg =
-          (json.errors as string[] | undefined)?.[0] ??
-          json.error ??
-          "Upload failed.";
-        fail(msg);
-        return;
-      }
-
-      setSuccess(json as ImportSuccessPayload);
-      setState("success");
-      onSuccess?.(json as ImportSuccessPayload);
-    } catch {
-      fail("Network error. Please try again.");
+      result = await client.upload(file, mode);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : "Import could not be confirmed. Refresh the dashboard before retrying.");
+      return;
     }
+    if (!result) return;
+    setSuccess(result);
+    setState("success");
+    onSuccess?.(result);
   }
 
   function fail(message: string) {

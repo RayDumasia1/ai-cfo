@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useImportUpload } from "./useImportUpload";
+import { DEFAULT_IMPORT_MODE, type FinancialImportMode } from "@/lib/financialImportPolicy";
 
 type ClearState = "idle" | "confirming" | "clearing";
 
@@ -35,6 +36,8 @@ export default function ImportUploader({
   onSuccess,
 }: ImportUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modeId = useId();
+  const [mode, setMode] = useState<FinancialImportMode>(DEFAULT_IMPORT_MODE);
   const [clearState, setClearState] = useState<ClearState>("idle");
   // Track whether the user HAS data locally (may change after clear)
   const [localHasData, setLocalHasData] = useState(hasData);
@@ -52,13 +55,14 @@ export default function ImportUploader({
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) upload(file);
+    if (file) upload(file, mode);
     e.target.value = "";
   }
 
   function reset() {
     resetUpload();
     setClearState("idle");
+    setMode(DEFAULT_IMPORT_MODE);
   }
 
   async function handleClear() {
@@ -167,7 +171,7 @@ export default function ImportUploader({
 
   // ── Success ────────────────────────────────────────────────────────────────
   if (state === "success" && success) {
-    const verb = success.replaced ? "Replaced with" : "Imported";
+    const verb = success.mode === "update_months" ? "Updated" : "Replaced all data with";
     return (
       <div
         className="bg-surface px-6 py-5"
@@ -183,7 +187,7 @@ export default function ImportUploader({
           {success.monthsImported !== 1 ? "s" : ""} of data
         </p>
         <p className="mt-1 text-xs font-light" style={{ color: "var(--dim)" }}>
-          Most recent month: {formatMonthLabel(success.dateRange.to)}
+          {success.monthsTotal} months in your dataset. Most recent month: {formatMonthLabel(success.dateRange.to)}
         </p>
         {success.currentCash !== null && (
           <p className="mt-0.5 text-xs font-light" style={{ color: "var(--dim)" }}>
@@ -275,6 +279,22 @@ export default function ImportUploader({
           </p>
           <p className="mt-0.5 text-xs font-light" style={{ color: "var(--dim)" }}>
             Excel (.xlsx) or CSV — monthly summary format required
+          </p>
+        </div>
+
+        <div className="w-full">
+          <label htmlFor={modeId} className="text-xs font-medium" style={{ color: "var(--ink)" }}>Upload behavior</label>
+          <select id={modeId} value={mode} aria-describedby={`${modeId}-help`}
+            onChange={event => setMode(event.target.value as FinancialImportMode)}
+            className="mt-1 block w-full px-3 py-2 text-sm"
+            style={{ color: "var(--ink)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius-sm)" }}>
+            <option value="update_months">Update months in this file</option>
+            <option value="replace_all">Replace all financial data</option>
+          </select>
+          <p id={`${modeId}-help`} className="mt-1 text-xs" style={{ color: mode === "replace_all" ? "var(--danger)" : "var(--dim)" }}>
+            {mode === "update_months"
+              ? "Replace values for uploaded months, including blank fields. Keep other months."
+              : "Replace your entire dataset. Months not included in this file will be removed."}
           </p>
         </div>
 

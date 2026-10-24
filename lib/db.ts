@@ -16,7 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
-import { importedBusinessDetails } from "./financialImportPolicy";
+import { importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
 import type {
   Action,
   ActionAuditLog,
@@ -163,6 +163,24 @@ export async function replaceFinancialImport(
   if (!data || typeof data.replaced !== "boolean" || data.months_imported !== months.length) {
     throw new Error("Invalid financial import result");
   }
+  return data;
+}
+
+/** Mode-aware import; never fall back to the legacy full-replacement RPC. */
+export async function importFinancialData(
+  userId: string,
+  months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
+  profile: Partial<Omit<BusinessProfileInsert, "user_id">>,
+  filename: string,
+  mode: FinancialImportMode,
+  serviceClient: SupabaseClient
+): Promise<FinancialImportResult> {
+  const { data, error } = await serviceClient.rpc("import_financial_data", {
+    p_user_id: userId, p_months: months, p_profile: importedBusinessDetails(profile),
+    p_filename: filename, p_mode: mode,
+  });
+  if (error) throw error;
+  if (!isFinancialImportResult(data, mode, months.length)) throw new Error("Invalid financial import result");
   return data;
 }
 
