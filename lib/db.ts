@@ -585,15 +585,10 @@ export async function getSubscription(
   if (error) throw error;
 
   if (!data) {
-    // A webhook may create a paid row after our read. Never update it with
-    // defaults: ON CONFLICT DO NOTHING preserves billing state and identity.
-    const { error: insertError } = await client
-      .from("subscriptions")
-      .upsert(
-        { user_id: userId, plan: "starter", feature_tier: "starter", status: "active" },
-        { onConflict: "user_id", ignoreDuplicates: true }
-      );
-    if (insertError) throw insertError;
+    // The RPC derives identity from auth.uid() and inserts fixed Starter values.
+    // Callers cannot choose a paid tier; a concurrent webhook row always wins.
+    const { error: initializeError } = await client.rpc("initialize_subscription");
+    if (initializeError) throw initializeError;
 
     // Return the stored row, which may belong to the concurrent webhook.
     const { data: initialized, error: readError } = await readSubscription();

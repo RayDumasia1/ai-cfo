@@ -26,16 +26,17 @@ function database(options: {
 } = {}) {
   const rows = new Map<string, Row>();
   let reads = 0;
-  const writes = vi.fn(async (row: Row, settings: { ignoreDuplicates?: boolean }) => {
+  const initialize = vi.fn(async () => {
     if (options.writeError) return { error: options.writeError };
     if (options.concurrentRow) rows.set(userId, { ...options.concurrentRow });
-    const key = row.user_id as string;
-    const existing = rows.get(key);
-    if (!existing) rows.set(key, subscription(row));
-    else if (!settings.ignoreDuplicates) rows.set(key, { ...existing, ...row });
+    if (!rows.has(userId)) rows.set(userId, subscription());
     return { error: null };
   });
   const client = {
+    rpc(name: string) {
+      expect(name).toBe("initialize_subscription");
+      return initialize();
+    },
     from(table: string) {
       expect(table).toBe("subscriptions");
       let filter: string;
@@ -50,12 +51,11 @@ function database(options: {
           const data = row ? Object.fromEntries(columns.split(", ").map(key => [key, row[key]])) : null;
           return { data, error: null };
         },
-        upsert: writes,
       };
       return query;
     },
   } as unknown as SupabaseClient;
-  return { rows, writes, client };
+  return { rows, initialize, client };
 }
 
 describe("subscription default initialization", () => {
@@ -63,6 +63,7 @@ describe("subscription default initialization", () => {
     const db = database();
     expect(await getSubscription(userId, db.client)).toMatchObject({ plan: "starter", status: "active", founding_member_number: null });
     expect(db.rows.get(userId)).toMatchObject({ user_id: userId, plan: "starter" });
+    expect(db.initialize).toHaveBeenCalledExactlyOnceWith();
   });
 
   it.each([
@@ -73,6 +74,7 @@ describe("subscription default initialization", () => {
     const paid = subscription({ ...overrides, stripe_customer_id: "cus_test", stripe_subscription_id: "sub_test", billing_period_end: "2026-11-23T00:00:00Z" });
     const db = database({ concurrentRow: paid });
     const result = await getSubscription(userId, db.client);
+    expect(db.initialize).toHaveBeenCalledExactlyOnceWith();
     expect(db.rows.get(userId)).toEqual(paid);
     expect(result).toMatchObject(overrides);
     expect(result.billing_period_end).toBe(paid.billing_period_end);
@@ -82,7 +84,7 @@ describe("subscription default initialization", () => {
     const db = database();
     db.rows.set(userId, subscription({ plan: "core", feature_tier: "core" }));
     expect(await getSubscription(userId, db.client)).toMatchObject({ plan: "core", feature_tier: "core" });
-    expect(db.writes).not.toHaveBeenCalled();
+    expect(db.initialize).not.toHaveBeenCalled();
   });
 
   it("keeps reads and initialization scoped to the requested account", async () => {
@@ -111,7 +113,7 @@ describe("subscription default initialization", () => {
   it.each([1, 2])("propagates a failure on read %s", async readErrorAt => {
     const db = database({ readErrorAt });
     await expect(getSubscription(userId, db.client)).rejects.toThrow("Read failed");
-    if (readErrorAt === 1) expect(db.writes).not.toHaveBeenCalled();
+    if (readErrorAt === 1) expect(db.initialize).not.toHaveBeenCalled();
   });
 
   it("fails if the initialized subscription cannot be read back", async () => {

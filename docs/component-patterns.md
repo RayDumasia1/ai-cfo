@@ -573,6 +573,10 @@ style:    UI/visual changes only
 | Stripe webhooks | Verify signatures; acknowledge processed/irrelevant events with 200, reject invalid signatures with 400, and return 500 for state-processing failures so Stripe can retry. Normalize statuses before database writes. |
 | Service role client | Only in webhooks, cron jobs, admin routes |
 
+### Database role boundary
+
+Browser roles receive only the table operations used by authenticated product flows. Never grant `TRUNCATE`, `TRIGGER` or `REFERENCES` to `anon` or `authenticated`; row-level security does not protect `TRUNCATE`. Service-role policies with unconditional `true` are unnecessary because the service role bypasses RLS, and must not be assigned to `PUBLIC`. Subscription initialization uses `initialize_subscription()` with fixed Starter values derived from `auth.uid()`; authenticated callers cannot insert or update subscription entitlements directly. Any `SECURITY DEFINER` account RPC must use an empty `search_path`, schema-qualified objects, an explicit `auth.uid()` ownership check, and narrowly scoped execute grants.
+
 ---
 
 ### Authentication and email verification
