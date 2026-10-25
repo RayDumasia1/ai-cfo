@@ -30,7 +30,7 @@ describe("Financial data page boundary and navigation",()=>{
     expect(getFinancialImportStatus).not.toHaveBeenCalled();
     expect(getRecentFinancialImports).not.toHaveBeenCalled();
   });
-  it("uses the authenticated account and shared uploader, with a direct route back to a fresh dashboard",async()=>{
+  it("uses the authenticated account and shared uploader, with one route back to the dashboard",async()=>{
     const html = renderToStaticMarkup(await FinancialDataPage());
     expect(getFinancialMonths).toHaveBeenCalledExactlyOnceWith("own-account",null,client);
     expect(getFinancialImportStatus).toHaveBeenCalledExactlyOnceWith("own-account",client);
@@ -41,7 +41,8 @@ describe("Financial data page boundary and navigation",()=>{
     expect(html).toContain("Download template");
     expect(html).toContain("Recent imports");
     expect(html).toContain('href="/downloads/elidan-financial-template-v2.xlsx"');
-    expect(html).toContain('href="/dashboard"');
-    expect(html).toContain("View dashboard");
+    expect(html.match(/href="\/dashboard"/g)).toHaveLength(1);
+    expect(html).toContain("Back to dashboard");
+    expect(html).not.toContain("View dashboard");
   });
 });
