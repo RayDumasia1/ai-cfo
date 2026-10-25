@@ -20,6 +20,7 @@ import type {
 } from "./types";
 
 import { isProtectedAlertCode } from "./alertPolicy";
+import { normalizedCashHealth } from "./normalizedCashHealth";
 
 /** Shift the shortest decimal representation without multiplication/division noise. */
 function scaleDecimal(value: number, exponent: number): number {
@@ -42,7 +43,7 @@ export function percentageToDecimal(value: number): number {
  *   'data_reload' — snoozed while data_version matches the version at dismissal time.
  *   '24h' / '7d'  — snoozed while the current time is before snooze_until.
  *
- * Danger alert codes (RUNWAY_DANGER, CASH_BELOW_RESERVE) always return false —
+ * Protected legacy and normalized danger alert codes always return false —
  * they cannot be snoozed regardless of any dismissal record.
  */
 export function isAlertSnoozed(
@@ -110,8 +111,12 @@ export function runwayMonths(cashBalance: number, burn: number): number {
  *   today is the correct anchor.
  */
 export function runoutDate(months: number, anchorMonthDate?: string): string {
+  const anchorDay=anchorMonthDate&&/^\d{4}-\d{2}-\d{2}$/.test(anchorMonthDate)
+    ? Number(anchorMonthDate.slice(8,10)) : null;
   const date = anchorMonthDate
-    ? new Date(Date.UTC(Number(anchorMonthDate.slice(0,4)),Number(anchorMonthDate.slice(5,7)),0,12))
+    ? anchorDay!==null&&anchorDay!==1
+      ? new Date(Date.UTC(Number(anchorMonthDate.slice(0,4)),Number(anchorMonthDate.slice(5,7))-1,anchorDay,12))
+      : new Date(Date.UTC(Number(anchorMonthDate.slice(0,4)),Number(anchorMonthDate.slice(5,7)),0,12))
     : new Date();
   date.setUTCDate(date.getUTCDate()+months*30.436875);
   return date.toLocaleDateString("en-US", {
@@ -226,6 +231,11 @@ export function currentRunway(
   monthsNewestFirst: FinancialMonth[],
   now = new Date()
 ): number | null {
+  if (monthsNewestFirst[0]?.data_contract_version === 2) {
+    const normalized = normalizedCashHealth(monthsNewestFirst);
+    if ((financialDataAgeDays(normalized.window.periodEnd, now) ?? Infinity) > 90) return null;
+    return normalized.operating.estimatedRunwayMonths;
+  }
   if ((financialDataAgeDays(monthsNewestFirst[0]?.month_date,now) ?? Infinity) > 90) return null;
   return legacyCashHealth(cash,monthsNewestFirst).estimatedRunway;
 }
@@ -374,6 +384,9 @@ export function alertEngine(
   profile: BusinessProfile,
   now = new Date()
 ): Alert[] {
+  if (months[0]?.data_contract_version === 2) {
+    return normalizedAlertEngine(months, profile, now);
+  }
   const alerts: Alert[] = [];
 
   const m0 = months[0];
@@ -478,6 +491,84 @@ export function alertEngine(
   const order: Record<string, number> = { danger: 0, warning: 1, success: 2 };
   alerts.sort((a, b) => order[a.severity] - order[b.severity]);
 
+  return alerts;
+}
+
+/** FIN-03B alerts for classified contract-v2 data. */
+function normalizedAlertEngine(
+  months: FinancialMonth[],
+  profile: BusinessProfile,
+  now: Date,
+): Alert[] {
+  const alerts: Alert[] = [];
+  const metric = normalizedCashHealth(months);
+  const ageDays = financialDataAgeDays(metric.window.periodEnd, now);
+  if (ageDays === null || ageDays > 90) return alerts;
+
+  const runway = metric.window.monthsUsed === 3
+    ? metric.operating.estimatedRunwayMonths
+    : null;
+  const money = new Intl.NumberFormat("en-US", { style: "currency",
+    currency: metric.window.reportingCurrency ?? "USD", maximumFractionDigits: 0 });
+  if (runway !== null && runway < profile.runway_danger_threshold) {
+    alerts.push({
+      code: "OPERATING_RUNWAY_DANGER",
+      severity: "danger",
+      title: "Critical operating runway alert",
+      message: `Estimated operating runway is ${runway.toFixed(1)} months — below your ${profile.runway_danger_threshold}-month danger threshold. This estimate excludes non-operating payments and future commitments.`,
+    });
+  } else if (runway !== null && runway < profile.runway_warning_threshold) {
+    alerts.push({
+      code: "OPERATING_RUNWAY_WARNING",
+      severity: "warning",
+      title: `Operating runway below ${profile.runway_warning_threshold} months`,
+      message: `Estimated operating runway is ${runway.toFixed(1)} months. This estimate excludes non-operating payments and future commitments.`,
+    });
+  }
+
+  const ordered = [...months].sort((a, b) => b.month_date.localeCompare(a.month_date));
+  const newestEligibleIndex = ordered.findIndex(month => month.month_date === metric.window.periodEnd);
+  const current = newestEligibleIndex >= 0 ? ordered[newestEligibleIndex] : undefined;
+  const previous = metric.window.monthsUsed >= 2 ? ordered[newestEligibleIndex + 1] : undefined;
+
+  if (current && previous && previous.operating_cash_paid! > 0) {
+    const change = burnRateChangeMoM(current.operating_cash_paid!, previous.operating_cash_paid!);
+    if (change > profile.burn_rate_warning_pct * 100) {
+      alerts.push({
+        code: "OPERATING_SPENDING_INCREASE",
+        severity: "warning",
+        title: "Operating cash spending increased",
+        message: `Operating cash paid increased by ${change.toFixed(1)}% last month, exceeding your ${(profile.burn_rate_warning_pct * 100).toFixed(0)}% warning threshold.`,
+      });
+    }
+  }
+
+  if (metric.cash.availableCash !== null
+      && profile.min_cash_reserve !== null
+      && metric.cash.availableCash < profile.min_cash_reserve) {
+    alerts.push({
+      code: "AVAILABLE_CASH_BELOW_RESERVE",
+      severity: "danger",
+      title: "Available cash below minimum reserve",
+      message: `Available cash (${money.format(metric.cash.availableCash)}) is below your minimum reserve of ${money.format(profile.min_cash_reserve)}.`,
+    });
+  }
+
+  if (current && previous && previous.cash_collected_from_customers! > 0) {
+    const growth = (current.cash_collected_from_customers! - previous.cash_collected_from_customers!)
+      / previous.cash_collected_from_customers!;
+    if (growth > 0.05) {
+      alerts.push({
+        code: "CUSTOMER_COLLECTIONS_INCREASE",
+        severity: "success",
+        title: "Customer cash collections increased",
+        message: `Customer cash collections increased ${(growth * 100).toFixed(1)}% last month. Review whether the change is recurring or timing-related.`,
+      });
+    }
+  }
+
+  const order: Record<string, number> = { danger: 0, warning: 1, success: 2 };
+  alerts.sort((a, b) => order[a.severity] - order[b.severity]);
   return alerts;
 }
 

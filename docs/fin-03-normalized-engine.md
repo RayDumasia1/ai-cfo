@@ -1,6 +1,6 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A implemented; application consumers remain on FIN-02 until preview validation  
+**Status:** FIN-03A in preview; FIN-03B dashboard and alert integration implemented locally
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
@@ -44,4 +44,17 @@ Confirmed zero is a valid value. Missing is unavailable. Negative available cash
 
 ## Release boundary
 
-FIN-03A does not change dashboard cards, alerts, the manual calculator, stored data or SQL. FIN-03B will integrate the shared result into customer-facing behavior only after this engine and its language are validated. Legacy rows continue to use the FIN-02 compatibility path and are never reclassified as v2.
+FIN-03A does not change stored data or SQL. FIN-03B dispatches dashboard cards and alerts by the latest row's contract version: version 1 remains on FIN-02, while version 2 uses this engine. The manual calculator and scenarios remain deferred to FIN-03C. Legacy rows are never reclassified as v2.
+
+## FIN-03B customer-facing integration
+
+For version-2 datasets, the four dashboard cards become Available Cash, Operating Cash Buffer, Operating Cash Trend and Operating Runway. Available Cash subtracts the reported unavailable amount and shows it separately. Operating cards use customer collections and operating payments; runway copy states that debt principal, owner draws, investing activity and future commitments are excluded. Partial-period cash uses its cutoff date while the trend window remains limited to completed months.
+
+Version-2 alerts use distinct identifiers so legacy dismissals cannot hide a newly defined operating alert:
+
+- `OPERATING_RUNWAY_DANGER` and `OPERATING_RUNWAY_WARNING` require three eligible current months;
+- `OPERATING_SPENDING_INCREASE` compares consecutive eligible operating cash payments;
+- `AVAILABLE_CASH_BELOW_RESERVE` compares available cash with the saved reserve;
+- `CUSTOMER_COLLECTIONS_INCREASE` compares consecutive eligible customer collections.
+
+Operating runway danger and available-cash reserve alerts remain protected from dismissal. The legacy accounts-receivable comparison is not emitted for v2 because the approved contract does not treat receivables exceeding cash as inherently unhealthy. Historical v2 data emits no current-state alerts. No database migration accompanies FIN-03B; alert-code columns are text and existing action links accept bounded text values.

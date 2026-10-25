@@ -150,6 +150,7 @@ export default async function DashboardPage({
             initialData={cashPosition}
             minCashReserve={profile?.min_cash_reserve}
             isNewUser={isNewUser}
+            months={recentMonths}
           />
           <BurnRateCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} isNewUser={isNewUser} />
           <RunwayCard

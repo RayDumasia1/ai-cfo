@@ -97,6 +97,26 @@ const ALERT_ACTION_PREFILL: Partial<
     goal_type: "revenue_increase",
     description: "Outstanding invoices are collected and cash is in",
   },
+  AVAILABLE_CASH_BELOW_RESERVE: {
+    name: "Rebuild available cash reserve",
+    goal_type: "expense_reduction",
+    description: "Available cash is back above my minimum reserve",
+  },
+  OPERATING_RUNWAY_DANGER: {
+    name: "Improve operating cash runway",
+    goal_type: "runway_improvement",
+    description: "Operating runway is above my danger threshold",
+  },
+  OPERATING_RUNWAY_WARNING: {
+    name: "Improve operating cash runway",
+    goal_type: "runway_improvement",
+    description: "Operating runway is above my warning threshold",
+  },
+  OPERATING_SPENDING_INCREASE: {
+    name: "Review operating cash spending",
+    goal_type: "expense_reduction",
+    description: "Operating cash spending is back in line with recent months",
+  },
 };
 
 /**
