@@ -7,25 +7,28 @@ export function escapeHtml(value: string | number): string {
   return String(value).replace(/[&<>"']/g, character => entities[character]);
 }
 
-/** Provider acceptance is not inbox delivery. Notification failure never rolls back billing. */
-export async function sendEmail(message: CreateEmailOptions, context: string): Promise<boolean> {
+export type EmailDeliveryResult = { accepted: true; providerMessageId: string } |
+  { accepted: false; reason: "provider_rejected" | "unconfirmed" | "send_exception" };
+
+export async function deliverEmail(message: CreateEmailOptions, context: string): Promise<EmailDeliveryResult> {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send(message);
     if (error || typeof data?.id !== "string" || !data.id) {
-      // Do not log provider messages, recipients, HTML, tokens, or raw exceptions.
+      const reason = error ? "provider_rejected" : "unconfirmed";
       const status = error?.statusCode;
-      console.error("email:delivery:error", {
-        context,
-        reason: error ? "provider_rejected" : "unconfirmed",
-        ...(typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599
-          ? { providerStatus: status } : {}),
-      });
-      return false;
+      console.error("email:delivery:error", { context, reason,
+        ...(typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? {providerStatus:status} : {}) });
+      return { accepted:false, reason };
     }
-    return true;
+    return { accepted:true, providerMessageId:data.id };
   } catch {
-    console.error("email:delivery:error", { context, reason: "send_exception" });
-    return false;
+    console.error("email:delivery:error", {context,reason:"send_exception"});
+    return {accepted:false,reason:"send_exception"};
   }
+}
+
+/** Provider acceptance is not inbox delivery. Notification failure never rolls back billing. */
+export async function sendEmail(message: CreateEmailOptions, context: string): Promise<boolean> {
+  return (await deliverEmail(message,context)).accepted;
 }

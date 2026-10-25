@@ -9,7 +9,9 @@ import { createClient } from "../utils/supabase/server";
 import { createServiceClient } from "../utils/supabase/service";
 import { POST } from "../app/api/notify-me/route";
 
-const upsert = vi.fn();
+const rpc = vi.fn();
+const update = vi.fn();
+const eq = vi.fn();
 const getUser = vi.fn();
 const maybeSingle = vi.fn();
 const select = vi.fn();
@@ -19,12 +21,13 @@ function request(body = JSON.stringify({ email: "person@example.invalid", featur
 beforeEach(() => {
   vi.resetAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
-  const builder = { upsert, select, maybeSingle };
-  upsert.mockReturnValue(builder); select.mockReturnValue(builder);
+  const builder = { update, eq, select, maybeSingle };
+  update.mockReturnValue(builder); eq.mockReturnValue(builder); select.mockReturnValue(builder);
   maybeSingle.mockResolvedValue({ data: { email: "person@example.invalid" }, error: null });
   getUser.mockResolvedValue({ data: { user: { id: "own-user" } }, error: null });
   vi.mocked(createClient).mockResolvedValue({ auth: { getUser } } as unknown as Awaited<ReturnType<typeof createClient>>);
-  vi.mocked(createServiceClient).mockReturnValue({ from: () => builder } as unknown as ReturnType<typeof createServiceClient>);
+  rpc.mockResolvedValue({data:{inserted:true,outbox:[{id:1,message_type:"feature_customer_confirmation"},{id:2,message_type:"feature_internal_notification"}]},error:null});
+  vi.mocked(createServiceClient).mockReturnValue({ rpc, from: () => builder } as unknown as ReturnType<typeof createServiceClient>);
   send.mockResolvedValue({ data: { id: "email_test" }, error: null });
 });
 afterEach(() => vi.restoreAllMocks());
@@ -41,21 +44,22 @@ describe("notify-me registration", () => {
   it("escapes HTML-sensitive email characters and scopes attribution to Auth", async () => {
     const response = await POST(request(JSON.stringify({ email: " o'connor&co@example.invalid ", feature: "cfo_call", user_id: "another-user" })));
     expect(response.status).toBe(200);
-    expect(upsert).toHaveBeenCalledWith({ email: "o'connor&co@example.invalid", feature: "cfo_call", user_id: "own-user" }, { onConflict: "email,feature", ignoreDuplicates: true });
-    const payload = send.mock.calls[0][0];
-    expect(payload.to).toBe("hello@elidan.ai");
-    expect(payload.html).toContain("o&#39;connor&amp;co@example.invalid");
-    expect(payload.html).not.toContain("o'connor&co@example.invalid");
+    expect(rpc).toHaveBeenCalledWith("register_feature_notification",{p_email:"o'connor&co@example.invalid",p_feature:"cfo_call",p_user_id:"own-user"});
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][0].to).toBe("o'connor&co@example.invalid");
+    expect(send.mock.calls[0][0].subject).toBe("You're on the list for CFO assistance");
+    expect(send.mock.calls[0][0].html).toContain("CFO assistance");
+    expect(send.mock.calls[1][0].html).toContain("o&#39;connor&amp;co@example.invalid");
   });
   it("does not send another support email for an ignored duplicate", async () => {
-    maybeSingle.mockResolvedValue({ data: null, error: null });
+    rpc.mockResolvedValue({data:{inserted:false,outbox:[]},error:null});
     expect((await POST(request())).status).toBe(200);
     expect(send).not.toHaveBeenCalled();
   });
   it.each(["anonymous", "auth error"])("does not trust account attribution for %s requests", async condition => {
     getUser.mockResolvedValue({ data: { user: condition === "anonymous" ? null : { id: "untrusted" } }, error: condition === "auth error" ? new Error("Invalid session") : null });
     expect((await POST(request())).status).toBe(200);
-    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: null }), expect.anything());
+    expect(rpc).toHaveBeenCalledWith("register_feature_notification",expect.objectContaining({p_user_id:null}));
   });
   it.each(["provider rejection", "exception"])("preserves saved registration and logs %s without exposing provider details", async condition => {
     if (condition === "exception") send.mockRejectedValue(new Error("pretend-secret"));
@@ -63,15 +67,25 @@ describe("notify-me registration", () => {
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
-    expect(upsert).toHaveBeenCalledOnce();
-    expect(console.error).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(console.error).toHaveBeenCalled();
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("pretend-secret");
   });
   it("does not send email when registration fails", async () => {
-    maybeSingle.mockResolvedValue({ data: null, error: { message: "Internal database detail" } });
+    rpc.mockResolvedValue({ data: null, error: { message: "Internal database detail" } });
     const response = await POST(request());
     expect(response.status).toBe(500);
     expect(await response.text()).not.toContain("Internal database detail");
+    expect(send).not.toHaveBeenCalled();
+  });
+  it.each([
+    { inserted: true, outbox: [] },
+    { inserted: false, outbox: [{ id: 1, message_type: "feature_customer_confirmation" }] },
+    { inserted: true, outbox: [{ id: 1, message_type: "feature_customer_confirmation" }, { id: 2, message_type: "feature_customer_confirmation" }] },
+  ])("fails closed when the registration RPC returns inconsistent work: %j", async registration => {
+    rpc.mockResolvedValue({ data: registration, error: null });
+    const response = await POST(request());
+    expect(response.status).toBe(500);
     expect(send).not.toHaveBeenCalled();
   });
 });
