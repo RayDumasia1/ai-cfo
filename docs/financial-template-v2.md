@@ -1,6 +1,6 @@
 # Financial template v2
 
-**Status:** Version-2 workbook published to preview; end-to-end validation pending
+**Status:** Version-2 workbook published and end-to-end validated in preview; production promotion pending
 **Date:** 24 October 2026
 **Depends on:** [Financial data contract v2](financial-data-contract-v2.md)
 
@@ -67,6 +67,8 @@ These values are a temporary dashboard projection. The classified version-2 colu
 Apply [the DATA-01C migration](migrations/2026-10-24-v2-financial-import.sql) in preview after DATA-01A, then run [the rollback verifier](migrations/verify-v2-financial-import.sql) with two dedicated preview accounts. Do not run the verifier in production.
 
 The migration and complete rollback verifier passed in preview on 24 October 2026.
+
+The public v2 download, review, atomic import and dashboard compatibility path were validated in preview on 24 October 2026. The resulting monthly rows were confirmed as `data_contract_version = 2` with valid server-generated reconciliation differences.
 
 ## Verification completed
 
