@@ -11,6 +11,8 @@ The default owner dashboard translates those definitions into Cash Balance, Cash
 
 Cash Balance accents are freshness-aware. Current data may use the saved minimum-reserve comparison, 46–90-day data uses a warning accent, and data older than 90 days uses a neutral accent. A historical balance must not inherit a green healthy-state treatment.
 
+DATA-01 contract v2 is specified in [financial-data-contract-v2.md](financial-data-contract-v2.md). Schema evolution is additive: never copy ambiguous legacy revenue/expense values into classified cash-flow fields. Keep legacy writers on contract version 1 until the v2 parser and reviewed-import transaction publish every required field atomically. Revision snapshots use full monthly-row JSON and therefore preserve new columns automatically.
+
 ---
 
 ## 01 Brand Tokens

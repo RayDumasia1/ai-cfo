@@ -9,6 +9,14 @@ function month(date: string, expenses = 300): FinancialMonth {
   return { id: date, user_id: "synthetic-user", business_id: null, month_date: date,
     opening_cash: 1100, closing_cash: 1000, total_revenue: 200, total_expenses: expenses,
     payroll: null, ar_outstanding: null, ap_outstanding: null, notes: null,
+    data_contract_version:1,source_type:"legacy_spreadsheet",accounting_basis:null,reporting_currency:null,
+    period_status:"unknown",period_cutoff_date:null,opening_included_cash:null,closing_included_cash:null,
+    closing_unavailable_cash:null,cash_collected_from_customers:null,operating_cash_paid:null,
+    owner_draws_paid:null,debt_principal_paid:null,debt_interest_paid:null,investing_cash_paid:null,
+    investing_cash_received:null,debt_funding_received:null,owner_funding_received:null,
+    other_cash_inflows:null,other_cash_outflows:null,closing_taxes_reserved:null,
+    ar_expected_within_30_days:null,ap_due_within_30_days:null,available_credit:null,
+    credit_currently_drawn:null,lowest_observed_cash:null,cash_reconciliation_difference:null,
     created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
 }
 const year = Array.from({ length: 12 }, (_, i) => month(`2025-${String(12-i).padStart(2,"0")}-01`));
