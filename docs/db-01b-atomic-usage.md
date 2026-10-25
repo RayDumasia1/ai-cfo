@@ -2,6 +2,8 @@
 
 DB-01B prepares quota enforcement for future Ask CFO and AI Insights endpoints. Those endpoints still return `501 FEATURE_NOT_IMPLEMENTED` before usage work, so this increment does not enable AI, consume customer allowances, send usage warnings, or introduce provider costs.
 
+Preview validation completed on 25 October 2026. The sequential verifier passed, and two independent database sessions competing for the final hard-limit slot produced one committed count of 20 and one denial at 20. The verifier removed its temporary 2099 fixture.
+
 ## Contract
 
 `public.consume_usage(uuid,text,timestamptz,timestamptz,integer,boolean)` is service-role-only. Authenticated browser sessions cannot call it or the retired `increment_usage` function. A future API route must first authenticate the user, confirm email/subscription/feature access, derive the tier limit and overage policy on the server, and then use the service client with that validated user ID.
