@@ -199,6 +199,19 @@ export async function getFinancialImportReviewState(userId: string, serviceClien
   return data;
 }
 
+export async function isV2FinancialImportUnchanged(
+  userId: string, months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
+  profile: Partial<Omit<BusinessProfileInsert, "user_id">>, mode: FinancialImportMode,
+  serviceClient: SupabaseClient
+): Promise<boolean> {
+  const { data, error } = await serviceClient.rpc("financial_import_v2_is_unchanged", {
+    p_user_id: userId, p_months: months, p_profile: importedBusinessDetails(profile), p_mode: mode,
+  });
+  if (error) throw error;
+  if (typeof data !== "boolean") throw new Error("Invalid financial import comparison result");
+  return data;
+}
+
 export async function commitReviewedFinancialImport(
   userId: string, months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
   profile: Partial<Omit<BusinessProfileInsert, "user_id">>, filename: string,

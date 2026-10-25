@@ -5,6 +5,7 @@ import { isImportNotice, type ImportNotice } from "./importNotices";
 
 export interface ImportReviewState { state_version: string; months: string[]; }
 export interface ImportReview {
+  unchanged: boolean;
   filename: string;
   mode: FinancialImportMode;
   incomingMonths: string[];
@@ -85,7 +86,7 @@ export function getImportReviewNotices(review: ImportReview): ImportNotice[] {
   return notices;
 }
 
-export function buildImportReview(filename: string, mode: FinancialImportMode, incoming: string[], state: ImportReviewState, warnings: string[], parserNotices: ImportNotice[] = []): ImportReview {
+export function buildImportReview(filename: string, mode: FinancialImportMode, incoming: string[], state: ImportReviewState, warnings: string[], parserNotices: ImportNotice[] = [], unchanged = false): ImportReview {
   const current = new Set(state.months);
   const dates = [...incoming].sort();
   const uploaded = new Set(dates);
@@ -94,7 +95,7 @@ export function buildImportReview(filename: string, mode: FinancialImportMode, i
   const visible = new Set(resulting.slice(-DASHBOARD_MONTH_LIMIT));
   const missing = missingMonthNotices(dates, current, mode);
   return {
-    filename, mode, incomingMonths: dates,
+    filename, mode, unchanged, incomingMonths: dates,
     addedMonths: dates.filter(date => !current.has(date)),
     updatedMonths: dates.filter(date => current.has(date)),
     removedMonths: mode === "replace_all" ? state.months.filter(date => !uploaded.has(date)).sort() : [],
@@ -119,7 +120,7 @@ export function isImportReview(value: unknown, mode: FinancialImportMode): value
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   const lists = ["incomingMonths", "addedMonths", "updatedMonths", "removedMonths", "olderMonths", "outsideDashboardMonths"] as const;
-  if (!isFinancialImportMode(v.mode) || v.mode !== mode || typeof v.filename !== "string" || !v.filename ||
+  if (!isFinancialImportMode(v.mode) || v.mode !== mode || typeof v.unchanged !== "boolean" || typeof v.filename !== "string" || !v.filename ||
     !lists.every(field => isMonthList(v[field])) || !Array.isArray(v.warnings) || !v.warnings.every(w => typeof w === "string") ||
     (v.notices !== undefined && (!Array.isArray(v.notices) || !v.notices.every(isImportNotice)))) return false;
   const review = value as ImportReview;

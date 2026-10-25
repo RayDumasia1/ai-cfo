@@ -21,6 +21,7 @@ import {
 import {
   hasPaidSubscription,
   getFinancialImportReviewState,
+  isV2FinancialImportUnchanged,
   commitReviewedFinancialImport,
   logDataImport,
 } from "@/lib/db";
@@ -203,8 +204,10 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     }
 
     if (operation === "review") {
-      const state = await getFinancialImportReviewState(user.id, createServiceClient());
-      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), state, parsed.warnings, parsed.notices);
+      const service = createServiceClient();
+      const state = await getFinancialImportReviewState(user.id, service);
+      const unchanged = parsed.contractVersion === 2 && await isV2FinancialImportUnchanged(user.id, parsed.months, parsed.profile, mode, service);
+      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), state, parsed.warnings, parsed.notices, unchanged);
       const reviewToken = issueImportReviewToken(identity, state.state_version);
       return NextResponse.json({ success: true, review, reviewToken, requestId }, { headers: { "Cache-Control": "no-store" } });
     }

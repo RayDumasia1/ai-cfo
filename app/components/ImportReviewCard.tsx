@@ -41,6 +41,12 @@ export default function ImportReviewCard({ review, onConfirm, onCancel }: {
   const first = review.incomingMonths[0];
   const last = review.incomingMonths.at(-1)!;
   const count = review.incomingMonths.length;
+  if (review.unchanged) return <section aria-labelledby={titleId} role="status" className="min-w-0 p-6 text-left" style={{color:"var(--ink)",background:"var(--surface)",border:"1px solid var(--line)",borderLeft:"3px solid var(--teal)",borderRadius:"var(--radius-lg)"}}>
+    <h2 ref={title} id={titleId} tabIndex={-1} className="text-lg font-medium">Your financial data is already up to date</h2>
+    <p className="mt-2 text-sm" style={{color:"var(--dim)"}}>This file matches your saved financial data. No changes are needed.</p>
+    <p className="mt-1 break-words text-xs" style={{color:"var(--dim)"}}>{review.filename}</p>
+    <button type="button" onClick={onCancel} className="mt-4 px-4 py-2 text-sm font-medium" style={{color:"var(--surface)",background:"var(--teal)",borderRadius:"var(--radius-sm)"}}>Choose another file</button>
+  </section>;
   const notices = getImportReviewNotices(review);
   const important = notices.filter(notice => notice.category !== "info" || notice.code === "missing_kept");
   const informational = notices.filter(notice => notice.category === "info" && !["missing_kept", "missing_continue"].includes(notice.code));

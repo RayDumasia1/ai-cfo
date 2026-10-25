@@ -21,6 +21,13 @@ BEGIN
   END IF;
 
   PERFORM public.import_financial_data_v2(account_a,month_payload,'{}','idempotent-seed.xlsx','replace_all');
+  ASSERT public.financial_import_v2_is_unchanged(account_a,month_payload,'{}','update_months'),
+    'Review did not identify the unchanged v2 update';
+  ASSERT public.financial_import_v2_is_unchanged(account_a,month_payload,'{}','replace_all'),
+    'Review did not identify the unchanged v2 replacement';
+  ASSERT NOT public.financial_import_v2_is_unchanged(account_a,
+    jsonb_set(month_payload,'{0,notes}','"changed"'::jsonb),'{}','update_months'),
+    'Review incorrectly identified changed v2 data as unchanged';
   SELECT jsonb_build_object(
     'profile',(SELECT to_jsonb(p) FROM public.business_profiles p WHERE p.user_id=account_a),
     'months',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM public.financial_months m WHERE m.user_id=account_a),

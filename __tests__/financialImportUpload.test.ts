@@ -166,6 +166,14 @@ describe("reviewed financial upload", () => {
     expect(markup).toContain("Add 1 month");
   });
 
+  it("shows an unchanged review as a terminal state without an import button", () => {
+    const html = renderToStaticMarkup(createElement(ImportReviewCard,{review:{...review(),unchanged:true},onConfirm:vi.fn(),onCancel:vi.fn()}));
+    expect(html).toContain("Your financial data is already up to date");
+    expect(html).toContain("No changes are needed");
+    expect(html).toContain("Choose another file");
+    expect(html).not.toContain("Update 1 month");
+  });
+
   it("identifies newer months that replacement will remove and escapes user text", () => {
     const changed = {...review("replace_all"),filename:"<script>unsafe</script>",warnings:["<em>unsafe</em>"]};
     const markup = renderToStaticMarkup(createElement(ImportReviewCard,{review:changed,onConfirm:vi.fn(),onCancel:vi.fn()}));

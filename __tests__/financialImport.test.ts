@@ -374,6 +374,18 @@ describe("explicit import modes", () => {
 });
 
 describe("read-only upload review and guarded confirmation", () => {
+  it("surfaces a v2 semantic no-op during review without offering a confirmation write", async () => {
+    parsed.contractVersion = 2;
+    rpc.mockImplementation(async name => name === "financial_import_review_state"
+      ? { data: { state_version: reviewedState, months: ["2026-09-01"] }, error: null }
+      : name === "financial_import_v2_is_unchanged" ? { data: true, error: null }
+      : { data: null, error: { message: "unexpected rpc" } });
+    const response = await REVIEW(request());
+    expect(response.status).toBe(200);
+    expect((await response.json()).review.unchanged).toBe(true);
+    expect(rpc).toHaveBeenCalledWith("financial_import_v2_is_unchanged", expect.objectContaining({p_user_id:user.id,p_mode:"update_months"}));
+    expect(rpc).not.toHaveBeenCalledWith("import_reviewed_financial_data", expect.anything());
+  });
   it("returns missing-month consequences in a read-only review without changing the commit contract", async () => {
     parsed.months = [month("2025-02-01"),month("2025-04-01")];
     rpc.mockResolvedValue({ data: {state_version:reviewedState,months:["2025-03-01"]}, error:null });
