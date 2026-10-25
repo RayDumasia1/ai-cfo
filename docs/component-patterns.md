@@ -581,6 +581,8 @@ Browser roles receive only the table operations used by authenticated product fl
 
 Stripe event delivery is at-least-once and may be out of order. The webhook must atomically claim `event.id` in `stripe_webhook_events`; completed or concurrently processing IDs are acknowledged without repeating side effects, while failed and abandoned claims can be retried. Subscription update events are signals to retrieve the current Stripe subscription and persist that authoritative state. Match both customer and subscription IDs before writing. Database failures return 500 for Stripe retry. Email-provider failures are logged for operational follow-up and never roll back or corrupt committed billing access.
 
+Checkout uses the account-scoped, idempotent Stripe customer key as a reconciliation boundary. If the database has lost its Stripe references but that customer already owns a nonterminal subscription, checkout must not create another subscription. Resolve the plan from trusted subscription metadata or the configured price mapping, restore the customer/subscription/price/status/period fields without changing permanent Founding identity, and route the user to Billing. Unknown prices fail closed for support review.
+
 ---
 
 ### Authentication and email verification

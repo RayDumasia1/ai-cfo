@@ -1,12 +1,21 @@
 import { requireAuth } from "@/lib/apiAuth";
-import { stripe, STRIPE_PRICES } from "@/lib/stripe";
+import { stripe, STRIPE_PRICES, PLAN_TO_TIER } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
 import { getFoundingMemberAvailability } from "@/lib/foundingMembers";
-import { CheckoutConflict, subscriptionCheckout } from "@/lib/subscriptionCheckout";
+import { CheckoutConflict, SubscriptionRecovered, subscriptionCheckout } from "@/lib/subscriptionCheckout";
 import { ensureBillingCustomer } from "@/lib/db";
+import { getSubscriptionStatus } from "@/lib/subscriptionStatus";
+import type Stripe from "stripe";
 import type { NextRequest } from "next/server";
 
 const VALID_PLAN_KEYS = new Set(Object.keys(STRIPE_PRICES));
+
+function planForSubscription(subscription: Stripe.Subscription) {
+  const metadataPlan = subscription.metadata?.plan_key;
+  if (metadataPlan && metadataPlan !== "cfo_call" && VALID_PLAN_KEYS.has(metadataPlan)) return metadataPlan;
+  const priceId = subscription.items.data[0]?.price.id;
+  return Object.entries(STRIPE_PRICES).find(([key, value]) => key !== "cfo_call" && value === priceId)?.[0] ?? null;
+}
 
 export const POST = requireAuth(async (req: NextRequest, { userId }) => {
   let body: unknown;
@@ -61,6 +70,26 @@ export const POST = requireAuth(async (req: NextRequest, { userId }) => {
       const url = await subscriptionCheckout(stripe, supabase, {
         userId, planKey, priceId, appUrl,
         customerId: sub?.stripe_customer_id ?? null,
+        onExistingSubscription: async (customerId, existing) => {
+          const recoveredPlan = planForSubscription(existing);
+          if (!recoveredPlan) throw new Error("Existing Stripe subscription has an unknown plan");
+          const item = existing.items.data[0];
+          const status = getSubscriptionStatus(existing);
+          const { error: recoveryError } = await supabase.from("subscriptions").update({
+            stripe_customer_id: customerId,
+            stripe_subscription_id: existing.id,
+            stripe_price_id: item?.price.id ?? null,
+            plan: recoveredPlan,
+            feature_tier: PLAN_TO_TIER[recoveredPlan] ?? "starter",
+            status,
+            billing_period_start: item?.current_period_start
+              ? new Date(item.current_period_start * 1000).toISOString() : null,
+            billing_period_end: (existing.cancel_at ?? item?.current_period_end)
+              ? new Date((existing.cancel_at ?? item!.current_period_end) * 1000).toISOString() : null,
+            ...(status === "active" ? { cancelled_at: null } : {}),
+          }).eq("user_id", userId).is("stripe_subscription_id", null);
+          if (recoveryError) throw recoveryError;
+        },
       });
       return Response.json({ url });
     }
@@ -83,6 +112,12 @@ export const POST = requireAuth(async (req: NextRequest, { userId }) => {
     });
     return Response.json({ url: session.url });
   } catch (err) {
+    if (err instanceof SubscriptionRecovered) {
+      return Response.json({
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/settings?tab=billing`,
+        reconciled: true,
+      });
+    }
     if (err instanceof CheckoutConflict) {
       return Response.json({ error: err.message }, { status: 409 });
     }

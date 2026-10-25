@@ -262,10 +262,34 @@ describe("subscription checkout", () => {
     }
   );
 
-  it("blocks a Stripe subscription even when the database has not received its webhook", async () => {
-    seedSubscription({ stripe_subscription_id: null, plan: "starter" });
-    subscriptions.push({ customer: "cus_existing", status: "active" });
-    expect((await checkout(request(), {})).status).toBe(409);
+  it("recovers a Stripe subscription when the database has not received its webhook", async () => {
+    const row = seedSubscription({ stripe_subscription_id: null, plan: "starter", feature_tier: "starter" });
+    subscriptions.push({
+      id: "sub_recovered", customer: "cus_existing", status: "active", metadata: { plan_key: "core" },
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+    });
+    expect((await checkout(request(), {})).status).toBe(200);
+    expect(row).toMatchObject({ stripe_subscription_id: "sub_recovered", plan: "core", feature_tier: "core", status: "active" });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it("repairs both missing Stripe links when the idempotent customer already has a subscription", async () => {
+    const row = seedSubscription({
+      plan: "starter", feature_tier: "starter", status: "cancelled",
+      stripe_customer_id: null, stripe_subscription_id: null,
+    });
+    const customer = `cus_billing-customer:${userId}`;
+    subscriptions.push({
+      id: "sub_existing", customer, status: "active", metadata: { plan_key: "core" },
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+    });
+    const response = await checkout(request(), {});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ url: expect.stringContaining("/dashboard/settings?tab=billing"), reconciled: true });
+    expect(row).toMatchObject({
+      stripe_customer_id: customer, stripe_subscription_id: "sub_existing",
+      plan: "core", feature_tier: "core", status: "active", stripe_price_id: "price_core",
+    });
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
@@ -385,9 +409,12 @@ describe("subscription checkout", () => {
   it("rechecks subscriptions when a legacy checkout completes during reconciliation", async () => {
     seedSubscription({ plan: "starter", stripe_subscription_id: null });
     vi.mocked(stripe.checkout.sessions.list).mockImplementationOnce(() => ({
-      autoPagingEach: async () => { subscriptions.push({ customer: "cus_existing", status: "active" }); },
+      autoPagingEach: async () => { subscriptions.push({
+        id: "sub_raced", customer: "cus_existing", status: "active", metadata: { plan_key: "core" },
+        items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+      }); },
     }) as never);
-    expect((await checkout(request(), {})).status).toBe(409);
+    expect((await checkout(request(), {})).status).toBe(200);
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 

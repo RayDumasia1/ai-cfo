@@ -15,18 +15,25 @@ export interface CheckoutAttempt {
 }
 
 export class CheckoutConflict extends Error {}
+export class SubscriptionRecovered extends CheckoutConflict {}
 
 /** Only terminal subscriptions permit a new purchase, including after cancellation. */
-export async function assertNoStripeSubscription(stripe: Stripe, customerId: string) {
-  let blocked = false;
+export async function findCurrentStripeSubscription(stripe: Stripe, customerId: string) {
+  let current: Stripe.Subscription | null = null;
   await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 })
     .autoPagingEach((subscription) => {
       if (!["canceled", "incomplete_expired"].includes(subscription.status)) {
-        blocked = true;
+        current = subscription;
         return false;
       }
     });
-  if (blocked) throw new CheckoutConflict("You already have a subscription. Manage it in billing settings.");
+  return current;
+}
+
+export async function assertNoStripeSubscription(stripe: Stripe, customerId: string) {
+  if (await findCurrentStripeSubscription(stripe, customerId)) {
+    throw new CheckoutConflict("You already have a subscription. Manage it in billing settings.");
+  }
 }
 
 /**
@@ -36,7 +43,10 @@ export async function assertNoStripeSubscription(stripe: Stripe, customerId: str
 export async function subscriptionCheckout(
   stripe: Stripe,
   db: SupabaseClient,
-  input: { userId: string; planKey: string; priceId: string; appUrl: string; customerId: string | null },
+  input: {
+    userId: string; planKey: string; priceId: string; appUrl: string; customerId: string | null;
+    onExistingSubscription?: (customerId: string, subscription: Stripe.Subscription) => Promise<void>;
+  },
   retries = 0
 ): Promise<string> {
   const attempt = await reserveCheckoutAttempt({
@@ -65,7 +75,11 @@ export async function subscriptionCheckout(
     await saveCheckoutAttempt(attempt, { customer_id: customerId }, db);
   }
 
-  await assertNoStripeSubscription(stripe, customerId);
+  const existingSubscription = await findCurrentStripeSubscription(stripe, customerId);
+  if (existingSubscription) {
+    await input.onExistingSubscription?.(customerId, existingSubscription);
+    throw new SubscriptionRecovered("We restored your existing subscription.");
+  }
 
   const canonicalCustomer = await ensureBillingCustomer(input.userId, customerId, db);
   if (canonicalCustomer !== customerId) throw new Error("Billing customer changed; reconciliation required");
@@ -85,7 +99,11 @@ export async function subscriptionCheckout(
       });
     // A legacy session may have completed between the first subscription check
     // and the open-session listing. Recheck after retiring all older open URLs.
-    await assertNoStripeSubscription(stripe, customerId);
+    const racedSubscription = await findCurrentStripeSubscription(stripe, customerId);
+    if (racedSubscription) {
+      await input.onExistingSubscription?.(customerId, racedSubscription);
+      throw new SubscriptionRecovered("We restored your existing subscription.");
+    }
     const metadata: Record<string, string> = { supabase_user_id: input.userId, plan_key: attempt.plan_key, checkout_attempt_id: attempt.id };
     session = await stripe.checkout.sessions.create({
       customer: customerId,
