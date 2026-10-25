@@ -84,4 +84,13 @@ describe("billing plan notification feedback", () => {
     expect(html).toContain("Notify me");
     expect(html).toContain('aria-busy="false"');
   });
+  it("restores a saved registration without offering another submission", () => {
+    const html = renderToStaticMarkup(createElement(ComingSoonPlanAction, {
+      plan: "growth",
+      userEmail: "test@example.invalid",
+      initiallyNotified: true,
+    }));
+    expect(html).toContain("You&#x27;re on the list");
+    expect(html).not.toContain("Notify me");
+  });
 });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
-import { getOrCreateBusinessProfile, getBillingDetails } from "@/lib/db";
+import { createServiceClient } from "@/utils/supabase/service";
+import { getOrCreateBusinessProfile, getBillingDetails, getPlanNotificationFeatures } from "@/lib/db";
 import AlertPreferencesCard from "@/app/components/settings/AlertPreferencesCard";
 import ThresholdsCard from "@/app/components/settings/ThresholdsCard";
 import ChangePasswordCard from "@/app/components/settings/ChangePasswordCard";
@@ -28,9 +29,12 @@ export default async function SettingsPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [profile, billing] = await Promise.all([
+  const [profile, billing, notifiedPlanFeatures] = await Promise.all([
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     tab === "billing" && user ? getBillingDetails(user.id, supabase) : null,
+    tab === "billing" && user
+      ? getPlanNotificationFeatures(user.id, createServiceClient())
+      : [],
   ]);
   const returningMember = billing ? getReturningFoundingMember(billing) : null;
 
@@ -99,6 +103,7 @@ export default async function SettingsPage({
             currentPlan={billing.plan}
             currentTier={billing.feature_tier}
             userEmail={user?.email ?? ""}
+            notifiedFeatures={notifiedPlanFeatures}
           />
 
           <BillingHistoryCard />

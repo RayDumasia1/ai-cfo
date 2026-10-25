@@ -11,6 +11,7 @@ interface PlanComparisonCardProps {
   currentPlan: Plan;
   currentTier: FeatureTier;
   userEmail: string;
+  notifiedFeatures: string[];
 }
 
 const PLAN_ROWS: { key: Plan; tier: FeatureTier; name: string; price: string; features: string }[] = [
@@ -37,12 +38,14 @@ function isTierAvailable(tier: FeatureTier): boolean {
 export function ComingSoonPlanAction({
   plan,
   userEmail,
+  initiallyNotified = false,
 }: {
   plan: "growth" | "advisory";
   userEmail: string;
+  initiallyNotified?: boolean;
 }) {
   const [pending, setPending] = useState(false);
-  const [notified, setNotified] = useState(false);
+  const [notified, setNotified] = useState(initiallyNotified);
   const [error, setError] = useState<string | null>(null);
   const errorId = `${plan}-plan-notify-error`;
 
@@ -264,7 +267,7 @@ const currentBadge: React.CSSProperties = {
 const STORAGE_KEY = "elidan_plans_collapsed";
 const subscribeToStorageSnapshot = () => () => {};
 
-export default function PlanComparisonCard({ currentPlan, currentTier, userEmail }: PlanComparisonCardProps) {
+export default function PlanComparisonCard({ currentPlan, currentTier, userEmail, notifiedFeatures }: PlanComparisonCardProps) {
   const storedCollapsed = useSyncExternalStore(
     subscribeToStorageSnapshot,
     () => readBrowserBoolean("localStorage", STORAGE_KEY, true),
@@ -361,6 +364,7 @@ export default function PlanComparisonCard({ currentPlan, currentTier, userEmail
                       <ComingSoonPlanAction
                         plan={plan.key as "growth" | "advisory"}
                         userEmail={userEmail}
+                        initiallyNotified={notifiedFeatures.includes(`tier_${plan.key}`)}
                       />
                     ) : (
                       <UpgradeButton planKey={plan.key} />

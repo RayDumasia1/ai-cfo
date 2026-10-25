@@ -681,6 +681,28 @@ export async function getBillingDetails(
   return data as BillingDetails;
 }
 
+const NOTIFICATION_PLAN_FEATURES = ["tier_growth", "tier_advisory"] as const;
+export type NotificationPlanFeature = (typeof NOTIFICATION_PLAN_FEATURES)[number];
+
+/** Reads persisted plan-interest state for one authenticated account. */
+export async function getPlanNotificationFeatures(
+  userId: string,
+  client: SupabaseClient
+): Promise<NotificationPlanFeature[]> {
+  const { data, error } = await client
+    .from("notify_me")
+    .select("feature")
+    .eq("user_id", userId)
+    .in("feature", [...NOTIFICATION_PLAN_FEATURES]);
+
+  if (error) throw error;
+  return (data ?? [])
+    .map(row => row.feature)
+    .filter((feature): feature is NotificationPlanFeature =>
+      NOTIFICATION_PLAN_FEATURES.includes(feature as NotificationPlanFeature)
+    );
+}
+
 /**
  * Counts customer identities, including cancelled/deleted accounts; excludes tests.
  * Cancellation never releases a spot. Audited owner corrections are explicit exceptions.
