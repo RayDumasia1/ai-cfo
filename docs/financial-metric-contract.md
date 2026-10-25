@@ -19,7 +19,7 @@ Runway is one conditional liquidity measure. It is not the organizing concept fo
 
 This contract defines metric meaning and implementation direction. FIN-02 implements the legacy-data compatibility model in the dashboard, alerts and manual calculator without changing database rows or the distributed spreadsheet. DATA-01 will introduce the versioned financial input model and spreadsheet. FIN-03 will implement the expanded shared calculation engine.
 
-**FIN-02 implementation status (24 October 2026):** implemented locally and awaiting preview validation. Existing `total_revenue` and `total_expenses` values are presented as reported cash collected and cash paid. The business-owner dashboard uses Cash Balance, Cash Buffer, Cash Trend and Cash Runway, with plain-language explanations; formal definitions remain in methodology documentation. Gaps or missing required values stop the newest three-month window. Current runway alerts require three eligible months and data no older than 90 days. Empty-alert guidance reflects data freshness and never equates stale data with a healthy business. No SQL migration is required.
+**Implementation status (24 October 2026):** FIN-02 and DATA-01 are in production. Existing version-1 `total_revenue` and `total_expenses` values remain on the FIN-02 compatibility path. New version-2 records use the classified cash contract. [FIN-03A](fin-03-normalized-engine.md) implements the framework-independent version-2 engine locally; application cards, alerts and calculators remain unchanged until later FIN-03 integration increments are validated.
 
 ## Governing principles
 

@@ -1,6 +1,6 @@
 # Financial data contract v2 implementation
 
-**Status:** DATA-01A schema verified in preview
+**Status:** DATA-01 complete in production
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract v0.2](financial-metric-contract.md)
 
@@ -82,9 +82,9 @@ The migration:
 
 ## Deferred work
 
-- DATA-01B: [v2 workbook layout, field guidance and formulas](financial-template-v2.md) staged; parser support pending.
-- DATA-01C: completed in preview 24 October 2026. The strict parser, reviewed atomic publication, migration, rollback verifier and end-to-end workbook upload passed; imported rows were confirmed as contract version 2 with valid reconciliation.
-- DATA-01D: completed and validated in preview 24 October 2026. The Financial Data page prioritizes a compact current-dataset summary and upload workflow, followed by a responsive 10-record import history and collapsed technical source details. Coverage, completeness, basis, currency, source, filename, contract version and import time remain account-scoped; mixed saved sources and versions are labeled explicitly.
-- FIN-03: normalized calculation engine and classified alerts.
+- DATA-01B: [v2 workbook layout, field guidance and formulas](financial-template-v2.md) completed and published as the launch template.
+- DATA-01C: completed in production 24 October 2026. The strict parser, reviewed atomic publication, migrations, rollback verifier and end-to-end workbook upload passed before promotion; imported rows were confirmed as contract version 2 with valid reconciliation.
+- DATA-01D: completed in production 24 October 2026. The Financial Data page prioritizes a compact current-dataset summary and upload workflow, followed by a responsive 10-record import history and collapsed technical source details. Coverage, completeness, basis, currency, source, filename, contract version and import time remain account-scoped; mixed saved sources and versions are labeled explicitly.
+- FIN-03A: [normalized contract-v2 calculation engine](fin-03-normalized-engine.md) implemented without changing application consumers; classified alert and UI integration follow in FIN-03B.
 - ORG-01/forecast work: organization-owned dated commitments and 13-week forecasting.
 - QuickBooks: provider mapping, connection identity, synchronization and correction policy.
