@@ -98,6 +98,7 @@ export default async function SettingsPage({
           <PlanComparisonCard
             currentPlan={billing.plan}
             currentTier={billing.feature_tier}
+            userEmail={user?.email ?? ""}
           />
 
           <BillingHistoryCard />

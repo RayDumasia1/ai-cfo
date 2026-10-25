@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { registerFeatureNotification, NOTIFY_REGISTRATION_ERROR } from "../lib/notifyRegistration";
 import { ComingSoonCard } from "../app/welcome/WelcomeClient";
+import { ComingSoonPlanAction } from "../app/components/billing/PlanComparisonCard";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -70,5 +71,17 @@ describe("welcome notification card feedback", () => {
     expect(html).toContain("on the list");
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain("Notify me when available");
+  });
+});
+
+describe("billing plan notification feedback", () => {
+  it("offers notification registration for an unavailable plan", () => {
+    const html = renderToStaticMarkup(createElement(ComingSoonPlanAction, {
+      plan: "growth",
+      userEmail: "test@example.invalid",
+    }));
+    expect(html).toContain("Coming soon");
+    expect(html).toContain("Notify me");
+    expect(html).toContain('aria-busy="false"');
   });
 });

@@ -5,10 +5,12 @@ import { Loader2 } from "lucide-react";
 import type { Plan, FeatureTier } from "@/lib/featureGates";
 import { GROWTH_AVAILABLE, ADVISORY_AVAILABLE } from "@/lib/launchConfig";
 import { readBrowserBoolean, writeBrowserValue } from "@/lib/browserStorage";
+import { NOTIFY_REGISTRATION_ERROR, registerFeatureNotification } from "@/lib/notifyRegistration";
 
 interface PlanComparisonCardProps {
   currentPlan: Plan;
   currentTier: FeatureTier;
+  userEmail: string;
 }
 
 const PLAN_ROWS: { key: Plan; tier: FeatureTier; name: string; price: string; features: string }[] = [
@@ -30,6 +32,70 @@ function isTierAvailable(tier: FeatureTier): boolean {
   if (tier === "growth") return GROWTH_AVAILABLE;
   if (tier === "advisory") return ADVISORY_AVAILABLE;
   return true;
+}
+
+export function ComingSoonPlanAction({
+  plan,
+  userEmail,
+}: {
+  plan: "growth" | "advisory";
+  userEmail: string;
+}) {
+  const [pending, setPending] = useState(false);
+  const [notified, setNotified] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const errorId = `${plan}-plan-notify-error`;
+
+  async function notify() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      await registerFeatureNotification(userEmail, `tier_${plan}`);
+      setNotified(true);
+    } catch {
+      setError(NOTIFY_REGISTRATION_ERROR);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (notified) {
+    return <span role="status" style={{ fontSize: 12, color: "var(--teal)", whiteSpace: "nowrap" }}>✓ You&apos;re on the list</span>;
+  }
+
+  return (
+    <div style={{ textAlign: "right" }}>
+      <span style={comingSoonBadge}>Coming soon</span>
+      <button
+        type="button"
+        onClick={notify}
+        disabled={pending}
+        aria-busy={pending}
+        aria-describedby={error ? errorId : undefined}
+        style={{
+          display: "block",
+          margin: "6px 0 0 auto",
+          padding: 0,
+          border: 0,
+          background: "transparent",
+          color: "var(--teal)",
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: pending ? "wait" : "pointer",
+          textDecoration: "underline",
+          textUnderlineOffset: 2,
+        }}
+      >
+        {pending ? "Adding you..." : "Notify me"}
+      </button>
+      {error && (
+        <p id={errorId} role="alert" style={{ maxWidth: 190, margin: "6px 0 0", fontSize: 11, color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function UpgradeButton({ planKey }: { planKey: Plan }) {
@@ -198,7 +264,7 @@ const currentBadge: React.CSSProperties = {
 const STORAGE_KEY = "elidan_plans_collapsed";
 const subscribeToStorageSnapshot = () => () => {};
 
-export default function PlanComparisonCard({ currentPlan, currentTier }: PlanComparisonCardProps) {
+export default function PlanComparisonCard({ currentPlan, currentTier, userEmail }: PlanComparisonCardProps) {
   const storedCollapsed = useSyncExternalStore(
     subscribeToStorageSnapshot,
     () => readBrowserBoolean("localStorage", STORAGE_KEY, true),
@@ -292,7 +358,10 @@ export default function PlanComparisonCard({ currentPlan, currentTier }: PlanCom
                     <span style={currentBadge}>Your features</span>
                   ) : isHigher ? (
                     isComingSoon ? (
-                      <span style={comingSoonBadge}>Coming soon</span>
+                      <ComingSoonPlanAction
+                        plan={plan.key as "growth" | "advisory"}
+                        userEmail={userEmail}
+                      />
                     ) : (
                       <UpgradeButton planKey={plan.key} />
                     )

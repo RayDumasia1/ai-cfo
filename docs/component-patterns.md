@@ -724,6 +724,8 @@ Async regression tests use deferred promises against the actual editor workflow 
 
 Coming-soon plan cards call `lib/notifyRegistration.ts:registerFeatureNotification()`. The UI marks a tier registered only after an OK response containing `success: true`; HTTP failures, malformed/HTML responses, and network failures produce an inline, card-specific retry message with `role=alert` and `aria-describedby`. While a request is pending, notification buttons are disabled and the active button has `aria-busy`; success is announced with `role=status`. No browser storage is required. Other card errors and checkout state are independent.
 
+The Billing plan comparison uses the same registration contract for unavailable Growth and Advisory plans. Each row keeps its Coming soon status visible and provides a compact Notify me action. Confirmation is held only for the mounted view; later visits rely on the idempotent server registration rather than browser storage.
+
 The paid-subscription guard previously returned 402 to the welcome page's verified users without active subscriptions, and the client silently ignored the failed response. Proxy now exempts only `/api/notify-me` from that check; verification and all unrelated API gates remain in force. Regression coverage reproduces the missing exemption and checks exact-path matching, preserved verification/paid boundaries, response handling, and rendered loading/error/success accessibility states. Full browser click behavior still requires preview validation. No schema, RLS, billing, or Founding Member policy changes are involved.
 
 ### Application email acceptance and HTML safety
