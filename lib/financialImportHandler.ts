@@ -137,7 +137,7 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     }
     let parsed;
     try {
-      parsed = parseExcelBuffer(buffer);
+      parsed = parseExcelBuffer(buffer, file.name);
     } catch (error) {
       if (error instanceof FinancialUploadLimitError) {
         return NextResponse.json({ error: error.message, code: error.code, requestId },

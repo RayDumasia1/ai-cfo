@@ -67,7 +67,7 @@ function norm(value: string): string {
 
 function dateParts(raw: unknown): { year: number; month: number; day: number } | null {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
-    return { year: raw.getFullYear(), month: raw.getMonth() + 1, day: raw.getDate() };
+    return { year: raw.getUTCFullYear(), month: raw.getUTCMonth() + 1, day: raw.getUTCDate() };
   }
   if (typeof raw === "number") {
     const parsed = XLSX.SSF.parse_date_code(raw);
@@ -121,6 +121,11 @@ function headerRow(rows: unknown[][], expected: Map<string, MonthField>): number
     if (found >= Math.min(4, expected.size)) return index;
   }
   return -1;
+}
+
+export function isV2MonthlyCashSheet(sheet: XLSX.WorkSheet): boolean {
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: true }) as unknown[][];
+  return headerRow(rows, REQUIRED_HEADERS) >= 0;
 }
 
 function columnMap(row: unknown[], expected: Map<string, MonthField>, errors: string[], sheet: string): Map<MonthField, number> {

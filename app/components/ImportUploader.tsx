@@ -290,7 +290,7 @@ export default function ImportUploader({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx,.csv"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="hidden"
         onChange={handleInputChange}
       />
@@ -301,7 +301,7 @@ export default function ImportUploader({
             Import Financial Data
           </p>
           <p className="mt-0.5 text-xs font-light" style={{ color: "var(--dim)" }}>
-            Excel (.xlsx) or CSV · 2 MB maximum · monthly summary format required
+            Elidan Excel workbook (.xlsx) · 2 MB maximum
           </p>
         </div>
 

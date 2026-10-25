@@ -4,7 +4,7 @@ import { MAX_WORKBOOK_ROWS_PER_SHEET, validateWorkbookStructure } from "./financ
 import type { FinancialMonthInsert, BusinessProfileInsert } from "./types";
 import type { ImportNotice } from "./importNotices";
 import type { ParseResult } from "./financialWorkbookTypes";
-import { parseV2Workbook } from "./excelParserV2";
+import { isV2MonthlyCashSheet, parseV2Workbook } from "./excelParserV2";
 export type { ParseResult } from "./financialWorkbookTypes";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -89,8 +89,8 @@ const OPTIONAL_FIELDS: Array<
 
 /** Format a JS Date as YYYY-MM-01 (first of month). */
 function toMonthDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   return `${y}-${m}-01`;
 }
 
@@ -194,7 +194,22 @@ function findHeaderRowIndex(rows: unknown[][]): number {
 
 // ─── Main parser ──────────────────────────────────────────────────────────────
 
-export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
+function csvDelimiter(text: string): string {
+  const candidates = [",", ";", "\t"];
+  const lines = text.split(/\r?\n/).filter(Boolean).slice(0, 10);
+  return candidates.reduce((best, candidate) => {
+    const score = (delimiter: string) => {
+      const widths = lines.map(line => line.split(delimiter).length);
+      return [widths.filter(width => width > 1).length, Math.max(0, ...widths)];
+    };
+    const candidateScore = score(candidate);
+    const bestScore = score(best);
+    return candidateScore[0] > bestScore[0]
+      || (candidateScore[0] === bestScore[0] && candidateScore[1] > bestScore[1]) ? candidate : best;
+  }, candidates[0]);
+}
+
+export function parseExcelBuffer(buffer: ArrayBuffer, filename?: string): ParseResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const notices: ImportNotice[] = [];
@@ -205,14 +220,37 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   const months: Omit<FinancialMonthInsert, "user_id" | "business_id">[] = [];
   const profile: Partial<Omit<BusinessProfileInsert, "user_id">> = {};
 
-  const workbook = XLSX.read(buffer, {
-    type: "array",
-    cellDates: true,
-    sheetRows: MAX_WORKBOOK_ROWS_PER_SHEET + 1,
-  });
+  const isCsv = filename?.toLowerCase().endsWith(".csv") ?? false;
+  const csvText = isCsv ? new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "") : null;
+  const workbook = isCsv
+    ? XLSX.read(csvText!, {
+        type: "string",
+        FS: csvDelimiter(csvText!),
+        cellDates: true,
+        sheetRows: MAX_WORKBOOK_ROWS_PER_SHEET + 1,
+      })
+    : XLSX.read(buffer, {
+        type: "array",
+        cellDates: true,
+        sheetRows: MAX_WORKBOOK_ROWS_PER_SHEET + 1,
+      });
   validateWorkbookStructure(workbook);
 
   if (workbook.Sheets["Monthly Cash"]) return parseV2Workbook(workbook);
+
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (firstSheet && isV2MonthlyCashSheet(firstSheet)) {
+    return {
+      months,
+      profile,
+      errors: [
+        "This CSV contains version-2 Monthly Cash data but does not include the reporting currency and accounting basis from Start Here. Upload the original Elidan .xlsx workbook so those required details are preserved.",
+      ],
+      warnings,
+      notices,
+      contractVersion: 2,
+    };
+  }
 
   // ── "Business Info" sheet (optional) ──────────────────────────────────────
   const infoSheet = workbook.Sheets["Business Info"];
@@ -291,13 +329,12 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
     return { months, profile, errors, warnings };
   }
 
-  // raw:false + dateNF formats date cells as "YYYY-MM-DD" strings, which
-  // parseMonthDate handles. defval:null gives us explicit nulls for empty cells.
+  // Preserve Date objects and numeric values. Formatting date-only CSV cells to
+  // strings can shift them to the prior calendar day in non-UTC server zones.
   const rows = XLSX.utils.sheet_to_json(summarySheet, {
     header: 1,
     defval: null,
-    raw: false,
-    dateNF: "yyyy-mm-dd",
+    raw: true,
   }) as unknown[][];
 
   if (rows.length < 2) {

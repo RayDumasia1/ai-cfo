@@ -136,4 +136,38 @@ describe("version-2 financial workbook parser", () => {
     expect(result.errors).toEqual([]);
     expect(result.months[0]?.accounting_basis).toBe(expected);
   });
+
+  it("identifies a Monthly Cash CSV and explains why the original workbook is required", () => {
+    const csv = XLSX.utils.sheet_to_csv(workbook().Sheets["Monthly Cash"]);
+    const bytes = new TextEncoder().encode(csv);
+
+    const result = parseExcelBuffer(bytes.buffer, "monthly-cash.csv");
+
+    expect(result.contractVersion).toBe(2);
+    expect(result.months).toEqual([]);
+    expect(result.errors).toEqual([
+      "This CSV contains version-2 Monthly Cash data but does not include the reporting currency and accounting basis from Start Here. Upload the original Elidan .xlsx workbook so those required details are preserved.",
+    ]);
+  });
+
+  it.each([
+    [",", "legacy.csv"],
+    [";", "legacy-semicolon.csv"],
+  ])("retains bounded legacy CSV parsing with %s delimiters", (delimiter, filename) => {
+    const csv = [
+      ["Month", "Opening Cash", "Closing Cash", "Total Revenue", "Total Expenses"].join(delimiter),
+      ["2026-01-01", "100", "110", "50", "40"].join(delimiter),
+    ].join("\n");
+
+    const result = parseExcelBuffer(new TextEncoder().encode(csv).buffer, filename);
+
+    expect(result.errors).toEqual([]);
+    expect(result.months).toEqual([expect.objectContaining({
+      month_date: "2026-01-01",
+      opening_cash: 100,
+      closing_cash: 110,
+      total_revenue: 50,
+      total_expenses: 40,
+    })]);
+  });
 });
