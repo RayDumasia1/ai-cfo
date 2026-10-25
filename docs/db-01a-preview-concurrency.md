@@ -4,7 +4,7 @@ These tests verify the row-lock protocols already deployed for financial writes,
 
 ## Safety and preparation
 
-1. Open two Supabase SQL Editor tabs connected to the **preview** project. Use `postgres` in both tabs.
+1. Open the Supabase SQL Editor for the **preview** project in two independent browser windows, preferably separate browsers such as Chrome and Edge. Supabase's internal query tabs share one active Run control and cannot execute this test concurrently. Use `postgres` in both windows.
 2. Choose two distinct dedicated preview Auth user UUIDs. Account A is the lock target; account B is used only for an isolation snapshot.
 3. In each script, replace the UUID placeholders and set `preview_confirmed := true`.
 4. Run each script as a complete file. If a script is interrupted or fails before its final statement, run `ROLLBACK;` in that same tab.
@@ -39,4 +39,6 @@ This proves that a new active action waits for a concurrent subscription/tier wr
 ## Evidence and limits
 
 A pass establishes actual two-connection waiting and timeout behavior in the current preview schema. Existing rollback verifiers continue to cover grants, role ownership, account scoping, capacity boundaries, stale-review behavior, and late-failure rollback. These paired tests do not verify future AI quota consumption, Stripe network ordering, or writers that bypass the documented lock protocols. Atomic AI quota consumption remains DB-01B.
+
+Both paired tests passed in preview on 25 October 2026. Financial import, reviewed confirmation and Clear Data waited on the shared account profile lock. Subscription writes and active-action slot acquisition waited on the shared subscription row lock. The session-B assertions also confirmed that timed-out probes left no row and the unrelated account snapshot remained unchanged.
 
