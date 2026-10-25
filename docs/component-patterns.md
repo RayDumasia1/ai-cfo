@@ -726,6 +726,8 @@ Coming-soon plan cards call `lib/notifyRegistration.ts:registerFeatureNotificati
 
 The Billing plan comparison uses the same registration contract for unavailable Growth and Advisory plans. Each row keeps its Coming soon status visible and provides a compact Notify me action. Confirmation is held only for the mounted view; later visits rely on the idempotent server registration rather than browser storage.
 
+Current notify-me delivery is internal only: a newly inserted email/feature pair triggers a best-effort message to `hello@elidan.ai`; duplicate registration remains successful without sending another message. The customer receives an on-screen confirmation but no email. Customer confirmation email, durable retry and provider delivery/bounce visibility are reserved for EMAIL-01.
+
 The paid-subscription guard previously returned 402 to the welcome page's verified users without active subscriptions, and the client silently ignored the failed response. Proxy now exempts only `/api/notify-me` from that check; verification and all unrelated API gates remain in force. Regression coverage reproduces the missing exemption and checks exact-path matching, preserved verification/paid boundaries, response handling, and rendered loading/error/success accessibility states. Full browser click behavior still requires preview validation. No schema, RLS, billing, or Founding Member policy changes are involved.
 
 ### Application email acceptance and HTML safety
