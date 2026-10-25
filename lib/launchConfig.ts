@@ -44,25 +44,22 @@ export const FOUNDING_MEMBER_SPOTS = 25;
 export const GROWTH_AVAILABLE = false;
 export const ADVISORY_AVAILABLE = false;
 
-// SCENARIOS — Phase 2 vision
+// SCENARIOS — approved product allocation (FIN-03C)
 //
-// Phase 1 (now): Simple What-If calculator
-//   on dashboard. Single variable adjustment.
-//   No AI, no saved scenarios.
+// Starter: one unsaved scenario based on the customer's current financial
+// baseline. It supports recurring collections/spending adjustments and clearly
+// separated one-time cash receipts/payments, with baseline-versus-scenario
+// results. No AI and no database persistence.
 //
-// Phase 2 scope:
-//   - Variable adjustment (Type 1)
-//   - Event modelling (Type 2)
-//   - Goal seeking with AI (Type 3)
+// Higher-tier follow-on scope:
 //   - Saved + named scenarios
 //   - Side-by-side comparison (up to 3)
-//   - Scenario sharing via link
-//   - Ask CFO integration for narrative
-//   - Promote to /dashboard/scenarios page
+//   - Event timelines and richer operating drivers
+//   - Goal seeking and narrative guidance with AI
+//   - Scenario sharing and CFO/advisor collaboration
+//   - Dedicated /dashboard/scenarios workflow
 //
-// The current What-If card is a placeholder
-// for this vision. Keep it simple until
-// Phase 2 engineering begins.
+// The existing three-field What-If card remains a placeholder until FIN-03C2.
 
 const COMING_SOON_FEATURES = new Set([
   "cfo_call",

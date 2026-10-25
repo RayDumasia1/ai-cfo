@@ -1,6 +1,6 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A in preview; FIN-03B dashboard and alert integration implemented locally
+**Status:** FIN-03A and FIN-03B in preview; FIN-03C scope approved
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
@@ -45,6 +45,14 @@ Confirmed zero is a valid value. Missing is unavailable. Negative available cash
 ## Release boundary
 
 FIN-03A does not change stored data or SQL. FIN-03B dispatches dashboard cards and alerts by the latest row's contract version: version 1 remains on FIN-02, while version 2 uses this engine. The manual calculator and scenarios remain deferred to FIN-03C. Legacy rows are never reclassified as v2.
+
+## FIN-03C calculator and scenario allocation
+
+FIN-03C is split into two bounded increments. FIN-03C1 removes the calculator's separate formula path and makes dashboard, alert, calculator and scenario results use the same version-aware definitions and edge-case rules. Version-1 data remains on the FIN-02 compatibility model; version-2 data uses the normalized engine.
+
+FIN-03C2 replaces the dashboard's placeholder three-field calculator with a useful Starter scenario experience. It starts from the customer's current saved baseline and shows baseline and proposed results for available cash, monthly operating surplus or shortfall, operating cash buffer and conditional operating runway. Starter users can adjust customer collections, operating spending and available cash, and can model a clearly separated one-time cash receipt or payment. The experience must distinguish recurring changes from one-time events, explain results in owner-friendly language, restore the saved baseline, and handle missing, limited, partial and stale data explicitly.
+
+Saving and naming scenarios, multi-scenario comparison, event timelines, AI goal seeking, AI narrative guidance, sharing and CFO/advisor collaboration remain later Core/Growth/Advisory capabilities. The initial FIN-03C experience is local and unsaved, so it requires no database migration.
 
 ## FIN-03B customer-facing integration
 
