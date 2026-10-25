@@ -31,7 +31,11 @@ export async function logSessionEvent(
       status: params.status,
     });
     if (error) {
-      console.error("auditLog:insert:error", { reason: "database_error" });
+      console.error("auditLog:insert:error", {
+        reason: "database_error",
+        action: params.action,
+        code: typeof error.code === "string" ? error.code : "unknown",
+      });
     }
   } catch {
     console.error("auditLog:exception", { reason: "request_exception" });

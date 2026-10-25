@@ -40,7 +40,14 @@ describe("session audit logging", () => {
   });
 
   it("does not fail authentication or log raw database details", async () => {
-    insert.mockResolvedValue({ error: new Error("permission denied secret detail") });
+    insert.mockResolvedValue({
+      error: {
+        code: "42501",
+        message: "permission denied secret detail",
+        details: "private row detail",
+        hint: "private hint",
+      },
+    });
 
     await expect(logSessionEvent({
       userId: "account-1",
@@ -50,9 +57,11 @@ describe("session audit logging", () => {
 
     expect(console.error).toHaveBeenCalledWith(
       "auditLog:insert:error",
-      { reason: "database_error" }
+      { reason: "database_error", action: "login", code: "42501" }
     );
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("secret detail");
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("private row detail");
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("private hint");
   });
 
   it("records failed logins without inventing an account UUID", async () => {
