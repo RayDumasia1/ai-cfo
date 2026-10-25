@@ -1,6 +1,6 @@
 # Financial data contract v2 implementation
 
-**Status:** DATA-01A migration drafted; preview execution pending  
+**Status:** DATA-01A schema verified in preview
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract v0.2](financial-metric-contract.md)
 
@@ -78,11 +78,11 @@ The migration:
 - Leaves all RPC signatures and grants unchanged.
 - Causes prepared import-review fingerprints to change because the coherent review hash includes the full monthly JSON row. Users with an outstanding review must prepare it again after deployment.
 
-Apply [the migration](migrations/2026-10-24-financial-data-contract-v2.sql) in preview first, then run [the read-only verifier](migrations/verify-financial-data-contract-v2.sql). Do not run either in production until DATA-01A preview validation is complete. The verifier requires no test-account UUID and rolls back its catalog-check transaction.
+[The migration](migrations/2026-10-24-financial-data-contract-v2.sql) and [the read-only verifier](migrations/verify-financial-data-contract-v2.sql) passed in preview on 24 October 2026. The verifier requires no test-account UUID and rolls back its catalog-check transaction. Production deployment remains deferred until the application can publish and consume version-2 rows.
 
 ## Deferred work
 
-- DATA-01B: v2 workbook layout, field guidance and formulas.
+- DATA-01B: [v2 workbook layout, field guidance and formulas](financial-template-v2.md) staged; parser support pending.
 - DATA-01C: dual-version parser, reviewed-import RPC publication, reconciliation review and tests.
 - DATA-01D: transition UI, provenance display and end-to-end preview validation.
 - FIN-03: normalized calculation engine and classified alerts.
