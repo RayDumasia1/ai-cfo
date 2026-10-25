@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AlertTriangle } from "lucide-react";
 import type { ActionInsert, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
 import AlertsList from "./AlertsList";
+import { readBrowserBoolean, writeBrowserValue } from "@/lib/browserStorage";
 
 const STORAGE_KEY = "elidan_alerts_collapsed";
 
@@ -11,11 +12,7 @@ const STORAGE_KEY = "elidan_alerts_collapsed";
 const subscribeNoop = () => () => {};
 
 function readStoredCollapsed(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
+  return readBrowserBoolean("localStorage", STORAGE_KEY, false);
 }
 
 interface TopAlertsProps {
@@ -50,7 +47,7 @@ export default function TopAlerts({
   const prevDataVersion = useRef(dataVersion);
   useEffect(() => {
     if (dataVersion !== null && dataVersion !== prevDataVersion.current) {
-      try { localStorage.setItem(STORAGE_KEY, "false"); } catch {}
+      writeBrowserValue("localStorage", STORAGE_KEY, "false");
       prevDataVersion.current = dataVersion;
     }
   }, [dataVersion]);
@@ -70,7 +67,7 @@ export default function TopAlerts({
   function toggle() {
     const next = !collapsed;
     setCollapsedOverride(next);
-    try { localStorage.setItem(STORAGE_KEY, String(next)); } catch {}
+    writeBrowserValue("localStorage", STORAGE_KEY, String(next));
   }
 
   return (

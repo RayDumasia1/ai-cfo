@@ -967,6 +967,14 @@ Corrections update **identity only**. They do not create/cancel Stripe subscript
 
 Verify in preview using `docs/migrations/verify-founding-membership-corrections.sql`. Fill in two dedicated preview account UUIDs and run the entire script as `postgres`; it rolls back fixture changes. It covers role permissions, forged bypass flags, test exclusion, assignment, cancellation retention, collisions, number ranges, release, and append-only auditing. Multi-connection checkout concurrency and browser/Stripe integration still require preview verification. Do not treat the verification file as a migration.
 
+### Browser storage resilience
+
+Browser storage is optional UI state, never an authorization, subscription, notification-registration, or financial-data source of truth. Code reads, writes, and removes local/session values through `lib/browserStorage.ts`; browser privacy restrictions, disabled storage, quota errors, and corrupt values fall back safely without blocking the underlying user action. The fallback lasts only for the current JavaScript runtime.
+
+Keys containing account-specific state must include the account UUID. Global keys are limited to harmless device preferences that are intentionally shared on that browser. Server responses remain authoritative for persisted operations: a successful notify registration is reflected in the current mounted UI, while a later session asks the server again instead of trusting a feature-only local marker. Supabase browser authentication continues to use its configured cookie storage and is outside this optional-preference helper.
+
+Session timeout uses safe session storage for the absolute-session timestamp. If storage is unavailable or invalid, it starts a fresh in-memory timestamp while keeping idle warning/logout timers active; logout continues even when timestamp removal fails. Tests inject blocked property access, quota/removal exceptions, invalid boolean content and different account keys.
+
 ## 10 Document History
 
 | Version | Date | Changes |

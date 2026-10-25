@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { readBrowserValue, removeBrowserValue, writeBrowserValue } from "@/lib/browserStorage";
 
 const IDLE_MS =
   (Number(process.env.NEXT_PUBLIC_SESSION_IDLE_TIMEOUT_MINUTES) || 15) * 60_000;
@@ -28,7 +29,7 @@ export function useSessionTimeout() {
   const absTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const doLogout = useCallback(async () => {
-    sessionStorage.removeItem(SESSION_START_KEY);
+    removeBrowserValue("sessionStorage", SESSION_START_KEY);
     clearTimeout(idleTimerRef.current);
     clearTimeout(warnTimerRef.current);
     clearTimeout(absTimerRef.current);
@@ -40,8 +41,7 @@ export function useSessionTimeout() {
     router.push("/auth?reason=session_expired");
   }, [router]);
 
-  const resetIdle = useCallback(() => {
-    setShowWarning(false);
+  const scheduleIdleTimers = useCallback(() => {
     clearTimeout(idleTimerRef.current);
     clearTimeout(warnTimerRef.current);
     // Warning fires 1 minute before the idle timeout
@@ -52,6 +52,11 @@ export function useSessionTimeout() {
     idleTimerRef.current = setTimeout(doLogout, IDLE_MS);
   }, [doLogout]);
 
+  const resetIdle = useCallback(() => {
+    setShowWarning(false);
+    scheduleIdleTimers();
+  }, [scheduleIdleTimers]);
+
   const stayLoggedIn = useCallback(() => {
     resetIdle();
   }, [resetIdle]);
@@ -59,10 +64,14 @@ export function useSessionTimeout() {
   useEffect(() => {
     // Track absolute session start in sessionStorage (survives page navigations,
     // cleared on logout)
-    if (!sessionStorage.getItem(SESSION_START_KEY)) {
-      sessionStorage.setItem(SESSION_START_KEY, String(Date.now()));
+    let storedStart = readBrowserValue("sessionStorage", SESSION_START_KEY);
+    if (!storedStart) {
+      storedStart = String(Date.now());
+      writeBrowserValue("sessionStorage", SESSION_START_KEY, storedStart);
     }
-    const startTime = Number(sessionStorage.getItem(SESSION_START_KEY));
+    const parsedStart = Number(storedStart);
+    const startTime = Number.isFinite(parsedStart) && parsedStart > 0 ? parsedStart : Date.now();
+    if (startTime !== parsedStart) writeBrowserValue("sessionStorage", SESSION_START_KEY, String(startTime));
     const elapsed = Date.now() - startTime;
     const remaining = ABSOLUTE_MS - elapsed;
 
@@ -72,7 +81,7 @@ export function useSessionTimeout() {
     }
 
     absTimerRef.current = setTimeout(doLogout, remaining);
-    resetIdle();
+    scheduleIdleTimers();
 
     const onActivity = () => resetIdle();
     ACTIVITY_EVENTS.forEach((e) =>
@@ -85,7 +94,7 @@ export function useSessionTimeout() {
       clearTimeout(absTimerRef.current);
       ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, onActivity));
     };
-  }, [doLogout, resetIdle]);
+  }, [doLogout, resetIdle, scheduleIdleTimers]);
 
   return { showWarning, stayLoggedIn, logOutNow: doLogout };
 }

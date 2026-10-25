@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import type { Plan, FeatureTier } from "@/lib/featureGates";
 import { GROWTH_AVAILABLE, ADVISORY_AVAILABLE } from "@/lib/launchConfig";
+import { readBrowserBoolean, writeBrowserValue } from "@/lib/browserStorage";
 
 interface PlanComparisonCardProps {
   currentPlan: Plan;
@@ -195,21 +196,23 @@ const currentBadge: React.CSSProperties = {
 };
 
 const STORAGE_KEY = "elidan_plans_collapsed";
+const subscribeToStorageSnapshot = () => () => {};
 
 export default function PlanComparisonCard({ currentPlan, currentTier }: PlanComparisonCardProps) {
-  const [collapsed, setCollapsed] = useState(true);
+  const storedCollapsed = useSyncExternalStore(
+    subscribeToStorageSnapshot,
+    () => readBrowserBoolean("localStorage", STORAGE_KEY, true),
+    () => true
+  );
+  const [collapsedOverride, setCollapsedOverride] = useState<boolean | null>(null);
+  const collapsed = collapsedOverride ?? storedCollapsed;
   const currentRank = TIER_RANK[currentTier];
   const isFoundingMember = currentPlan === "founding_member";
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) setCollapsed(stored === "true");
-  }, []);
-
   function toggle() {
     const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem(STORAGE_KEY, String(next));
+    setCollapsedOverride(next);
+    writeBrowserValue("localStorage", STORAGE_KEY, String(next));
   }
 
   return (

@@ -1,33 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { X, Star } from "lucide-react";
+import { readBrowserBoolean, writeBrowserValue } from "@/lib/browserStorage";
 
 interface FoundingMemberWelcomeBannerProps {
   memberNumber: number;
   userId: string;
 }
 
+const subscribeToStorageSnapshot = () => () => {};
+
 export default function FoundingMemberWelcomeBanner({
   memberNumber,
   userId,
 }: FoundingMemberWelcomeBannerProps) {
   const storageKey = `elidan_fm_banner_dismissed_${userId}`;
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem(storageKey);
-    if (dismissed !== "true") {
-      setVisible(true);
-    }
-  }, [storageKey]);
+  const storedDismissed = useSyncExternalStore(
+    subscribeToStorageSnapshot,
+    () => readBrowserBoolean("localStorage", storageKey, false),
+    () => true
+  );
+  const [dismissed, setDismissed] = useState(false);
 
   function dismiss() {
-    localStorage.setItem(storageKey, "true");
-    setVisible(false);
+    writeBrowserValue("localStorage", storageKey, "true");
+    setDismissed(true);
   }
 
-  if (!visible) return null;
+  if (storedDismissed || dismissed) return null;
 
   return (
     <div

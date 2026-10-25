@@ -124,8 +124,6 @@ export default function UpgradeModal({
 
   useEffect(() => {
     if (!isOpen || typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(`elidan_notified_${feature}`);
-    setAlreadyNotified(!!stored);
     setNotifySubmitted(false);
     setNotifyEmail(userEmail ?? "");
     setEmailError(null);
@@ -147,7 +145,7 @@ export default function UpgradeModal({
         body: JSON.stringify({ email: notifyEmail, feature }),
       });
       if (!res.ok) throw new Error("Request failed");
-      window.localStorage.setItem(`elidan_notified_${feature}`, "true");
+      setAlreadyNotified(true);
       setNotifySubmitted(true);
     } catch {
       setSubmitError("Something went wrong. Please try again.");

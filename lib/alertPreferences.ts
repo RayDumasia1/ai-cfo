@@ -1,4 +1,5 @@
 import type { SnoozeType } from "./types";
+import { removeBrowserValue } from "./browserStorage";
 
 export const LOAD_PREFERENCES_ERROR = "Couldn't load your alert preferences. Please retry.";
 export const SAVE_PREFERENCES_ERROR = "Couldn't save your alert preferences. Please try again.";
@@ -8,13 +9,9 @@ export function isSnoozeType(value: unknown): value is SnoozeType {
 }
 
 function discardLegacyPreference() {
-  try {
-    // This browser-wide key has no account identity. Never read it or copy it
-    // into the currently authenticated account's server-side preference.
-    window.localStorage.removeItem("elidan_snooze_duration");
-  } catch {
-    // Storage may be unavailable; server preferences do not depend on it.
-  }
+  // This browser-wide key has no account identity. Never read it or copy it
+  // into the currently authenticated account's server-side preference.
+  removeBrowserValue("localStorage", "elidan_snooze_duration");
 }
 
 export async function loadAlertPreference(): Promise<SnoozeType> {
