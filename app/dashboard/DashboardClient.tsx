@@ -73,7 +73,7 @@ export default function DashboardClient({
 
       {/* Starter scenario planner uses the full content width for comparison. */}
       <div className="mb-8">
-        <ScenarioPanel hasData={hasData} baseline={scenarioBaseline} />
+        <ScenarioPanel hasData={hasData} baseline={scenarioBaseline} onCreateAction={(prefill)=>openModal(prefill)} />
       </div>
 
       <ActionTrackerPanel

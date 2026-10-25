@@ -3,10 +3,15 @@
 import { useState, useEffect } from "react";
 import ManualCalculator from "./ManualCalculator";
 import type { ScenarioBaseline } from "@/lib/scenarioPlanning";
+import type { ActionInsert } from "@/lib/types";
 
 const STORAGE_KEY = "elidan_whatif_collapsed";
 
-export default function ScenarioPanel({ hasData, baseline }: { hasData: boolean; baseline: ScenarioBaseline }) {
+export default function ScenarioPanel({ hasData, baseline, onCreateAction }: {
+  hasData: boolean;
+  baseline: ScenarioBaseline;
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
+}) {
   const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
@@ -71,13 +76,15 @@ export default function ScenarioPanel({ hasData, baseline }: { hasData: boolean;
       <div
         id="what-if-scenario-body"
         style={{
-          overflow: "hidden",
-          maxHeight: collapsed ? "0" : "800px",
-          transition: "max-height 250ms ease-in-out",
+          display: "grid",
+          gridTemplateRows: collapsed ? "0fr" : "1fr",
+          transition: "grid-template-rows 250ms ease-in-out",
         }}
       >
-        <div style={{ borderTop: "1px solid var(--line)", padding: "20px 24px 24px" }}>
-          <ManualCalculator bare baseline={baseline} hasData={hasData} />
+        <div style={{ minHeight: 0, overflow: "hidden" }}>
+          <div style={{ borderTop: "1px solid var(--line)", padding: "20px 24px 24px" }}>
+            <ManualCalculator bare baseline={baseline} hasData={hasData} onCreateAction={onCreateAction} />
+          </div>
         </div>
       </div>
     </div>

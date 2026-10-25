@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { operatingCashMetrics, type OperatingCashMetrics } from "@/lib/normalizedCashHealth";
-import type { ScenarioBaseline } from "@/lib/scenarioPlanning";
+import { scenarioActionOptions, type ScenarioBaseline } from "@/lib/scenarioPlanning";
+import type { ActionInsert } from "@/lib/types";
 
 type EventType = "none" | "receipt" | "payment";
 type ScenarioResult = OperatingCashMetrics & { availableCash: number };
@@ -108,7 +109,12 @@ function ComparisonTable({ current, proposed, currency }: { current: ScenarioRes
   );
 }
 
-export default function ManualCalculator({ bare = false, baseline, hasData = false }: { bare?: boolean; baseline?: ScenarioBaseline; hasData?: boolean }) {
+export default function ManualCalculator({ bare = false, baseline, hasData = false, onCreateAction }: {
+  bare?: boolean;
+  baseline?: ScenarioBaseline;
+  hasData?: boolean;
+  onCreateAction?: (prefill: Partial<ActionInsert>) => void;
+}) {
   const ready = baseline?.status === "ready" && baseline.availableCash !== null
     && baseline.monthlyCashCollected !== null && baseline.monthlyOperatingCashPaid !== null;
   const currency = baseline?.currency ?? "USD";
@@ -124,6 +130,17 @@ export default function ManualCalculator({ bare = false, baseline, hasData = fal
   const current = useMemo(() => ready
     ? scenarioResult(baseline.availableCash!, baseline.monthlyCashCollected!, baseline.monthlyOperatingCashPaid!) : null,
   [ready, baseline]);
+  const actionOptions = ready && current && proposed ? scenarioActionOptions({
+    currency,
+    currentCollections:current.averageCashCollected,
+    proposedCollections:proposed.averageCashCollected,
+    currentSpending:current.averageCashPaid,
+    proposedSpending:proposed.averageCashPaid,
+    currentRunway:current.estimatedRunwayMonths,
+    proposedRunway:proposed.estimatedRunwayMonths,
+    eventType,
+    eventAmount:amount(eventAmount) ?? 0,
+  }) : [];
 
   function reset() {
     setExpectedCollections(""); setExpectedSpending(""); setEventType("none"); setEventAmount("");
@@ -184,6 +201,16 @@ export default function ManualCalculator({ bare = false, baseline, hasData = fal
       {validationError && <p role="alert" className="mt-3 text-xs text-danger">{validationError}</p>}{actions}
     </form>
     {proposed && <ComparisonTable current={current} proposed={proposed} currency={currency} />}
+    {proposed && onCreateAction && actionOptions.length > 0 && <section className="mt-5 rounded-md border border-line bg-bg p-4" aria-labelledby="scenario-actions-title">
+      <h3 id="scenario-actions-title" className="text-sm font-medium text-ink">Turn a change into an action</h3>
+      <p className="mt-1 text-xs text-dim">Choose the assumption you want to work toward. You can review and edit the action before saving.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {actionOptions.map(option => <button key={option.key} type="button" onClick={()=>onCreateAction(option.prefill)}
+          className="rounded-md border border-teal bg-surface px-3 py-2 text-left text-xs font-medium text-teal hover:bg-bg">
+          + {option.label}
+        </button>)}
+      </div>
+    </section>}
   </> : <>
     <div className="mb-4 rounded-md border border-line bg-bg px-3 py-2 text-xs leading-relaxed text-dim">
       <p className="font-medium text-ink">{hasData ? "A reliable baseline is not available" : "No saved financial baseline yet"}</p>

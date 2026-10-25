@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { scenarioBaseline } from "../lib/scenarioPlanning";
+import { scenarioActionOptions, scenarioBaseline } from "../lib/scenarioPlanning";
 import type { FinancialMonth } from "../lib/types";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ManualCalculator from "../app/components/ManualCalculator";
+import { validateActionCreate } from "../lib/actions";
 
 function row(overrides: Partial<FinancialMonth> = {}): FinancialMonth {
   return {
@@ -66,5 +67,53 @@ describe("FIN-03C2 scenario baseline", () => {
     expect(html).toContain("Current: $55,000");
     expect(html).toContain("one-time cash event");
     expect(html).not.toContain("account-a");
+  });
+
+  it("creates one editable action choice per meaningful scenario assumption", () => {
+    const options=scenarioActionOptions({currency:"USD",currentCollections:40_000,
+      proposedCollections:45_000,currentSpending:50_000,proposedSpending:47_000,
+      currentRunway:6,proposedRunway:10,eventType:"receipt",eventAmount:20_000});
+    expect(options.map(option=>option.key)).toEqual(["collections","spending","cash_receipt"]);
+    expect(options[0].prefill).toMatchObject({name:"Increase monthly cash from customers",
+      goal_type:"revenue_increase",goal_value:5_000,goal_unit:"usd"});
+    expect(options[1].prefill).toMatchObject({name:"Reduce monthly operating spending",
+      goal_type:"expense_reduction",goal_value:3_000,goal_unit:"usd"});
+    expect(options[2].prefill.description).toContain("$20,000");
+    for (const option of options) {
+      expect(validateActionCreate(option.prefill).ok).toBe(true);
+    }
+  });
+
+  it("rounds scenario-generated USD action goals to owner-facing whole dollars", () => {
+    const [option]=scenarioActionOptions({currency:"USD",currentCollections:40_000,
+      proposedCollections:40_000,currentSpending:44_166.666666666664,proposedSpending:40_000,
+      currentRunway:1.4,proposedRunway:null,eventType:"none",eventAmount:0});
+    expect(option.prefill.goal_value).toBe(4_167);
+    expect(option.prefill.description).toContain("$44,167 to $40,000");
+  });
+
+  it("frames adverse assumptions as risk preparation and does not misuse alert linkage", () => {
+    const options=scenarioActionOptions({currency:"USD",currentCollections:40_000,
+      proposedCollections:35_000,currentSpending:50_000,proposedSpending:55_000,
+      currentRunway:6,proposedRunway:2,eventType:"payment",eventAmount:10_000});
+    expect(options).toHaveLength(3);
+    for (const option of options) {
+      expect(option.prefill.goal_type).toBe("risk_mitigation");
+      expect(option.prefill.linked_alert_code).toBeUndefined();
+    }
+  });
+
+  it("omits action choices when the scenario has no changes", () => {
+    expect(scenarioActionOptions({currency:"USD",currentCollections:40_000,
+      proposedCollections:40_000,currentSpending:50_000,proposedSpending:50_000,
+      currentRunway:6,proposedRunway:6,eventType:"none",eventAmount:0})).toEqual([]);
+  });
+
+  it("does not record non-USD values in the USD-only action goal field", () => {
+    const [option]=scenarioActionOptions({currency:"CAD",currentCollections:40_000,
+      proposedCollections:45_000,currentSpending:50_000,proposedSpending:50_000,
+      currentRunway:6,proposedRunway:8,eventType:"none",eventAmount:0});
+    expect(option.prefill).toMatchObject({goal_value:null,goal_unit:null});
+    expect(option.prefill.description).toContain("CA$40,000 to CA$45,000");
   });
 });

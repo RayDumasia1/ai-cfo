@@ -1,6 +1,6 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A and FIN-03B in preview; FIN-03C1 and FIN-03C2 implemented locally
+**Status:** FIN-03A through FIN-03C in preview; FIN-03D implemented locally
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
@@ -59,6 +59,12 @@ The FIN-03C2 implementation derives the baseline on the server and passes only t
 The dashboard gives the scenario planner the full content width and leaves import status on the dedicated Financial Data page, removing the dashboard's duplicate status card and query. Owners enter expected monthly cash from customers and operating-spending amounts directly; blank fields retain the saved baseline, avoiding signed adjustment arithmetic. Input placeholders show rounded, currency-formatted current values rather than raw calculated precision. Results describe surplus, shortfall, improvement and deterioration instead of relying on negative-number interpretation. One-time event choices use Cash coming in and Cash going out and remain visibly separate from recurring monthly assumptions.
 
 Saving and naming scenarios, multi-scenario comparison, event timelines, AI goal seeking, AI narrative guidance, sharing and CFO/advisor collaboration remain later Core/Growth/Advisory capabilities. The initial FIN-03C experience is local and unsaved, so it requires no database migration.
+
+## FIN-03D scenario-to-action handoff
+
+After calculating a scenario, Starter users can turn each meaningful assumption into one editable action through the dashboard's existing shared Action modal. Collections increases map to revenue-growth actions, spending reductions map to expense-reduction actions, and adverse changes or one-time receipts/payments map to risk-preparation actions. Prefills retain the baseline, target and estimated runway context in bounded text. They pass through existing action validation, account scoping and tier capacity limits.
+
+Unsaved Starter scenarios have no durable identifier, so FIN-03D does not write a scenario relationship and never stores scenario data in `linked_alert_code`. Non-USD scenarios preserve formatted context in the description but leave the current USD-only numeric goal fields empty. Saved-scenario linkage, versioned assumption snapshots, coordinated action sets and planned-versus-actual scenario reporting remain higher-tier work and will require an explicit action-origin model. FIN-03D requires no database migration.
 
 ## FIN-03B customer-facing integration
 
