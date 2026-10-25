@@ -36,6 +36,7 @@ describe("Financial data page boundary and navigation",()=>{
     expect(html).toContain("No financial data loaded yet.");
     expect(html).toContain("Choose file");
     expect(html).toContain("Download template");
+    expect(html).toContain('href="/downloads/elidan-financial-template-v2.xlsx"');
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain("View dashboard");
   });

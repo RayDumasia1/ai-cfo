@@ -1,6 +1,6 @@
 # Financial template v2
 
-**Status:** DATA-01B workbook staged; DATA-01C database verification passed in preview; end-to-end upload validation pending
+**Status:** Version-2 workbook published to preview; end-to-end validation pending
 **Date:** 24 October 2026
 **Depends on:** [Financial data contract v2](financial-data-contract-v2.md)
 
@@ -8,7 +8,7 @@
 
 Elidan has no customer financial data to migrate before launch. The existing version-1 workbook and rows are development fixtures only. New customers will start on the version-2 workbook and classified cash model.
 
-The version-2 workbook is staged at [the template candidate](templates/elidan-financial-template-v2.xlsx). It does not replace the public download until the DATA-01C parser and transaction pass preview validation. Existing version-1 test fixtures remain available during that transition and will not be reclassified automatically.
+The validated [version-2 workbook](templates/elidan-financial-template-v2.xlsx) is published at `/downloads/elidan-financial-template-v2.xlsx`. Both onboarding and the Financial Data uploader use that shared versioned URL. Existing version-1 test fixtures remain available only for compatibility tests and are not reclassified automatically.
 
 ## Workbook structure
 

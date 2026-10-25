@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import * as XLSX from "xlsx";
 
-const path = "docs/templates/elidan-financial-template-v2.xlsx";
+const path = "public/downloads/elidan-financial-template-v2.xlsx";
+const candidatePath = "docs/templates/elidan-financial-template-v2.xlsx";
 
 describe("launch financial template v2", () => {
   const workbook = XLSX.read(readFileSync(path), {
     type: "buffer",
     cellDates: true,
     cellFormula: true,
+  });
+
+  it("publishes the validated candidate without workbook drift", () => {
+    expect(readFileSync(path)).toEqual(readFileSync(candidatePath));
   });
 
   it("ships only the intended owner-facing worksheets", () => {

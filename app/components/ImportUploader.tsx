@@ -4,6 +4,7 @@ import { useId, useRef, useState } from "react";
 import { useImportUpload } from "./useImportUpload";
 import ImportReviewCard from "./ImportReviewCard";
 import { DEFAULT_IMPORT_MODE, type FinancialImportMode } from "@/lib/financialImportPolicy";
+import { FINANCIAL_TEMPLATE_URL } from "@/lib/financialTemplate";
 
 type ClearState = "idle" | "confirming" | "clearing";
 
@@ -321,7 +322,7 @@ export default function ImportUploader({
           </button>
 
           <a
-            href="/downloads/elidan-financial-template.xlsx"
+            href={FINANCIAL_TEMPLATE_URL}
             download
             className="text-xs font-medium underline transition-opacity hover:opacity-70"
             style={{ color: "var(--teal)" }}

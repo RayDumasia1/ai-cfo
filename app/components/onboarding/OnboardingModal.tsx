@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import OnboardingImportZone from "./OnboardingImportZone";
+import { FINANCIAL_TEMPLATE_URL } from "@/lib/financialTemplate";
 
 interface OnboardingModalProps {
   businessName: string | null;
@@ -28,8 +29,6 @@ interface OnboardingModalProps {
 type Step = 1 | 2 | 3 | 4;
 
 const STEP_LABELS = ["Your business", "What you'll need", "The template", "Import data"];
-const TEMPLATE_URL = "/downloads/elidan-financial-template.xlsx";
-
 const NEEDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Building2,
@@ -38,28 +37,28 @@ const NEEDS: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: Receipt,
-    title: "Revenue and expenses",
-    body: "Total cash collected and total cash paid out each month. QuickBooks users: run a Cash Flow Statement — it has everything.",
+    title: "Cash received and paid",
+    body: "Customer cash collected and operating cash paid each month, plus any owner, debt, asset, or other cash activity.",
   },
   {
     icon: Users,
-    title: "Payroll total",
-    body: "Total payroll and contractor payments per month. Check your payroll system or bank transfers.",
+    title: "Reserved and near-term amounts",
+    body: "If available, gather reserved taxes, near-term receivables and bills, credit availability, and your lowest cash balance.",
   },
 ];
 
 const TEMPLATE_STEPS = [
   {
-    title: "Open the Monthly Summary tab",
-    body: "One row per month — opening cash, closing cash, revenue, expenses, and payroll.",
+    title: "Complete Start Here",
+    body: "Enter your reporting currency and accounting basis, plus any available business details.",
   },
   {
-    title: "Open Expense Categories tab",
-    body: "List each expense type and amount per month. Use consistent category names.",
+    title: "Complete Monthly Cash",
+    body: "Use one row per month and keep operating, owner, debt, investing, and other cash activity separate.",
   },
   {
-    title: "Save as .xlsx and come back",
-    body: "Keep the file in Excel format and upload it on the next step.",
+    title: "Review, save, and return",
+    body: "Add Optional Detail when available, confirm each row is ready, and save the file as .xlsx.",
   },
 ];
 
@@ -231,7 +230,7 @@ export default function OnboardingModal({
   }
 
   function handleDownload() {
-    window.open(TEMPLATE_URL, "_blank");
+    window.open(FINANCIAL_TEMPLATE_URL, "_blank");
     setDownloaded(true);
     if (downloadTimer.current) clearTimeout(downloadTimer.current);
     downloadTimer.current = setTimeout(() => setDownloaded(false), 3000);
@@ -355,7 +354,7 @@ export default function OnboardingModal({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-navy">Elidan Financial Template</p>
                 <p className="mt-0.5 text-xs text-dim">
-                  Excel (.xlsx) · 5 sheets · ~15 min to complete
+                  Excel (.xlsx) · 4 sheets · ~15 min to complete
                 </p>
               </div>
               <button
