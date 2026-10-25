@@ -7,7 +7,6 @@ import {
   getDismissedAlerts,
   getSubscription,
   getActions,
-  getFinancialImportStatus,
 } from "@/lib/db";
 import { alertEngine, isAlertSnoozed, currentRunway, financialDataFreshness } from "@/lib/calculations";
 import { isNewUser as isNewUserCheck, parseSuperuserEmails } from "@/lib/onboarding";
@@ -22,7 +21,7 @@ import CheckoutSuccessBanner from "@/app/components/billing/CheckoutSuccessBanne
 import FoundingMemberWelcomeBanner from "@/app/components/billing/FoundingMemberWelcomeBanner";
 import PendingCancellationBanner from "@/app/components/billing/PendingCancellationBanner";
 import SubscriptionEndedBanner from "@/app/components/billing/SubscriptionEndedBanner";
-import FinancialDataStatusCard from "@/app/components/FinancialDataStatusCard";
+import { scenarioBaseline } from "@/lib/scenarioPlanning";
 
 export default async function DashboardPage({
   searchParams,
@@ -36,7 +35,7 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions, importStatus] = await Promise.all([
+  const [cashPosition, profile, recentMonths, dismissedAlerts, subscription, actions] = await Promise.all([
     user ? getCurrentCashPosition(user.id, supabase) : null,
     user ? getOrCreateBusinessProfile(user.id, supabase) : null,
     user ? getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase) : [],
@@ -51,7 +50,6 @@ export default async function DashboardPage({
           return [];
         })
       : [],
-    user ? getFinancialImportStatus(user.id,supabase) : {available:false,lastImportedAt:null,filename:null},
   ]);
 
   const dataVersion = profile?.data_version ?? null;
@@ -78,6 +76,7 @@ export default async function DashboardPage({
     cashPosition?.cash ?? null,
     recentMonths
   );
+  const whatIfBaseline = scenarioBaseline(cashPosition?.cash ?? null, recentMonths);
 
   const isFoundingMember = subscription?.plan === "founding_member";
   const isActiveFM = isFoundingMember && subscription?.status === "active";
@@ -142,7 +141,7 @@ export default async function DashboardPage({
         snoozeDuration={snoozeDuration}
         hasData={recentMonths.length > 0}
         dataFreshness={dataFreshness}
-        financialDataStatus={<FinancialDataStatusCard months={recentMonths.map(month=>month.month_date)} importStatus={importStatus} />}
+        scenarioBaseline={whatIfBaseline}
       >
         {/* Stat cards */}
         <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">

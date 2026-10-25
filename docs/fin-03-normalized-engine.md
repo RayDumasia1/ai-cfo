@@ -1,6 +1,6 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A and FIN-03B in preview; FIN-03C1 implemented locally; FIN-03C2 approved
+**Status:** FIN-03A and FIN-03B in preview; FIN-03C1 and FIN-03C2 implemented locally
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
@@ -53,6 +53,10 @@ FIN-03C is split into two bounded increments. FIN-03C1 removes the calculator's 
 FIN-03C1 uses the exported `operatingCashMetrics()` primitive for both classified monthly data and manually entered What-If values. The manual inputs are explicitly Available cash, Monthly customer collections and Monthly operating spending; results use Available Cash, Operating Cash Buffer, Operating Cash Trend and Operating Runway. This increment aligns deterministic formulas and language. Loading the customer's saved baseline and baseline-versus-scenario controls remain FIN-03C2.
 
 FIN-03C2 replaces the dashboard's placeholder three-field calculator with a useful Starter scenario experience. It starts from the customer's current saved baseline and shows baseline and proposed results for available cash, monthly operating surplus or shortfall, operating cash buffer and conditional operating runway. Starter users can adjust customer collections, operating spending and available cash, and can model a clearly separated one-time cash receipt or payment. The experience must distinguish recurring changes from one-time events, explain results in owner-friendly language, restore the saved baseline, and handle missing, limited, partial and stale data explicitly.
+
+The FIN-03C2 implementation derives the baseline on the server and passes only the calculation inputs and provenance needed by the client. Version-2 baselines use available cash plus normalized complete-month operating averages; a valid partial latest period may provide the cash cutoff while completed months provide averages. Version-1 records retain the FIN-02 compatibility averages. The client performs no database calls and scenario changes are never persisted. Missing or incomplete baselines fall back to an explicitly labelled manual starting point. Stale and historical baselines remain usable with an update warning.
+
+The dashboard gives the scenario planner the full content width and leaves import status on the dedicated Financial Data page, removing the dashboard's duplicate status card and query. Owners enter expected monthly cash from customers and operating-spending amounts directly; blank fields retain the saved baseline, avoiding signed adjustment arithmetic. Input placeholders show rounded, currency-formatted current values rather than raw calculated precision. Results describe surplus, shortfall, improvement and deterioration instead of relying on negative-number interpretation. One-time event choices use Cash coming in and Cash going out and remain visibly separate from recurring monthly assumptions.
 
 Saving and naming scenarios, multi-scenario comparison, event timelines, AI goal seeking, AI narrative guidance, sharing and CFO/advisor collaboration remain later Core/Growth/Advisory capabilities. The initial FIN-03C experience is local and unsaved, so it requires no database migration.
 

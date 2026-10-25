@@ -2,48 +2,63 @@
 
 import { useState, useEffect } from "react";
 import ManualCalculator from "./ManualCalculator";
+import type { ScenarioBaseline } from "@/lib/scenarioPlanning";
 
 const STORAGE_KEY = "elidan_whatif_collapsed";
 
-export default function ScenarioPanel({ hasData }: { hasData: boolean }) {
+export default function ScenarioPanel({ hasData, baseline }: { hasData: boolean; baseline: ScenarioBaseline }) {
   const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored !== null) setCollapsed(stored === "true");
+    const frame = requestAnimationFrame(() => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored !== null) setCollapsed(stored === "true");
+      } catch {
+        // Optional UI preference must never block the scenario tool.
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   function toggle() {
     const next = !collapsed;
     setCollapsed(next);
-    localStorage.setItem(STORAGE_KEY, String(next));
+    try {
+      localStorage.setItem(STORAGE_KEY, String(next));
+    } catch {
+      // Keep the in-memory interaction when browser storage is unavailable.
+    }
   }
 
   return (
     <div
       style={{
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "var(--surface)",
         borderRadius: 16,
-        border: "1px solid #D8E2EC",
-        boxShadow: "0 1px 3px rgba(10,26,47,0.08)",
+        border: "1px solid var(--line)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       {/* Header — always visible */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px" }}>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 500, color: "#0A1A2F", margin: 0 }}>What-If Scenario</p>
-          <p style={{ fontSize: 12, fontWeight: 300, color: "#6B7A8D", margin: "2px 0 0" }}>
-            Model a scenario to plan ahead
+          <p style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)", margin: 0 }}>Plan a cash scenario</p>
+          <p style={{ fontSize: 12, fontWeight: 300, color: "var(--dim)", margin: "2px 0 0" }}>
+            See how a change could affect your cash position
           </p>
         </div>
         <button
+          type="button"
           onClick={toggle}
+          aria-expanded={!collapsed}
+          aria-controls="what-if-scenario-body"
           style={{
             background: "none",
             border: "none",
             fontSize: 13,
             fontWeight: 500,
-            color: "#2CA6A4",
+            color: "var(--teal)",
             cursor: "pointer",
             padding: 0,
           }}
@@ -54,14 +69,15 @@ export default function ScenarioPanel({ hasData }: { hasData: boolean }) {
 
       {/* Collapsible body */}
       <div
+        id="what-if-scenario-body"
         style={{
           overflow: "hidden",
           maxHeight: collapsed ? "0" : "800px",
           transition: "max-height 250ms ease-in-out",
         }}
       >
-        <div style={{ borderTop: "1px solid #D8E2EC", padding: "20px 24px 24px" }}>
-          <ManualCalculator bare />
+        <div style={{ borderTop: "1px solid var(--line)", padding: "20px 24px 24px" }}>
+          <ManualCalculator bare baseline={baseline} hasData={hasData} />
         </div>
       </div>
     </div>

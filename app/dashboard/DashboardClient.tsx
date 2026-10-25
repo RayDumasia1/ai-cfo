@@ -11,6 +11,7 @@ import ActionTrackerPanel from "@/app/components/ActionTrackerPanel";
 import ActionModal from "@/app/components/ActionModal";
 import { useActionManager } from "@/app/components/useActionManager";
 import UpgradeStrip from "@/app/components/billing/UpgradeStrip";
+import type { ScenarioBaseline } from "@/lib/scenarioPlanning";
 
 interface DashboardClientProps {
   featureTier: FeatureTier;
@@ -21,7 +22,7 @@ interface DashboardClientProps {
   snoozeDuration: SnoozeType;
   hasData: boolean;
   dataFreshness: FinancialDataFreshness;
-  financialDataStatus: ReactNode;
+  scenarioBaseline: ScenarioBaseline;
   /** Server-rendered content between TopAlerts and BottomAlerts (stat cards, chart). */
   children: ReactNode;
 }
@@ -40,7 +41,7 @@ export default function DashboardClient({
   snoozeDuration,
   hasData,
   dataFreshness,
-  financialDataStatus,
+  scenarioBaseline,
   children,
 }: DashboardClientProps) {
   const { actions, actionError, openModal, modalKey, modalProps } = useActionManager(initialActions);
@@ -70,11 +71,9 @@ export default function DashboardClient({
         />
       </div>
 
-      {/* Two-column data row: financial data status | What-If Scenario */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        {financialDataStatus}
-
-        <ScenarioPanel hasData={hasData} />
+      {/* Starter scenario planner uses the full content width for comparison. */}
+      <div className="mb-8">
+        <ScenarioPanel hasData={hasData} baseline={scenarioBaseline} />
       </div>
 
       <ActionTrackerPanel

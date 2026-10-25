@@ -1,6 +1,17 @@
 import ManualCalculator from "@/app/components/ManualCalculator";
+import { getCurrentCashPosition, getFinancialMonths } from "@/lib/db";
+import { DASHBOARD_MONTH_LIMIT } from "@/lib/financialImportPolicy";
+import { scenarioBaseline } from "@/lib/scenarioPlanning";
+import { createClient } from "@/utils/supabase/server";
 
-export default function ScenariosPage() {
+export default async function ScenariosPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const [cash, months] = user ? await Promise.all([
+    getCurrentCashPosition(user.id, supabase),
+    getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase),
+  ]) : [null, []];
+  const baseline = scenarioBaseline(cash?.cash ?? null, months);
   return (
     <div className="px-8 py-8">
       <div className="mb-8">
@@ -10,7 +21,7 @@ export default function ScenariosPage() {
         </p>
       </div>
 
-      <ManualCalculator />
+      <ManualCalculator baseline={baseline} hasData={months.length > 0} />
     </div>
   );
 }
