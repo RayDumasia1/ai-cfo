@@ -2,6 +2,7 @@ import { isFinancialImportMode, isFinancialImportResult, type FinancialImportMod
 import { isImportReview, type ImportReview } from "./financialImportReview";
 
 export interface ImportSuccessPayload {
+  unchanged: boolean;
   replaced: boolean;
   mode: FinancialImportMode;
   monthsImported: number;
@@ -18,9 +19,9 @@ function confirmedPayload(value: unknown, mode: FinancialImportMode): value is I
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   const range = v.dateRange as Record<string, unknown> | undefined;
-  return v.success === true && typeof v.monthsImported === "number" && Number.isSafeInteger(v.monthsImported) &&
-    v.monthsImported > 0 && Array.isArray(v.warnings) && v.warnings.every(w => typeof w === "string") &&
-    isFinancialImportResult({ replaced: v.replaced, mode: v.mode, months_imported: v.monthsImported,
+  return v.success === true && typeof v.unchanged === "boolean" && typeof v.monthsImported === "number" && Number.isSafeInteger(v.monthsImported) &&
+    v.monthsImported >= 0 && Array.isArray(v.warnings) && v.warnings.every(w => typeof w === "string") &&
+    isFinancialImportResult({ unchanged: v.unchanged, replaced: v.replaced, mode: v.mode, months_imported: v.monthsImported,
       months_total: v.monthsTotal, date_from: range?.from, date_to: range?.to, current_cash: v.currentCash }, mode, v.monthsImported);
 }
 

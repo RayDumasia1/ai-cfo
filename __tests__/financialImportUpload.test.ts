@@ -12,7 +12,7 @@ const existingMonths = Array.from({ length: 12 }, (_, i) => "2025-" + String(i +
 const review = (mode: FinancialImportMode = "update_months") => buildImportReview(file.name,mode,["2024-01-01"],
   { state_version: "a".repeat(32), months: existingMonths },[]);
 const prepared = (mode: FinancialImportMode = "update_months") => ({ success: true, review: review(mode), reviewToken: "synthetic.token" });
-const success = (mode: FinancialImportMode = "update_months") => ({ success: true, mode, replaced: true,
+const success = (mode: FinancialImportMode = "update_months") => ({ success: true, unchanged: false, mode, replaced: true,
   monthsImported: 1, monthsTotal: mode === "replace_all" ? 1 : 13,
   dateRange: { from: "2024-01-01", to: mode === "replace_all" ? "2024-01-01" : "2025-12-01" }, currentCash: 1234, warnings: [] });
 afterEach(() => vi.restoreAllMocks());
@@ -87,6 +87,17 @@ describe("reviewed financial upload", () => {
     await first;
     expect(await client.confirm()).toBeNull();
     expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts and explains a confirmed semantic no-op", async () => {
+    const unchanged = { ...success(), unchanged: true, monthsImported: 0 };
+    const send = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(prepared()))
+      .mockResolvedValueOnce(Response.json(unchanged));
+    const client = createImportUploadRequest(send);
+    await client.prepare(file,"update_months");
+    expect(await client.confirm()).toEqual(unchanged);
+    const markup = renderToStaticMarkup(createElement(ImportUploader,{ hasData: true }));
+    expect(markup).not.toContain("No changes were made");
   });
 
   it("keeps review state scoped to each uploader", async () => {

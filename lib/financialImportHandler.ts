@@ -225,6 +225,7 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
       userId,
       filename,
       monthsImported: months.length,
+      unchanged: result.unchanged,
       isReplacing: result.replaced,
       mode,
       latestMonth,
@@ -233,10 +234,11 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
 
     return NextResponse.json({
       success: true,
+      unchanged: result.unchanged,
       replaced: result.replaced,
       mode,
       monthsTotal: result.months_total,
-      monthsImported: months.length,
+      monthsImported: result.months_imported,
       warnings: parsed.warnings,
       dateRange: { from: result.date_from, to: latestMonth },
       currentCash,

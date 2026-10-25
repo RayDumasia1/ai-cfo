@@ -200,6 +200,13 @@ export default function ImportUploader({
 
   // ── Success ────────────────────────────────────────────────────────────────
   if (state === "success" && success) {
+    if (success.unchanged) {
+      return <div role="status" className="bg-surface px-6 py-5" style={{borderRadius:"var(--radius-lg)",border:"1px solid var(--line)",borderLeft:"3px solid var(--teal)",boxShadow:"var(--shadow-sm)"}}>
+        <p className="text-sm font-medium" style={{color:"var(--teal)"}}>✓ Your financial data is already up to date</p>
+        <p className="mt-1 text-xs font-light" style={{color:"var(--dim)"}}>This file matches your saved financial data. No changes were made.</p>
+        <button type="button" onClick={reset} className="mt-4 text-xs font-medium transition-opacity hover:opacity-70" style={{color:"var(--teal)"}}>Upload another file</button>
+      </div>;
+    }
     const verb = success.mode === "update_months" ? "Updated" : "Replaced all data with";
     return (
       <div

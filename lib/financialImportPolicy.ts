@@ -8,6 +8,7 @@ export function isFinancialImportMode(value: unknown): value is FinancialImportM
 }
 
 export interface FinancialImportResult {
+  unchanged: boolean;
   replaced: boolean;
   months_imported: number;
   mode: FinancialImportMode;
@@ -21,9 +22,10 @@ export function isFinancialImportResult(value: unknown, mode: FinancialImportMod
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
   const month = /^\d{4}-(0[1-9]|1[0-2])-01$/;
-  return result.mode === mode && typeof result.replaced === "boolean" && result.months_imported === count &&
-    typeof result.months_total === "number" && Number.isSafeInteger(result.months_total) && result.months_total >= count &&
-    (mode !== "replace_all" || result.months_total === count) &&
+  return result.mode === mode && typeof result.unchanged === "boolean" && typeof result.replaced === "boolean" &&
+    result.months_imported === (result.unchanged ? 0 : count) &&
+    typeof result.months_total === "number" && Number.isSafeInteger(result.months_total) && result.months_total >= 1 &&
+    (!result.unchanged && mode === "replace_all" ? result.months_total === count : true) &&
     typeof result.date_from === "string" && month.test(result.date_from) &&
     typeof result.date_to === "string" && month.test(result.date_to) && result.date_from <= result.date_to &&
     (result.current_cash === null || (typeof result.current_cash === "number" && Number.isFinite(result.current_cash)));

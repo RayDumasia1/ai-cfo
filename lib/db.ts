@@ -184,8 +184,10 @@ export async function importFinancialData(
     p_filename: filename, p_mode: mode,
   });
   if (error) throw error;
-  if (!isFinancialImportResult(data, mode, months.length)) throw new Error("Invalid financial import result");
-  return data;
+  const result = data && typeof data === "object" && !Array.isArray(data)
+    ? { ...data, unchanged: false } : data;
+  if (!isFinancialImportResult(result, mode, months.length)) throw new Error("Invalid financial import result");
+  return result;
 }
 
 export async function getFinancialImportReviewState(userId: string, serviceClient: SupabaseClient): Promise<ImportReviewState> {

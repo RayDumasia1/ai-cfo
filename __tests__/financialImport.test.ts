@@ -78,7 +78,7 @@ beforeEach(() => {
   vi.mocked(parseExcelBuffer).mockImplementation(() => structuredClone(parsed));
   rpc.mockImplementation(async (name, args) => {
     const dates = args.p_months.map((m: { month_date: string }) => m.month_date).sort();
-    return { data: { replaced: false, months_imported: args.p_months.length,
+    return { data: { unchanged: false, replaced: false, months_imported: args.p_months.length,
       ...(name === "import_financial_data" || name === "import_reviewed_financial_data" ? { mode: args.p_mode, months_total: dates.length,
         date_from: dates[0], date_to: dates.at(-1), current_cash: 90 } : {}) }, error: null };
   });
@@ -272,7 +272,7 @@ describe("atomic import route and database adapter", () => {
 
   it.each([false, true])("returns the committed result for replaced=%s and uses only the signed-in account", async replaced => {
     parsed.months = [month("2026-09-01"), { ...month("2026-08-01"), closing_cash: 110 }];
-    rpc.mockResolvedValue({ data: { replaced, months_imported: 2, mode: "update_months", months_total: 2,
+    rpc.mockResolvedValue({ data: { unchanged: false, replaced, months_imported: 2, mode: "update_months", months_total: 2,
       date_from: "2026-08-01", date_to: "2026-09-01", current_cash: 90 }, error: null });
     const response = await POST(request());
     expect(response.status).toBe(200);
@@ -286,6 +286,17 @@ describe("atomic import route and database adapter", () => {
     });
     expect(from).not.toHaveBeenCalled();
     // Success auditing belongs to the database transaction, not a later request.
+    expect(logDataImport).not.toHaveBeenCalled();
+  });
+
+  it("returns an explicit no-op without claiming that any months were imported", async () => {
+    rpc.mockResolvedValue({ data: { unchanged: true, replaced: true, months_imported: 0,
+      mode: "update_months", months_total: 12, date_from: "2025-10-01",
+      date_to: "2026-09-01", current_cash: 4500 }, error: null });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, unchanged: true,
+      monthsImported: 0, monthsTotal: 12, currentCash: 4500 });
     expect(logDataImport).not.toHaveBeenCalled();
   });
 
@@ -335,7 +346,7 @@ describe("explicit import modes", () => {
   });
 
   it("uses the resulting dataset summary when older months are uploaded", async () => {
-    rpc.mockResolvedValue({ data: { replaced: true, months_imported: 1, mode: "update_months", months_total: 12,
+    rpc.mockResolvedValue({ data: { unchanged: false, replaced: true, months_imported: 1, mode: "update_months", months_total: 12,
       date_from: "2026-01-01", date_to: "2026-12-01", current_cash: 4321 }, error: null });
     const response = await POST(request());
     expect(response.status).toBe(200);
@@ -346,7 +357,7 @@ describe("explicit import modes", () => {
   it.each([null, {}, { replaced: true, months_imported: 1 },
     { mode: "replace_all" }, { months_total: 0 }, { date_to: "2025-01-01" },
     { current_cash: "90" }, { current_cash: Infinity }])("rejects absent, legacy or inconsistent mode-aware acknowledgments: %j", async patch => {
-    const base = { replaced: true, months_imported: 1, mode: "update_months", months_total: 1,
+    const base = { unchanged: false, replaced: true, months_imported: 1, mode: "update_months", months_total: 1,
       date_from: "2026-09-01", date_to: "2026-09-01", current_cash: 90 };
     const data = patch === null || Object.keys(patch).length === 0 || "replaced" in patch ? patch : { ...base, ...patch };
     rpc.mockResolvedValue({ data, error: null });

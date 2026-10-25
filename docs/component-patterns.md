@@ -1005,6 +1005,12 @@ DB-01B replaces the usage read/check/increment sequence with `consume_usage`, a 
 
 Apply `2026-10-25-atomic-usage-consumption.sql` in preview and run the complete rollback verifier. Then use the paired independent-browser scripts to prove that two requests competing for the final hard-limit slot result in one committed count of 20 and one denial, followed by fixture cleanup. Only the migration goes to production, before the coordinated application. See `docs/db-01b-atomic-usage.md`.
 
+### Idempotent reviewed v2 imports
+
+The reviewed import RPC performs contract-v2 semantic duplicate detection only after it locks the account profile row and confirms the signed review state. It compares the exact normalized values the v2 writer would store, the affected category rows, replacement scope, and onboarding-owned profile fields. If the resulting dataset is identical, it returns `unchanged=true` and `months_imported=0` without changing financial rows, timestamps, `data_version`, revisions or import-audit rows. Filename and workbook formatting are not financial changes. Because no audit row is added, the latest-successful-import display continues to identify the last operation that changed saved financial data.
+
+Legacy v1 imports remain write-through: their month payload cannot prove that displaced category detail is unchanged. This conservative scope prevents a false no-op and matches the v2-only customer launch plan. The client validates the explicit `unchanged` acknowledgment and presents a distinct success message rather than claiming months were imported.
+
 ## 10 Document History
 
 | Version | Date | Changes |
