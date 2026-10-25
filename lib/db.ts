@@ -83,15 +83,16 @@ export async function upsertBusinessProfile(
  */
 export async function getFinancialMonths(
   userId: string,
-  limit = DASHBOARD_MONTH_LIMIT,
+  limit: number | null = DASHBOARD_MONTH_LIMIT,
   client: SupabaseClient = supabase
 ): Promise<FinancialMonth[]> {
-  const { data, error } = await client
+  let query = client
     .from("financial_months")
     .select("*")
     .eq("user_id", userId)
-    .order("month_date", { ascending: false })
-    .limit(limit);
+    .order("month_date", { ascending: false });
+  if (limit !== null) query = query.limit(limit);
+  const { data, error } = await query;
 
   if (error) throw error;
   return data ?? [];
@@ -284,7 +285,7 @@ export async function upsertExpenseCategories(
 /** Latest successful source import, excluding manual Clear Data audit records. */
 export async function getFinancialImportStatus(userId: string, client: SupabaseClient = supabase): Promise<FinancialImportStatus> {
   const {data,error} = await client.from("data_imports")
-    .select("created_at")
+    .select("created_at,filename")
     .eq("user_id",userId)
     .eq("status","success")
     .in("import_type",["excel","csv","quickbooks"])
@@ -293,9 +294,9 @@ export async function getFinancialImportStatus(userId: string, client: SupabaseC
     .maybeSingle();
   if (error) {
     console.error("financialData:importStatus:error",{code:error.code});
-    return {available:false,lastImportedAt:null};
+    return {available:false,lastImportedAt:null,filename:null};
   }
-  return {available:true,lastImportedAt:data?.created_at ?? null};
+  return {available:true,lastImportedAt:data?.created_at ?? null,filename:data?.filename ?? null};
 }
 
 /**

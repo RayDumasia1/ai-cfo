@@ -1,6 +1,33 @@
 export interface FinancialImportStatus {
   available: boolean;
   lastImportedAt: string | null;
+  filename: string | null;
+}
+
+export interface FinancialDataProvenanceMonth {
+  month_date: string;
+  data_contract_version: 1 | 2;
+  source_type: "legacy_spreadsheet" | "spreadsheet" | "quickbooks" | "manual" | "other";
+  accounting_basis: "cash" | "accrual" | "mixed" | "unknown" | null;
+  reporting_currency: string | null;
+  period_status: "complete" | "partial" | "unknown";
+  period_cutoff_date: string | null;
+}
+
+export function financialDataProvenance(months: FinancialDataProvenanceMonth[]) {
+  const ordered = [...months].sort((a,b)=>a.month_date.localeCompare(b.month_date));
+  const unique = <T,>(values:T[]) => [...new Set(values)];
+  return {
+    firstMonth: ordered[0]?.month_date ?? null,
+    latestMonth: ordered.at(-1)?.month_date ?? null,
+    latestPeriodStatus: ordered.at(-1)?.period_status ?? null,
+    latestPeriodCutoff: ordered.at(-1)?.period_cutoff_date ?? null,
+    storedMonths: ordered.length,
+    sourceTypes: unique(ordered.map(month=>month.source_type)),
+    contractVersions: unique(ordered.map(month=>month.data_contract_version)),
+    accountingBases: unique(ordered.map(month=>month.accounting_basis).filter(value=>value !== null)),
+    reportingCurrencies: unique(ordered.map(month=>month.reporting_currency).filter(value=>value !== null)),
+  };
 }
 
 /** Coverage of the displayed stored records; it does not infer missing values as zero. */

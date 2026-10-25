@@ -51,7 +51,7 @@ export default async function DashboardPage({
           return [];
         })
       : [],
-    user ? getFinancialImportStatus(user.id,supabase) : {available:false,lastImportedAt:null},
+    user ? getFinancialImportStatus(user.id,supabase) : {available:false,lastImportedAt:null,filename:null},
   ]);
 
   const dataVersion = profile?.data_version ?? null;

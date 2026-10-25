@@ -15,7 +15,7 @@ beforeEach(()=>{
   getUser.mockResolvedValue({data:{user:{id:"own-account",email_confirmed_at:"2026-01-01",email:"test@example.invalid"}},error:null});
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
   vi.mocked(getFinancialMonths).mockResolvedValue([]);
-  vi.mocked(getFinancialImportStatus).mockResolvedValue({available:true,lastImportedAt:null});
+  vi.mocked(getFinancialImportStatus).mockResolvedValue({available:true,lastImportedAt:null,filename:null});
 });
 
 describe("Financial data page boundary and navigation",()=>{
@@ -30,7 +30,7 @@ describe("Financial data page boundary and navigation",()=>{
   });
   it("uses the authenticated account and shared uploader, with a direct route back to a fresh dashboard",async()=>{
     const html = renderToStaticMarkup(await FinancialDataPage());
-    expect(getFinancialMonths).toHaveBeenCalledExactlyOnceWith("own-account",undefined,client);
+    expect(getFinancialMonths).toHaveBeenCalledExactlyOnceWith("own-account",null,client);
     expect(getFinancialImportStatus).toHaveBeenCalledExactlyOnceWith("own-account",client);
     expect(html).toContain("Financial data");
     expect(html).toContain("No financial data loaded yet.");

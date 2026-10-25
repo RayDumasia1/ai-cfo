@@ -84,7 +84,7 @@ The migration:
 
 - DATA-01B: [v2 workbook layout, field guidance and formulas](financial-template-v2.md) staged; parser support pending.
 - DATA-01C: completed in preview 24 October 2026. The strict parser, reviewed atomic publication, migration, rollback verifier and end-to-end workbook upload passed; imported rows were confirmed as contract version 2 with valid reconciliation.
-- DATA-01D: the v2 download and onboarding transition are implemented and preview-validated; provenance display remains.
+- DATA-01D: implemented locally; preview validation pending. The Financial Data page shows account-scoped source, latest uploaded filename, reporting coverage, period completeness, basis, currency, contract version and latest successful import time. Mixed saved sources and versions are labeled explicitly.
 - FIN-03: normalized calculation engine and classified alerts.
 - ORG-01/forecast work: organization-owned dated commitments and 13-week forecasting.
 - QuickBooks: provider mapping, connection identity, synchronization and correction policy.

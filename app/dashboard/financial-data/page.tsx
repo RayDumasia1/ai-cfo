@@ -4,6 +4,7 @@ import { getFinancialMonths, getFinancialImportStatus, hasPaidSubscription } fro
 import { hasVerifiedEmail } from "@/lib/authPolicy";
 import ImportRefresher from "../ImportRefresher";
 import FinancialDataStatusCard from "@/app/components/FinancialDataStatusCard";
+import FinancialDataProvenanceCard from "@/app/components/FinancialDataProvenanceCard";
 
 export default async function FinancialDataPage() {
   const supabase = await createClient();
@@ -12,7 +13,7 @@ export default async function FinancialDataPage() {
   if (!hasVerifiedEmail(user)) redirect(`/auth/verify?email=${encodeURIComponent(user.email ?? "")}`);
   if (!(await hasPaidSubscription(user.id,supabase))) redirect("/welcome");
   const [months,importStatus] = await Promise.all([
-    getFinancialMonths(user.id,undefined,supabase),getFinancialImportStatus(user.id,supabase),
+    getFinancialMonths(user.id,null,supabase),getFinancialImportStatus(user.id,supabase),
   ]);
   return <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8">
     <a href="/dashboard" className="text-sm underline" style={{color:"var(--teal)"}}>Back to dashboard</a>
@@ -20,6 +21,7 @@ export default async function FinancialDataPage() {
     <p className="mt-2 text-sm" style={{color:"var(--dim)"}}>Upload your monthly financial data, review the changes, then confirm your import.</p>
     <div className="mt-6 space-y-6">
       <FinancialDataStatusCard months={months.map(month=>month.month_date)} importStatus={importStatus} showAction={false} />
+      <FinancialDataProvenanceCard months={months} importStatus={importStatus} />
       <ImportRefresher hasData={months.length > 0} />
     </div>
   </div>;
