@@ -577,6 +577,10 @@ style:    UI/visual changes only
 
 Browser roles receive only the table operations used by authenticated product flows. Never grant `TRUNCATE`, `TRIGGER` or `REFERENCES` to `anon` or `authenticated`; row-level security does not protect `TRUNCATE`. Service-role policies with unconditional `true` are unnecessary because the service role bypasses RLS, and must not be assigned to `PUBLIC`. Subscription initialization uses `initialize_subscription()` with fixed Starter values derived from `auth.uid()`; authenticated callers cannot insert or update subscription entitlements directly. Any `SECURITY DEFINER` account RPC must use an empty `search_path`, schema-qualified objects, an explicit `auth.uid()` ownership check, and narrowly scoped execute grants.
 
+### Stripe webhook delivery
+
+Stripe event delivery is at-least-once and may be out of order. The webhook must atomically claim `event.id` in `stripe_webhook_events`; completed or concurrently processing IDs are acknowledged without repeating side effects, while failed and abandoned claims can be retried. Subscription update events are signals to retrieve the current Stripe subscription and persist that authoritative state. Match both customer and subscription IDs before writing. Database failures return 500 for Stripe retry. Email-provider failures are logged for operational follow-up and never roll back or corrupt committed billing access.
+
 ---
 
 ### Authentication and email verification

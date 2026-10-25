@@ -43,10 +43,20 @@ type Row = Record<string, unknown>;
 // In-memory PostgREST double: executes filtered writes when awaited, including
 // ON CONFLICT DO NOTHING and compare-and-delete. No Supabase/Stripe network calls.
 function database() {
-  const tables: Record<string, Row[]> = { subscriptions: [], subscription_checkout_attempts: [], usage_tracking: [] };
+  const tables: Record<string, Row[]> = { subscriptions: [], subscription_checkout_attempts: [], usage_tracking: [], stripe_webhook_events: [] };
   const writes: { table: string; filters: [string, unknown][]; values: Row }[] = [];
   let failTable: string | null = null;
   const client = {
+    async rpc(name: string, args: Row) {
+      if (name !== "claim_stripe_webhook_event") return { data: null, error: new Error("Unknown RPC") };
+      if (failTable === "stripe_webhook_events") return { data: null, error: new Error("Database unavailable") };
+      const rows = tables.stripe_webhook_events;
+      const existing = rows.find(row => row.event_id === args.p_event_id);
+      if (existing && existing.status !== "failed") return { data: false, error: null };
+      if (existing) Object.assign(existing, { status: "processing", attempts: Number(existing.attempts) + 1 });
+      else rows.push({ event_id: args.p_event_id, event_type: args.p_event_type, object_id: args.p_object_id, status: "processing", attempts: 1 });
+      return { data: true, error: null };
+    },
     from(table: string) {
       let operation = "select";
       let values: Row = {};
@@ -89,7 +99,7 @@ function database() {
           selected = rows.filter(row => row.user_id === values.user_id);
         }
         if (operation === "update") {
-          writes.push({ table, filters: [...filters], values });
+          if (table !== "stripe_webhook_events") writes.push({ table, filters: [...filters], values });
           selected.forEach(row => Object.assign(row, values));
         }
         if (operation === "delete") tables[table] = rows.filter(row => !matches(row));
@@ -107,6 +117,7 @@ let sessions: Map<string, Row>;
 let subscriptions: Row[];
 let userId: string;
 let invoicePayments: Row[];
+let eventSequence: number;
 
 function request(planKey = "core", mode = "subscription") {
   return new NextRequest("https://app.example.invalid/api/stripe/checkout", {
@@ -127,7 +138,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example.invalid");
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
-  db = database(); sessions = new Map(); subscriptions = []; invoicePayments = []; userId = "user_one";
+  db = database(); sessions = new Map(); subscriptions = []; invoicePayments = []; eventSequence = 0; userId = "user_one";
   vi.mocked(getFoundingMemberAvailability).mockResolvedValue({ total: 25, claimed: 1, remaining: 24, soldOut: false });
   vi.mocked(createServiceClient).mockReturnValue(db.client);
   vi.mocked(createClient).mockImplementation(async () => ({
@@ -398,9 +409,12 @@ describe("subscription checkout", () => {
   });
 });
 
-async function deliver(type: string, object: Row, eventTime = new Date()) {
+async function deliver(type: string, object: Row, eventTime = new Date(), eventId = `evt_${++eventSequence}`) {
+  if (type === "customer.subscription.updated" && object.id && !subscriptions.some(row => row.id === object.id)) {
+    subscriptions.push(object);
+  }
   vi.mocked(stripe.webhooks.constructEvent).mockReturnValue({
-    type, created: Math.floor(eventTime.getTime() / 1000), data: { object: { payment_status: "paid", ...object } },
+    id: eventId, type, created: Math.floor(eventTime.getTime() / 1000), data: { object: { payment_status: "paid", ...object } },
   } as never);
   return webhook(new NextRequest("https://app.example.invalid/api/stripe/webhook", { method: "POST", body: "synthetic signed event" }));
 }
@@ -457,6 +471,43 @@ describe("subscription webhook identity", () => {
     await deliver("customer.subscription.deleted", { id: "sub_current", customer: "cus_existing" });
     expect(current).toMatchObject({ status: "cancelled", feature_tier: "starter" });
     expect(db.writes[0].filters).toContainEqual(["stripe_subscription_id", "sub_current"]);
+  });
+
+  it("processes the same Stripe event ID only once", async () => {
+    const current = seedSubscription();
+    const event = { id: "sub_current", customer: "cus_existing", status: "canceled", items: { data: [] } };
+    await deliver("customer.subscription.deleted", event, new Date(), "evt_duplicate");
+    await deliver("customer.subscription.deleted", event, new Date(), "evt_duplicate");
+    expect(current.status).toBe("cancelled");
+    expect(db.tables.stripe_webhook_events).toEqual([expect.objectContaining({
+      event_id: "evt_duplicate", status: "completed", attempts: 1,
+    })]);
+  });
+
+  it("uses current Stripe state when an older subscription update arrives last", async () => {
+    const current = seedSubscription({ status: "past_due" });
+    subscriptions.push({
+      id: "sub_current", customer: "cus_existing", status: "active",
+      metadata: { plan_key: "core" }, cancel_at: null, cancel_at_period_end: false,
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+    });
+    await deliver("customer.subscription.updated", {
+      id: "sub_current", customer: "cus_existing", status: "past_due",
+      metadata: { plan_key: "starter" }, items: { data: [] },
+    });
+    expect(current).toMatchObject({ status: "active", plan: "core", feature_tier: "core", stripe_price_id: "price_core" });
+  });
+
+  it("does not roll back committed billing state when email delivery fails", async () => {
+    const current = seedSubscription();
+    subscriptions.push({ id: "sub_current", customer: "cus_existing", status: "past_due", items: { data: [] } });
+    vi.mocked(sendPaymentFailedEmail).mockRejectedValueOnce(new Error("Email provider unavailable"));
+    const response = await deliver("invoice.payment_failed", {
+      customer: "cus_existing", parent: { subscription_details: { subscription: "sub_current" } },
+    });
+    expect(response.status).toBe(200);
+    expect(current.status).toBe("past_due");
+    expect(db.tables.stripe_webhook_events[0]).toMatchObject({ status: "completed" });
   });
 
   it.each(["invoice.payment_failed", "invoice.payment_succeeded"])("ignores %s for an old subscription or a one-time purchase", async type => {

@@ -35,7 +35,17 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient();
 
-  console.log("webhook:event", event.type);
+  const objectId = "id" in event.data.object ? event.data.object.id : null;
+  const { data: claimed, error: claimError } = await supabase.rpc("claim_stripe_webhook_event", {
+    p_event_id: event.id, p_event_type: event.type, p_object_id: objectId,
+  });
+  if (claimError) {
+    console.error("webhook:claim:error", { eventId: event.id, type: event.type, claimError });
+    return Response.json({ error: "Webhook processing failed" }, { status: 500 });
+  }
+  if (!claimed) return OK();
+
+  console.log("webhook:event", { eventId: event.id, type: event.type });
 
   try {
     switch (event.type) {
@@ -74,7 +84,16 @@ export async function POST(req: NextRequest) {
         );
         break;
     }
+    const { error: completionError } = await supabase.from("stripe_webhook_events").update({
+      status: "completed", completed_at: new Date().toISOString(), updated_at: new Date().toISOString(), last_error: null,
+    }).eq("event_id", event.id).eq("status", "processing");
+    if (completionError) throw completionError;
   } catch (err) {
+    const message = err instanceof Error ? err.message.slice(0, 500) : "Webhook processing failed";
+    const { error: failureError } = await supabase.from("stripe_webhook_events").update({
+      status: "failed", updated_at: new Date().toISOString(), last_error: message,
+    }).eq("event_id", event.id).eq("status", "processing");
+    if (failureError) console.error("webhook:failureRecord:error", { eventId: event.id, failureError });
     console.error(`webhook:${event.type}:error`, err);
     return Response.json({ error: "Webhook processing failed" }, { status: 500 });
   }
@@ -196,9 +215,11 @@ async function handleCheckoutCompleted(
       const customerEmail = session.customer_details?.email;
       if (customerEmail) {
         if (isRestore) {
-          await sendFoundingMemberRestoreEmail(customerEmail, emailMemberNumber);
+          await deliverWebhookEmail("founding-restore", () =>
+            sendFoundingMemberRestoreEmail(customerEmail, emailMemberNumber));
         } else {
-          await sendFoundingMemberWelcomeEmail(customerEmail, emailMemberNumber);
+          await deliverWebhookEmail("founding-welcome", () =>
+            sendFoundingMemberWelcomeEmail(customerEmail, emailMemberNumber));
         }
       }
     }
@@ -212,16 +233,17 @@ async function handleCheckoutCompleted(
     });
     if (insertError) {
       console.error("webhook:checkoutCompleted:cfoInsert:error", insertError);
+      throw insertError;
     }
 
     const customerId = session.customer as string;
     const customer = await stripe.customers.retrieve(customerId);
     const customerEmail = (customer as Stripe.Customer).email;
     if (customerEmail) {
-      await sendCfoCallConfirmation(
+      await deliverWebhookEmail("cfo-call-confirmation", () => sendCfoCallConfirmation(
         customerEmail,
         process.env.NEXT_PUBLIC_CALENDLY_URL!
-      );
+      ));
     }
   }
 }
@@ -231,6 +253,11 @@ async function handleSubscriptionUpdated(
   supabase: SupabaseClient,
   eventTime: Date
 ) {
+  const deliveredCustomer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+  const current = await stripe.subscriptions.retrieve(sub.id);
+  const currentCustomer = typeof current.customer === "string" ? current.customer : current.customer.id;
+  if (currentCustomer !== deliveredCustomer) throw new Error("Stripe subscription customer mismatch");
+  sub = current;
   console.log("webhook:subscriptionUpdated", {
     id: sub.id,
     status: sub.status,
@@ -304,11 +331,11 @@ async function handleSubscriptionUpdated(
     if (existing.plan === "founding_member" && existing.founding_member_number) {
       const email = await getCustomerEmail(sub.customer as string);
       if (email) {
-        await sendFoundingMemberCancelledEmail(
+        await deliverWebhookEmail("founding-cancellation", () => sendFoundingMemberCancelledEmail(
           email,
           existing.founding_member_number,
           cancelAt.toISOString()
-        );
+        ));
       }
     }
     return;
@@ -405,7 +432,8 @@ async function handleSubscriptionDeleted(
   // must not send a second notice after another event path completed cleanup.
   if (shouldNotify) {
     const email = await getCustomerEmail(sub.customer as string);
-    if (email) await sendFoundingMemberCancelledEmail(email, existing.founding_member_number, effectiveEnd);
+    if (email) await deliverWebhookEmail("founding-ended", () =>
+      sendFoundingMemberCancelledEmail(email, existing.founding_member_number!, effectiveEnd));
   }
 }
 
@@ -479,7 +507,18 @@ async function handlePaymentFailed(
   const current = await syncInvoiceSubscription(invoice, supabase, eventTime);
   if (!current || current.status !== "past_due") return;
   const email = await getCustomerEmail(current.subscription.customer as string);
-  if (email) await sendPaymentFailedEmail(email, process.env.NEXT_PUBLIC_APP_URL!);
+  if (email) await deliverWebhookEmail("payment-failed", () =>
+    sendPaymentFailedEmail(email, process.env.NEXT_PUBLIC_APP_URL!));
+}
+
+async function deliverWebhookEmail(label: string, send: () => Promise<void>) {
+  try {
+    await send();
+  } catch (error) {
+    // Billing state is authoritative. Log delivery failures for operational
+    // follow-up without rolling back or repeatedly mutating entitlements.
+    console.error("webhook:email:error", { label, error });
+  }
 }
 
 async function handlePaymentSucceeded(
