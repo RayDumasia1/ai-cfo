@@ -34,7 +34,7 @@ const STATUS_BADGE: Record<string, { bg: string; color: string; label: string }>
   active: { bg: "rgba(44,166,164,0.10)", color: "#2CA6A4", label: "Active" },
   past_due: { bg: "rgba(217,119,6,0.10)", color: "#B45309", label: "Past due" },
   cancelled: { bg: "rgba(220,38,38,0.10)", color: "#DC2626", label: "Cancelled" },
-  pending_cancellation: { bg: "rgba(245,158,11,0.10)", color: "#7D4E00", label: "" },
+  pending_cancellation: { bg: "rgba(245,158,11,0.10)", color: "#7D4E00", label: "Cancellation scheduled" },
 };
 
 function formatDate(iso: string) {

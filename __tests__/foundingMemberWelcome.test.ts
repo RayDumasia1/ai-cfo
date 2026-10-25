@@ -67,6 +67,16 @@ describe("returning-member plan selection", () => {
     expect(html).not.toContain("Core benefits active");
     expect(html).not.toContain("Grace period active");
   });
+  it("labels a standard plan's scheduled cancellation instead of rendering an empty badge", () => {
+    const html = renderToStaticMarkup(createElement(CurrentPlanCard, {
+      billing: billing({
+        plan: "starter", status: "pending_cancellation", stripe_customer_id: "cus_test",
+        stripe_subscription_id: "sub_test", billing_period_end: "2026-11-24T00:00:00Z",
+      }),
+    }));
+    expect(html).toContain("Cancellation scheduled");
+    expect(html).toContain("Cancels on");
+  });
   it("replaces the acquisition offer with the member identity and leaves Starter available even when spots are sold out", () => {
     const membership = getReturningFoundingMember(cancelled)!;
     const html = renderToStaticMarkup(createElement(WelcomeClient, {
