@@ -1,17 +1,11 @@
 import type { NextRequest } from "next/server";
-import { deliverEmail, escapeHtml } from "@/lib/emailDelivery";
+import { deliverEmail } from "@/lib/emailDelivery";
+import { buildFeatureNotificationEmail, type FeatureNotificationMessageType } from "@/lib/featureNotificationEmail";
 import { createClient } from "@/utils/supabase/server";
 import { createServiceClient } from "@/utils/supabase/service";
 import { isFeatureComingSoon } from "@/lib/launchConfig";
 
 const EMAIL_REGEX = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
-const FEATURE_LABELS: Record<string, string> = {
-  ai_insights: "AI insights",
-  cfo_call: "CFO assistance",
-  tier_advisory: "Advisory",
-  tier_core: "Core",
-  tier_growth: "Growth",
-};
 const MESSAGE_TYPES = ["feature_customer_confirmation", "feature_internal_notification"] as const;
 
 export async function POST(req: NextRequest) {
@@ -54,6 +48,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     if (!registration || typeof registration.inserted !== "boolean" || !Array.isArray(registration.outbox)
       || !registration.outbox.every((item:unknown) => item && typeof item === "object" && Number.isSafeInteger((item as { id: unknown }).id)
+        && typeof (item as { created_at: unknown }).created_at === "string"
         && MESSAGE_TYPES.includes((item as { message_type: typeof MESSAGE_TYPES[number] }).message_type))) {
       throw new Error("Invalid registration result");
     }
@@ -65,28 +60,18 @@ export async function POST(req: NextRequest) {
     if (!hasExpectedWork) throw new Error("Invalid registration result");
 
     if (registration.inserted) {
-      const featureLabel = FEATURE_LABELS[feature] ?? feature;
-      const messages = registration.outbox.map((item:{id:number;message_type:string}) => ({id:item.id,
-        message:item.message_type === "feature_customer_confirmation" ? {from:"Elidan AI <hello@elidan.ai>",to:email,subject:`You're on the list for ${featureLabel}`,
-          html:`<p>You’re on the list for <strong>${escapeHtml(featureLabel)}</strong>.</p><p>We’ll email you at this address when it becomes available. No purchase or plan change has been made.</p>`}
-        : {from:"Elidan AI <hello@elidan.ai>",to:"hello@elidan.ai",subject:`Notify me: ${feature}`,html:`
-          <p>A user has requested
-          notification for a coming
-          soon feature.</p>
-          <p><strong>Feature:</strong>
-            ${escapeHtml(feature)}</p>
-          <p><strong>Email:</strong>
-            ${escapeHtml(email)}</p>
-          <p><strong>User ID:</strong>
-            ${escapeHtml(user_id ?? "Not signed in")}</p>
-          <p><strong>Time:</strong>
-            ${new Date().toISOString()}</p>
-        `}}));
+      const messages = registration.outbox.map((item:{id:number;message_type:FeatureNotificationMessageType;created_at:string}) => ({
+        id:item.id,
+        message:buildFeatureNotificationEmail({email,feature,messageType:item.message_type,userId:user_id,createdAt:item.created_at}),
+      }));
       for (const item of messages) {
-        const delivery = await deliverEmail(item.message, "notify_me");
+        const delivery = await deliverEmail(item.message, "notify_me", {idempotencyKey:`email-outbox/${item.id}`});
+        const now = new Date();
         const update = delivery.accepted
-          ? {status:"sent",attempts:1,provider_message_id:delivery.providerMessageId,sent_at:new Date().toISOString(),updated_at:new Date().toISOString(),last_failure_reason:null}
-          : {status:"failed",attempts:1,last_failure_reason:delivery.reason,updated_at:new Date().toISOString()};
+          ? {status:"sent",attempts:1,provider_message_id:delivery.providerMessageId,sent_at:now.toISOString(),
+              next_attempt_at:null,updated_at:now.toISOString(),last_failure_reason:null}
+          : {status:delivery.retryable ? "failed" : "permanent_failed",attempts:1,last_failure_reason:delivery.reason,
+              next_attempt_at:delivery.retryable ? new Date(now.getTime()+5*60_000).toISOString() : null,updated_at:now.toISOString()};
         const {error:updateError}=await adminClient.from("email_outbox").update(update).eq("id",item.id).eq("status","pending");
         if(updateError) console.error("notify-me:outbox:update:error",{reason:"database_error"});
       }

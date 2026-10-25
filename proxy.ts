@@ -8,7 +8,11 @@ import { hasVerifiedEmail, emailVerificationRequired } from "./lib/authPolicy";
 const PUBLIC_PATHS = ["/api/public/"];
 // Stripe authenticates its webhook in the route using the raw-body signature.
 // User cookies and Auth availability must not interfere with delivery.
-const SESSION_INDEPENDENT_PATHS = new Set(["/api/stripe/webhook"]);
+const SESSION_INDEPENDENT_PATHS = new Set([
+  "/api/cron/email-outbox",
+  "/api/resend/webhook",
+  "/api/stripe/webhook",
+]);
 const ALLOWED_WITHOUT_EMAIL_VERIFICATION = new Set(["/api/auth/login", "/api/auth/logout"]);
 
 const AUTH_BYPASS_PATHS = [

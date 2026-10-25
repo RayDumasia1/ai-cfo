@@ -171,7 +171,7 @@ describe("proxy email-verification and billing boundaries", () => {
     expect((await proxy(request(path))).status).toBe(403);
   });
 
-  it.each(["/api/public/founding-spots", "/api/stripe/webhook"])("does not let user cookies interfere with public/signed endpoint %s", async path => {
+  it.each(["/api/public/founding-spots", "/api/stripe/webhook", "/api/resend/webhook", "/api/cron/email-outbox"])("does not let user cookies interfere with public/signed endpoint %s", async path => {
     getUser.mockRejectedValue(new Error("Auth provider unavailable"));
     expect((await proxy(request(path))).headers.get("x-middleware-next")).toBe("1");
     expect(getUser).not.toHaveBeenCalled();

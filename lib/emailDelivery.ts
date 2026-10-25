@@ -1,5 +1,5 @@
 import "server-only";
-import { Resend, type CreateEmailOptions } from "resend";
+import { Resend, type CreateEmailOptions, type CreateEmailRequestOptions } from "resend";
 
 /** Escape dynamic text and quoted HTML attribute values, not template markup. */
 export function escapeHtml(value: string | number): string {
@@ -8,23 +8,25 @@ export function escapeHtml(value: string | number): string {
 }
 
 export type EmailDeliveryResult = { accepted: true; providerMessageId: string } |
-  { accepted: false; reason: "provider_rejected" | "unconfirmed" | "send_exception" };
+  { accepted: false; reason: "provider_rejected" | "unconfirmed" | "send_exception"; retryable: boolean };
 
-export async function deliverEmail(message: CreateEmailOptions, context: string): Promise<EmailDeliveryResult> {
+export async function deliverEmail(message: CreateEmailOptions, context: string, options?: CreateEmailRequestOptions): Promise<EmailDeliveryResult> {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const { data, error } = await resend.emails.send(message);
+    const { data, error } = options
+      ? await resend.emails.send(message, options)
+      : await resend.emails.send(message);
     if (error || typeof data?.id !== "string" || !data.id) {
       const reason = error ? "provider_rejected" : "unconfirmed";
       const status = error?.statusCode;
       console.error("email:delivery:error", { context, reason,
         ...(typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? {providerStatus:status} : {}) });
-      return { accepted:false, reason };
+      return { accepted:false, reason, retryable: !error || typeof status !== "number" || status === 409 || status === 429 || status >= 500 };
     }
     return { accepted:true, providerMessageId:data.id };
   } catch {
     console.error("email:delivery:error", {context,reason:"send_exception"});
-    return {accepted:false,reason:"send_exception"};
+    return {accepted:false,reason:"send_exception",retryable:true};
   }
 }
 

@@ -26,7 +26,10 @@ beforeEach(() => {
   maybeSingle.mockResolvedValue({ data: { email: "person@example.invalid" }, error: null });
   getUser.mockResolvedValue({ data: { user: { id: "own-user" } }, error: null });
   vi.mocked(createClient).mockResolvedValue({ auth: { getUser } } as unknown as Awaited<ReturnType<typeof createClient>>);
-  rpc.mockResolvedValue({data:{inserted:true,outbox:[{id:1,message_type:"feature_customer_confirmation"},{id:2,message_type:"feature_internal_notification"}]},error:null});
+  rpc.mockResolvedValue({data:{inserted:true,outbox:[
+    {id:1,message_type:"feature_customer_confirmation",created_at:"2026-10-25T12:00:00Z"},
+    {id:2,message_type:"feature_internal_notification",created_at:"2026-10-25T12:00:00Z"},
+  ]},error:null});
   vi.mocked(createServiceClient).mockReturnValue({ rpc, from: () => builder } as unknown as ReturnType<typeof createServiceClient>);
   send.mockResolvedValue({ data: { id: "email_test" }, error: null });
 });
@@ -50,6 +53,7 @@ describe("notify-me registration", () => {
     expect(send.mock.calls[0][0].subject).toBe("You're on the list for CFO assistance");
     expect(send.mock.calls[0][0].html).toContain("CFO assistance");
     expect(send.mock.calls[1][0].html).toContain("o&#39;connor&amp;co@example.invalid");
+    expect(send.mock.calls[0][1]).toEqual({idempotencyKey:"email-outbox/1"});
   });
   it("does not send another support email for an ignored duplicate", async () => {
     rpc.mockResolvedValue({data:{inserted:false,outbox:[]},error:null});
@@ -80,8 +84,11 @@ describe("notify-me registration", () => {
   });
   it.each([
     { inserted: true, outbox: [] },
-    { inserted: false, outbox: [{ id: 1, message_type: "feature_customer_confirmation" }] },
-    { inserted: true, outbox: [{ id: 1, message_type: "feature_customer_confirmation" }, { id: 2, message_type: "feature_customer_confirmation" }] },
+    { inserted: false, outbox: [{ id: 1, message_type: "feature_customer_confirmation", created_at:"2026-10-25T12:00:00Z" }] },
+    { inserted: true, outbox: [
+      { id: 1, message_type: "feature_customer_confirmation", created_at:"2026-10-25T12:00:00Z" },
+      { id: 2, message_type: "feature_customer_confirmation", created_at:"2026-10-25T12:00:00Z" },
+    ] },
   ])("fails closed when the registration RPC returns inconsistent work: %j", async registration => {
     rpc.mockResolvedValue({ data: registration, error: null });
     const response = await POST(request());

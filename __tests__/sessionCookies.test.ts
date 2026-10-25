@@ -106,7 +106,7 @@ describe("Proxy session cookie propagation", () => {
     expect((await proxy(request("/welcome"))).headers.get("set-cookie")).toBeNull();
   });
 
-  it.each(["/api/public/founding-spots", "/api/stripe/webhook"])("keeps %s independent of browser sessions", async path => {
+  it.each(["/api/public/founding-spots", "/api/stripe/webhook", "/api/resend/webhook", "/api/cron/email-outbox"])("keeps %s independent of browser sessions", async path => {
     const response = await proxy(request(path));
     expect(createServerClient).not.toHaveBeenCalled();
     expect(response.headers.get("set-cookie")).toBeNull();
