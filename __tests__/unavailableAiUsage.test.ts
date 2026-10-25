@@ -5,12 +5,12 @@ vi.mock("server-only", () => ({}));
 vi.mock("../utils/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("../lib/db", () => ({
   getSubscription: vi.fn(), getBillingDetails: vi.fn(), getUsage: vi.fn(),
-  incrementUsage: vi.fn(), markWarningSent: vi.fn(),
+  consumeUsage: vi.fn(), markWarningSent: vi.fn(),
 }));
 vi.mock("../lib/emailDelivery", () => ({ sendEmail: vi.fn(), escapeHtml: (value: string) => value }));
 
 import { createClient } from "../utils/supabase/server";
-import { getSubscription, getBillingDetails, getUsage, incrementUsage, markWarningSent } from "../lib/db";
+import { getSubscription, getBillingDetails, getUsage, consumeUsage, markWarningSent } from "../lib/db";
 import { sendEmail } from "../lib/emailDelivery";
 import { POST as askCfo } from "../app/api/ask-cfo/route";
 import { POST as insights } from "../app/api/insights/route";
@@ -30,7 +30,7 @@ function tier(feature_tier: FeatureTier) {
   vi.mocked(getBillingDetails).mockResolvedValue({ feature_tier, billing_period_start: "2026-10-01T00:00:00Z" } as never);
 }
 function expectNoUsageSideEffects() {
-  expect(incrementUsage).not.toHaveBeenCalled();
+  expect(consumeUsage).not.toHaveBeenCalled();
   expect(sendEmail).not.toHaveBeenCalled();
   expect(markWarningSent).not.toHaveBeenCalled();
   expect(getUsage).not.toHaveBeenCalled();

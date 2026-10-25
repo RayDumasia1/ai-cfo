@@ -4,8 +4,7 @@ import { escapeHtml, sendEmail } from "./emailDelivery";
 import type { FeatureTier } from "./featureGates";
 import { USAGE_LIMITS } from "./featureGates";
 import {
-  getUsage,
-  incrementUsage,
+  consumeUsage,
   markWarningSent,
 } from "./db";
 
@@ -108,7 +107,7 @@ export async function checkAndIncrementUsage(
   metric: Metric,
   featureTier: FeatureTier,
   billingPeriodStart: Date,
-  client: SupabaseClient
+  serviceClient: SupabaseClient
 ): Promise<UsageCheckResult> {
   const periodStart = billingPeriodStart;
   const periodEnd = new Date(billingPeriodStart);
@@ -121,26 +120,11 @@ export async function checkAndIncrementUsage(
     return { allowed: true, throttled: false, used: 0, limit: null };
   }
 
-  const usage = await getUsage(userId, metric, periodStart, client);
+  const usage = await consumeUsage(
+    userId, metric, periodStart, periodEnd, limit, featureTier === "growth", serviceClient
+  );
 
-  if (usage.count >= limit) {
-    if (featureTier === "growth") {
-      // Fair-use throttle: delay but allow
-      await delay(5000);
-      try {
-        await incrementUsage(userId, metric, periodStart, periodEnd, limit, client);
-      } catch (err) {
-        console.error("usageGate:throttle:incrementUsage:error", err);
-      }
-      return {
-        allowed: true,
-        throttled: true,
-        used: usage.count + 1,
-        limit,
-      };
-    }
-
-    // Hard limit for Core (and Starter as belt-and-suspenders)
+  if (!usage.allowed) {
     return {
       allowed: false,
       throttled: false,
@@ -159,21 +143,19 @@ export async function checkAndIncrementUsage(
     };
   }
 
-  await incrementUsage(userId, metric, periodStart, periodEnd, limit, client);
-
-  const newCount = usage.count + 1;
+  if (usage.throttled) await delay(5000);
 
   // Warn from 100/150; retry on subsequent eligible requests if acceptance failed.
   if (
     featureTier === "growth" &&
     metric === "ask_cfo_questions" &&
-    newCount >= 100 &&
+    usage.count >= 100 &&
     !usage.warning_sent_at
   ) {
-    const accepted = await sendUsageWarningEmail(userEmail, newCount, limit);
+    const accepted = await sendUsageWarningEmail(userEmail, usage.count, limit);
     if (accepted) {
       try {
-        await markWarningSent(userId, metric, periodStart, client);
+        await markWarningSent(userId, metric, periodStart, serviceClient);
       } catch {
         // Usage already committed. Ancillary email bookkeeping must not turn
         // it into a failed request; a later attempt may send a duplicate.
@@ -182,5 +164,5 @@ export async function checkAndIncrementUsage(
     }
   }
 
-  return { allowed: true, throttled: false, used: newCount, limit };
+  return { allowed: true, throttled: usage.throttled, used: usage.count, limit };
 }

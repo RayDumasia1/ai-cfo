@@ -3,9 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const { send } = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
-vi.mock("../lib/db", () => ({ getUsage: vi.fn(), incrementUsage: vi.fn(), markWarningSent: vi.fn() }));
+vi.mock("../lib/db", () => ({ consumeUsage: vi.fn(), markWarningSent: vi.fn() }));
 
-import { getUsage, incrementUsage, markWarningSent } from "../lib/db";
+import { consumeUsage, markWarningSent } from "../lib/db";
 import { checkAndIncrementUsage } from "../lib/usageGate";
 const client = {} as SupabaseClient;
 const period = new Date("2026-10-01T00:00:00Z");
@@ -14,7 +14,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://app.example.invalid");
-  vi.mocked(getUsage).mockResolvedValue({ count: 99, usage_limit: 150, warning_sent_at: null });
+  vi.mocked(consumeUsage).mockResolvedValue({ allowed: true, throttled: false,
+    count: 100, usage_limit: 150, warning_sent_at: null });
   send.mockResolvedValue({ data: { id: "email_test" }, error: null });
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
@@ -30,14 +31,14 @@ describe("usage warning email acceptance", () => {
     if (reason === "exception") send.mockRejectedValue(new Error("Network error"));
     if (reason === "unconfirmed") send.mockResolvedValue({ data: {}, error: null });
     expect(await check()).toMatchObject({ allowed: true, used: 100 });
-    expect(incrementUsage).toHaveBeenCalledOnce();
+    expect(consumeUsage).toHaveBeenCalledOnce();
     expect(markWarningSent).not.toHaveBeenCalled();
   });
   it("retries on the next eligible request after failure and stops once marked", async () => {
-    vi.mocked(getUsage)
-      .mockResolvedValueOnce({ count: 99, usage_limit: 150, warning_sent_at: null })
-      .mockResolvedValueOnce({ count: 100, usage_limit: 150, warning_sent_at: null })
-      .mockResolvedValueOnce({ count: 101, usage_limit: 150, warning_sent_at: "2026-10-01T12:00:00Z" });
+    vi.mocked(consumeUsage)
+      .mockResolvedValueOnce({ allowed: true, throttled: false, count: 100, usage_limit: 150, warning_sent_at: null })
+      .mockResolvedValueOnce({ allowed: true, throttled: false, count: 101, usage_limit: 150, warning_sent_at: null })
+      .mockResolvedValueOnce({ allowed: true, throttled: false, count: 102, usage_limit: 150, warning_sent_at: "2026-10-01T12:00:00Z" });
     send.mockResolvedValueOnce({ data: null, error: { name: "rate_limit_exceeded" } });
     await check(); await check(); await check();
     expect(send).toHaveBeenCalledTimes(2);
@@ -51,7 +52,8 @@ describe("usage warning email acceptance", () => {
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("Internal database detail");
   });
   it.each(["below threshold", "already marked"])("does not send for %s usage", async state => {
-    vi.mocked(getUsage).mockResolvedValue({ count: state === "below threshold" ? 98 : 99,
+    vi.mocked(consumeUsage).mockResolvedValue({ allowed: true, throttled: false,
+      count: state === "below threshold" ? 99 : 100,
       usage_limit: 150, warning_sent_at: state === "already marked" ? "2026-10-01" : null });
     await check();
     expect(send).not.toHaveBeenCalled();

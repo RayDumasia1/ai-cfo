@@ -768,33 +768,58 @@ export async function getUsage(
   };
 }
 
+export interface UsageConsumptionResult extends UsageResult {
+  allowed: boolean;
+  throttled: boolean;
+}
+
 /**
- * Atomically increments usage via a PostgreSQL RPC to avoid race conditions.
- * Requires the `increment_usage` function to exist in Supabase.
- * Always call with the server client from utils/supabase/server.ts.
+ * Atomically decides and consumes one usage unit. The supplied client must be
+ * the server-only service client; browser/session roles cannot execute the RPC.
  */
-export async function incrementUsage(
+export async function consumeUsage(
   userId: string,
   metric: string,
   periodStart: Date,
   periodEnd: Date,
   usageLimit: number | null,
+  allowOverage: boolean,
   client: SupabaseClient = supabase
-): Promise<void> {
-  const { error } = await client.rpc("increment_usage", {
+): Promise<UsageConsumptionResult> {
+  if (usageLimit === null) {
+    return { allowed: true, throttled: false, count: 0, usage_limit: null, warning_sent_at: null };
+  }
+  const { data, error } = await client.rpc("consume_usage", {
     p_user_id: userId,
     p_metric: metric,
     p_period_start: periodStart.toISOString(),
     p_period_end: periodEnd.toISOString(),
     p_usage_limit: usageLimit,
+    p_allow_overage: allowOverage,
   });
 
   if (error) throw error;
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Invalid usage consumption result");
+  const value = data as Record<string, unknown>;
+  if (typeof value.allowed !== "boolean" || typeof value.throttled !== "boolean"
+    || !Number.isSafeInteger(value.count) || (value.count as number) < 0
+    || value.usage_limit !== usageLimit
+    || (value.warning_sent_at !== null && typeof value.warning_sent_at !== "string")) {
+    throw new Error("Invalid usage consumption result");
+  }
+  return {
+    allowed: value.allowed,
+    throttled: value.throttled,
+    count: value.count as number,
+    usage_limit: value.usage_limit as number,
+    warning_sent_at: value.warning_sent_at as string | null,
+  };
 }
 
 /**
  * Records that a usage warning email has been sent for this period.
- * Always call with the server client from utils/supabase/server.ts.
+ * Always call with a trusted server-side client. Usage consumption itself
+ * requires the service-role client because browser/session roles cannot run it.
  */
 export async function markWarningSent(
   userId: string,
