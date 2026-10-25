@@ -1,9 +1,11 @@
 "use client";
 
 import { ReactNode, useEffect } from "react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   CalendarDays,
+  ChartLine,
   Database,
   FileText,
   LayoutDashboard,
@@ -37,6 +39,7 @@ function RisingColumnMark({ className }: { className?: string }) {
 const navItems: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
   { label: "Financial data", href: "/dashboard/financial-data", icon: Database },
+  { label: "Scenarios",       href: "/dashboard/scenarios", icon: ChartLine },
   { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
   { label: "Reports",         href: "/reports",            icon: FileText },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },
@@ -107,7 +110,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             const isActive = pathname === item.href ||
               (item.href !== "/dashboard" && pathname.startsWith(item.href));
             return (
-              <a
+              <Link
                 key={item.label}
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
@@ -125,7 +128,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               >
                 <item.icon size={16} aria-hidden="true" style={{ flexShrink: 0 }} />
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </nav>

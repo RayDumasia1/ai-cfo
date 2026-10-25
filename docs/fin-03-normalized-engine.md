@@ -1,7 +1,7 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A through FIN-03C in preview; FIN-03D implemented locally
-**Date:** 24 October 2026  
+**Status:** FIN-03A through FIN-03C in preview; FIN-03D and FIN-03E implemented locally
+**Date:** 25 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
 ## Scope
@@ -65,6 +65,10 @@ Saving and naming scenarios, multi-scenario comparison, event timelines, AI goal
 After calculating a scenario, Starter users can turn each meaningful assumption into one editable action through the dashboard's existing shared Action modal. Collections increases map to revenue-growth actions, spending reductions map to expense-reduction actions, and adverse changes or one-time receipts/payments map to risk-preparation actions. Prefills retain the baseline, target and estimated runway context in bounded text. They pass through existing action validation, account scoping and tier capacity limits.
 
 Unsaved Starter scenarios have no durable identifier, so FIN-03D does not write a scenario relationship and never stores scenario data in `linked_alert_code`. Non-USD scenarios preserve formatted context in the description but leave the current USD-only numeric goal fields empty. Saved-scenario linkage, versioned assumption snapshots, coordinated action sets and planned-versus-actual scenario reporting remain higher-tier work and will require an explicit action-origin model. FIN-03D requires no database migration.
+
+## FIN-03E dedicated scenario workflow
+
+Scenario planning lives at `/dashboard/scenarios`, with its own authenticated, verified-email and paid-subscription boundary. The dashboard shows a compact entry card with baseline date, completed-month coverage and stale-data guidance; it no longer renders the complete planning form. Scenarios also appear in primary navigation. The dedicated page retains the same unsaved Starter calculation and action handoff behavior, links created work to the Action Tracker, and makes clear that scenario inputs are not saved. Route-level loading and recoverable error states keep navigation responsive and state that failures do not change saved data. Removing the collapsible dashboard planner also removes its browser-storage preference. FIN-03E changes no formulas, tier allocation or stored data and requires no database migration.
 
 ## FIN-03B customer-facing integration
 

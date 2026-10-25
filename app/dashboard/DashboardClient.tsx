@@ -6,7 +6,7 @@ import type { Action, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
 import type { FinancialDataFreshness } from "@/lib/calculations";
 import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
-import ScenarioPanel from "@/app/components/ScenarioPanel";
+import ScenarioSummaryCard from "@/app/components/ScenarioSummaryCard";
 import ActionTrackerPanel from "@/app/components/ActionTrackerPanel";
 import ActionModal from "@/app/components/ActionModal";
 import { useActionManager } from "@/app/components/useActionManager";
@@ -20,7 +20,6 @@ interface DashboardClientProps {
   dismissedAlerts: DismissedAlert[];
   dataVersion: string | null;
   snoozeDuration: SnoozeType;
-  hasData: boolean;
   dataFreshness: FinancialDataFreshness;
   scenarioBaseline: ScenarioBaseline;
   /** Server-rendered content between TopAlerts and BottomAlerts (stat cards, chart). */
@@ -39,7 +38,6 @@ export default function DashboardClient({
   dismissedAlerts,
   dataVersion,
   snoozeDuration,
-  hasData,
   dataFreshness,
   scenarioBaseline,
   children,
@@ -71,10 +69,7 @@ export default function DashboardClient({
         />
       </div>
 
-      {/* Starter scenario planner uses the full content width for comparison. */}
-      <div className="mb-8">
-        <ScenarioPanel hasData={hasData} baseline={scenarioBaseline} onCreateAction={(prefill)=>openModal(prefill)} />
-      </div>
+      <ScenarioSummaryCard baseline={scenarioBaseline} />
 
       <ActionTrackerPanel
         featureTier={featureTier}

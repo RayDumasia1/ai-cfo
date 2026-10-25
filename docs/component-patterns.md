@@ -13,13 +13,13 @@ FIN-03B dispatches dashboard cards and alerts from the latest financial row's co
 
 FIN-03C uses one exported `operatingCashMetrics()` primitive for normalized dashboard records and What-If results. The server derives an account-scoped scenario baseline and sends only the required amounts, contract version, currency, period context and freshness to the client. Version 2 uses available cash and normalized complete-month averages; a valid partial period may supply current cash while earlier completed months supply the averages. Version 1 retains FIN-02 compatibility averages. Starter scenarios adjust recurring customer collections and operating spending plus one optional cash receipt or payment. They compare current and proposed cash, monthly operating flow, buffer and conditional runway, remain unsaved, and perform no client database calls. Missing/incomplete data uses an explicit manual fallback; stale data remains usable with a warning. Optional collapsed-state storage is guarded so denial or quota failure cannot break the interaction.
 
-The full-width dashboard planner replaces the previous two-column Financial Data/What-If row. Import status and provenance remain on the dedicated Financial Data page, so the dashboard no longer performs the duplicate latest-import query. Scenario inputs ask for expected monthly amounts and treat blanks as unchanged baseline values. Customer-facing results use surplus/shortfall and better/worse language; one-time cash-in/cash-out events remain separate from recurring activity.
+The dedicated `/dashboard/scenarios` workflow replaces the former full-width dashboard planner. Import status and provenance remain on the dedicated Financial Data page, so the dashboard does not perform the duplicate latest-import query. The scenario page independently enforces authenticated, verified-email and paid-subscription access. Scenario inputs ask for expected monthly amounts and treat blanks as unchanged baseline values. Customer-facing results use surplus/shortfall and better/worse language; one-time cash-in/cash-out events remain separate from recurring activity. The dashboard retains a compact entry card with baseline coverage and freshness context.
 
 FIN-03D reuses the dashboard's single Action modal and existing action API for scenario-to-action handoff. Each changed assumption becomes a separate optional prefill: higher collections, lower spending, adverse recurring changes, one-time cash received or one-time cash paid. The user chooses one change and reviews the action before saving; combined scenarios never silently create a broad or multi-part action. Existing account scoping, server validation, action capacity and completion-result behavior apply. Unsaved scenarios do not populate `linked_alert_code`. The prefill description records bounded baseline, target and estimated-runway context; non-USD scenarios leave the schema's USD-only goal value/unit empty while keeping formatted context. Durable scenario links and snapshots require a future action-origin model.
 
-Scenario-generated USD action goals use whole-dollar values, matching the planner's owner-facing currency display. Financial calculations retain their original precision; rounding happens only when the editable action prefill is created.
+The dedicated Scenarios page owns only the open/prefill state needed by its shared Action modal. It does not create an empty action-list prop during render or synchronize a list it does not display; doing so can trigger a render loop in state synchronization hooks and route the page into its error boundary.
 
-The scenario panel collapse animation uses a zero-to-one fractional grid row around an overflow-hidden inner wrapper. It has no fixed expanded height: comparison results, validation messages and scenario action choices determine the panel's natural height and cannot be clipped or overlap the following Action Tracker.
+Scenario-generated USD action goals use whole-dollar values, matching the planner's owner-facing currency display. Financial calculations retain their original precision; rounding happens only when the editable action prefill is created.
 
 The default owner dashboard translates those definitions into Cash Balance, Cash Buffer, Cash Trend and Cash Runway. Supporting copy explains the practical meaning and states when an update is required. Professional terminology belongs in methodology/detail views rather than the owner summary. A zero-alert result is not automatically healthy: use `financialDataFreshness()` so current, stale, historical and missing data receive different empty-state guidance.
 
@@ -226,7 +226,9 @@ Nav items:
   
 Current nav items (in order):
   Dashboard   → /dashboard
-  [Scenarios] → hidden pending UX review
+  Financial data → /dashboard/financial-data
+  Scenarios   → /dashboard/scenarios
+  Actions     → /dashboard/actions
   Settings    → /dashboard/settings
   Reports     → hidden (Advisory only, not built)
 ```
@@ -459,7 +461,7 @@ Sold out state: neutral card with "Join the waitlist" secondary button.
 `lib/launchConfig.ts` controls what's visible at launch. When a feature is ready, remove it from `coming_soon_features` and it automatically appears everywhere.
 
 **Currently live:**
-- Dashboard, alerts, Excel import, settings, billing, What-If scenario
+- Dashboard, alerts, financial-data import, cash scenarios, actions, settings, billing
 
 **Coming soon (hidden from users):**
 - `ask_cfo`, `ai_insights`, `weekly_summary`, `quickbooks_sync`
@@ -467,7 +469,6 @@ Sold out state: neutral card with "Join the waitlist" secondary button.
 - `team_seats`, `cfo_call`, `custom_reports`, `bank_sync`
 
 **Hidden from nav:**
-- Scenarios page: hidden pending UX review
 - Reports: Advisory only, not yet built
 
 ---
@@ -562,7 +563,7 @@ style:    UI/visual changes only
 | FM cancellation | Core access through paid billing end; self-service reinstatement in account settings before that cutoff. Afterward, support reviews reinstatement case by case. Standard plans remain available; number/badge stay permanent and issued spots never return to the pool. |
 | FM spots | Customer numbers #1-#25 stay consumed after cancellation. Audited database-owner corrections may release mistaken/test assignments. Explicit test memberships use #26 onward and do not affect customer capacity. |
 | Suspended state | Simple message + email us — no automated restore |
-| Scenarios page | Hidden pending UX review |
+| Scenarios page | Live at `/dashboard/scenarios`; Starter scenarios are unsaved and use the account-scoped action handoff |
 | Growth/Advisory | Hidden — coming soon |
 | `usage_limit` | Not `limit` — PostgreSQL reserved word |
 | One subscription per user | Enforced — updates not new checkouts |

@@ -1,27 +1,33 @@
-import ManualCalculator from "@/app/components/ManualCalculator";
-import { getCurrentCashPosition, getFinancialMonths } from "@/lib/db";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentCashPosition, getFinancialMonths, hasPaidSubscription } from "@/lib/db";
 import { DASHBOARD_MONTH_LIMIT } from "@/lib/financialImportPolicy";
 import { scenarioBaseline } from "@/lib/scenarioPlanning";
+import { hasVerifiedEmail } from "@/lib/authPolicy";
 import { createClient } from "@/utils/supabase/server";
+import ScenariosClient from "./ScenariosClient";
 
 export default async function ScenariosPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const [cash, months] = user ? await Promise.all([
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) redirect("/auth?reason=session_expired");
+  if (!hasVerifiedEmail(user)) redirect(`/auth/verify?email=${encodeURIComponent(user.email ?? "")}`);
+  if (!(await hasPaidSubscription(user.id, supabase))) redirect("/welcome");
+  const [cash, months] = await Promise.all([
     getCurrentCashPosition(user.id, supabase),
     getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase),
-  ]) : [null, []];
+  ]);
   const baseline = scenarioBaseline(cash?.cash ?? null, months);
   return (
-    <div className="px-8 py-8">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
+      <Link href="/dashboard" className="text-sm text-teal underline">Back to dashboard</Link>
       <div className="mb-8">
-        <h1 className="text-2xl font-medium text-ink">What-If Scenarios</h1>
+        <h1 className="mt-4 text-2xl font-medium text-ink">Cash scenarios</h1>
         <p className="mt-1 text-sm font-light text-dim">
-          Model financial scenarios to plan ahead and stress-test your numbers.
+          Explore how possible changes could affect your cash without changing your saved financial data.
         </p>
       </div>
-
-      <ManualCalculator baseline={baseline} hasData={months.length > 0} />
+      <ScenariosClient baseline={baseline} hasData={months.length > 0} />
     </div>
   );
 }

@@ -139,7 +139,6 @@ export default async function DashboardPage({
         dismissedAlerts={dismissedAlerts ?? []}
         dataVersion={dataVersion}
         snoozeDuration={snoozeDuration}
-        hasData={recentMonths.length > 0}
         dataFreshness={dataFreshness}
         scenarioBaseline={whatIfBaseline}
       >

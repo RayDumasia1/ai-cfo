@@ -57,9 +57,9 @@ export const ADVISORY_AVAILABLE = false;
 //   - Event timelines and richer operating drivers
 //   - Goal seeking and narrative guidance with AI
 //   - Scenario sharing and CFO/advisor collaboration
-//   - Dedicated /dashboard/scenarios workflow
+//   - Richer dedicated /dashboard/scenarios workflow for saved and compared scenarios
 //
-// The existing three-field What-If card remains a placeholder until FIN-03C2.
+// Starter scenario planning lives at /dashboard/scenarios; scenarios remain unsaved.
 
 const COMING_SOON_FEATURES = new Set([
   "cfo_call",

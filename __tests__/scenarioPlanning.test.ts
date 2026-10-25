@@ -4,6 +4,7 @@ import type { FinancialMonth } from "../lib/types";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ManualCalculator from "../app/components/ManualCalculator";
+import ScenarioSummaryCard from "../app/components/ScenarioSummaryCard";
 import { validateActionCreate } from "../lib/actions";
 
 function row(overrides: Partial<FinancialMonth> = {}): FinancialMonth {
@@ -67,6 +68,16 @@ describe("FIN-03C2 scenario baseline", () => {
     expect(html).toContain("Current: $55,000");
     expect(html).toContain("one-time cash event");
     expect(html).not.toContain("account-a");
+  });
+
+  it("links the compact dashboard scenario summary to the dedicated workflow", () => {
+    const baseline=scenarioBaseline(null,[row(),row({id:"aug",month_date:"2026-08-01"}),
+      row({id:"jul",month_date:"2026-07-01"})],new Date("2026-10-15T00:00:00Z"));
+    const html=renderToStaticMarkup(createElement(ScenarioSummaryCard,{baseline}));
+    expect(html).toContain("Plan a cash scenario");
+    expect(html).toContain("Starting from Sep 30, 2026 · 3 complete months");
+    expect(html).toContain('href="/dashboard/scenarios"');
+    expect(html).not.toContain("Expected monthly cash from customers");
   });
 
   it("creates one editable action choice per meaningful scenario assumption", () => {
