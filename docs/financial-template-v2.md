@@ -45,6 +45,8 @@ Global Start Here values map to each version-2 month as follows:
 | --- | --- |
 | Reporting currency | `reporting_currency` |
 | Accounting basis | `accounting_basis` |
+
+The parser accepts the workbook choices `Cash`, `Accrual`, `Mixed` and `Unknown`. It also accepts the common labels `Cash basis` and `Accrual basis`, normalizing them to the same canonical database values.
 | Workbook source | `source_type = spreadsheet` |
 | Workbook contract | `data_contract_version = 2` |
 

@@ -123,4 +123,17 @@ describe("version-2 financial workbook parser", () => {
     expect(result.errors).toContain("Start Here: Reporting currency must be a three-letter currency code, such as USD.");
     expect(result.errors).toContain("Start Here: Accounting basis is required.");
   });
+
+  it.each([
+    ["Cash basis", "cash"],
+    ["Accrual basis", "accrual"],
+  ])("normalizes the owner-facing accounting basis label %s", (label, expected) => {
+    const book = workbook();
+    XLSX.utils.sheet_add_aoa(book.Sheets["Start Here"], [[label]], { origin: "B12" });
+
+    const result = parse(book);
+
+    expect(result.errors).toEqual([]);
+    expect(result.months[0]?.accounting_basis).toBe(expected);
+  });
 });

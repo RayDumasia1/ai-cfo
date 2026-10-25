@@ -172,8 +172,11 @@ function readStartHere(workbook: XLSX.WorkBook, errors: string[]): {
       else currency = code;
     } else if (key === "accounting basis") {
       const normalized = norm(String(value));
-      if (!["cash", "accrual", "mixed", "unknown"].includes(normalized)) errors.push("Start Here: Accounting basis must be Cash, Accrual, Mixed, or Unknown.");
-      else basis = normalized as MonthInput["accounting_basis"];
+      const canonicalBasis = normalized === "cash basis" ? "cash"
+        : normalized === "accrual basis" ? "accrual"
+        : normalized;
+      if (!["cash", "accrual", "mixed", "unknown"].includes(canonicalBasis)) errors.push("Start Here: Accounting basis must be Cash, Accrual, Mixed, or Unknown.");
+      else basis = canonicalBasis as MonthInput["accounting_basis"];
     }
   }
   if (!currency) errors.push("Start Here: Reporting currency is required.");
