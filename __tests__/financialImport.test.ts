@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ParseResult } from "../lib/excelParser";
 import { readFileSync } from "node:fs";
+import * as XLSX from "xlsx";
 
 vi.mock("server-only", () => ({}));
 vi.mock("../lib/supabase", () => ({ supabase: {} }));
@@ -137,6 +138,37 @@ describe("atomic import route and database adapter", () => {
     expect(payload).not.toHaveProperty("runway_danger_threshold");
     expect(payload).not.toHaveProperty("burn_rate_warning_pct");
     expect(payload).not.toHaveProperty("invoice_overdue_days");
+  });
+
+  it("passes a reconciled version-2 workbook to the reviewed atomic import", async () => {
+    const actual = await vi.importActual<typeof import("../lib/excelParser")>("../lib/excelParser");
+    vi.mocked(parseExcelBuffer).mockImplementation(actual.parseExcelBuffer);
+    const workbook = XLSX.read(readFileSync("docs/templates/elidan-financial-template-v2.xlsx"), {
+      type: "buffer", cellDates: true, cellFormula: true,
+    });
+    XLSX.utils.sheet_add_aoa(workbook.Sheets["Start Here"], [["Cash"]], { origin: "B12" });
+    XLSX.utils.sheet_add_aoa(workbook.Sheets["Monthly Cash"], [[
+      "2026-01-01", "Complete", null, 100000, 75000, 60000, 3000, 2000, 500,
+      8000, 0, 0, 10000, 0, 1500, 110000, 12000, null, null, "January close",
+    ]], { origin: "A7" });
+    const content = new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+    reviewedFileHash = importFileHash(content.buffer);
+
+    const response = await POST(request(new File([content], "v2-template.xlsx")));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ monthsImported: 1, currentCash: 90 });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc.mock.calls[0][1].p_months).toEqual([expect.objectContaining({
+      data_contract_version: 2,
+      source_type: "spreadsheet",
+      reporting_currency: "USD",
+      accounting_basis: "cash",
+      opening_included_cash: 100000,
+      closing_included_cash: 110000,
+      cash_collected_from_customers: 75000,
+      total_expenses: 75000,
+    })]);
   });
 
   it("warns when workbook thresholds are ignored while still importing business details", async () => {

@@ -83,7 +83,7 @@ The migration:
 ## Deferred work
 
 - DATA-01B: [v2 workbook layout, field guidance and formulas](financial-template-v2.md) staged; parser support pending.
-- DATA-01C: dual-version parser, reviewed-import RPC publication, reconciliation review and tests.
+- DATA-01C: strict version-2 parser and reviewed-import publication implemented; preview migration and rollback verifier passed 24 October 2026; end-to-end upload validation pending.
 - DATA-01D: transition UI, provenance display and end-to-end preview validation.
 - FIN-03: normalized calculation engine and classified alerts.
 - ORG-01/forecast work: organization-owned dated commitments and 13-week forecasting.

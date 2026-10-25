@@ -13,6 +13,8 @@ Cash Balance accents are freshness-aware. Current data may use the saved minimum
 
 DATA-01 contract v2 is specified in [financial-data-contract-v2.md](financial-data-contract-v2.md). Schema evolution is additive: never copy ambiguous legacy revenue/expense values into classified cash-flow fields. Keep legacy writers on contract version 1 until the v2 parser and reviewed-import transaction publish every required field atomically. Revision snapshots use full monthly-row JSON and therefore preserve new columns automatically.
 
+Spreadsheet calculations, cached formula results, dropdowns, colors and client-visible row checks are untrusted guidance. Import routes parse source input cells, recalculate cross-field rules server-side and send an allowlisted payload to a database function that repeats critical contract and reconciliation checks inside the account-locked transaction.
+
 ---
 
 ## 01 Brand Tokens

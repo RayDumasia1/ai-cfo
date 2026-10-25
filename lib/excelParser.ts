@@ -2,14 +2,9 @@ import "server-only";
 import * as XLSX from "xlsx";
 import type { FinancialMonthInsert, BusinessProfileInsert } from "./types";
 import type { ImportNotice } from "./importNotices";
-
-export interface ParseResult {
-  months: Omit<FinancialMonthInsert, "user_id" | "business_id">[];
-  profile: Partial<Omit<BusinessProfileInsert, "user_id">>;
-  errors: string[];
-  warnings: string[];
-  notices?: ImportNotice[];
-}
+import type { ParseResult } from "./financialWorkbookTypes";
+import { parseV2Workbook } from "./excelParserV2";
+export type { ParseResult } from "./financialWorkbookTypes";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -210,6 +205,8 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   const profile: Partial<Omit<BusinessProfileInsert, "user_id">> = {};
 
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+
+  if (workbook.Sheets["Monthly Cash"]) return parseV2Workbook(workbook);
 
   // ── "Business Info" sheet (optional) ──────────────────────────────────────
   const infoSheet = workbook.Sheets["Business Info"];
@@ -479,5 +476,5 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
 
   console.log("parser:profile", profile);
 
-  return { months, profile, errors, warnings, notices };
+  return { months, profile, errors, warnings, notices, contractVersion: 1 };
 }

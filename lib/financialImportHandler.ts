@@ -132,6 +132,7 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
       requestId,
       userId,
       filename,
+      contractVersion: parsed.contractVersion ?? 1,
       months: parsed.months.length,
       warnings: parsed.warnings.length,
       errors: parsed.errors.length,
