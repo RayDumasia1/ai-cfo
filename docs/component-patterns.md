@@ -993,6 +993,14 @@ The 250-row allowance supports the version-2 template and up to 240 monthly reco
 
 Local tests cover the current launch template, version-2 CSV detection, metadata boundaries, malformed and high-expansion archives, entry/sheet/row/column/month limits, bounded errors, early authorization, and absence of database writes on rejection. These tests do not establish the hosting provider's multipart buffering ceiling or behavior for every third-party workbook producer. Preview validation should exercise a normal v2 workbook, a CSV exported from Monthly Cash, an empty file, a renamed non-workbook, and a file over 2 MB, confirming actionable messages and unchanged financial data after each rejection. No SQL migration is required.
 
+### Preview database concurrency verification
+
+DB-01A uses two real preview database sessions to verify the lock protocols that sequential verifiers and mocked tests cannot prove. `verify-db01a-financial-lock-session-a.sql` locks the dedicated account's `business_profiles` row; its paired session-B script requires version-2 import, reviewed confirmation and Clear Data to reach the same lock and fail under a two-second `lock_timeout`. `verify-db01a-subscription-action-lock-session-a.sql` holds `FOR NO KEY UPDATE` on the subscription; its pair requires both a subscription write and a new active-action insert to wait on that row. Each session-B script checks that its timed-out probe left no row and that a distinct account's snapshot stayed exact.
+
+The four scripts are preview-only, require explicit confirmation, postgres and two distinct existing preview UUIDs, and end in `ROLLBACK`. Session A sleeps for 45 seconds only to keep the lock available while session B runs. If execution is interrupted, run `ROLLBACK` in that editor tab. These tests install no database objects and must never be run in production. Passing proves waiting in the current preview schema, not global serializability or protection from direct writers that ignore the shared lock rows. See `docs/db-01a-preview-concurrency.md` for the run order.
+
+The usage increment RPC prevents lost counter increments, but `checkAndIncrementUsage()` currently reads, decides and increments in separate operations. Concurrent future AI requests could both pass a hard-limit check. Ask CFO and AI Insights currently stop at 501 before usage work, so this cannot consume a delivered AI allowance today. DB-01B must provide one database operation that atomically decides and consumes quota, returns the committed count, uses trusted subscription/limit inputs and has concurrent-session verification before either AI endpoint is enabled.
+
 ## 10 Document History
 
 | Version | Date | Changes |
