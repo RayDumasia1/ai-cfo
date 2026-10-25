@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("../utils/supabase/server",()=>({createClient:vi.fn()}));
-vi.mock("../lib/db",()=>({getFinancialMonths:vi.fn(),getFinancialImportStatus:vi.fn(),hasPaidSubscription:vi.fn()}));
+vi.mock("../lib/db",()=>({getFinancialMonths:vi.fn(),getFinancialImportStatus:vi.fn(),getRecentFinancialImports:vi.fn(),hasPaidSubscription:vi.fn()}));
 vi.mock("next/navigation",()=>({redirect:vi.fn((url:string)=>{throw new Error(`redirect:${url}`);}),useRouter:()=>({refresh:vi.fn()})}));
 import { createClient } from "../utils/supabase/server";
-import { getFinancialMonths, getFinancialImportStatus, hasPaidSubscription } from "../lib/db";
+import { getFinancialMonths, getFinancialImportStatus, getRecentFinancialImports, hasPaidSubscription } from "../lib/db";
 import FinancialDataPage from "../app/dashboard/financial-data/page";
 
 const getUser = vi.fn();
@@ -16,6 +16,7 @@ beforeEach(()=>{
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
   vi.mocked(getFinancialMonths).mockResolvedValue([]);
   vi.mocked(getFinancialImportStatus).mockResolvedValue({available:true,lastImportedAt:null,filename:null});
+  vi.mocked(getRecentFinancialImports).mockResolvedValue({available:true,imports:[]});
 });
 
 describe("Financial data page boundary and navigation",()=>{
@@ -27,15 +28,18 @@ describe("Financial data page boundary and navigation",()=>{
     await expect(FinancialDataPage()).rejects.toThrow(condition==="unpaid" ? "redirect:/welcome" : condition==="unverified" ? "redirect:/auth/verify" : "redirect:/auth?reason=session_expired");
     expect(getFinancialMonths).not.toHaveBeenCalled();
     expect(getFinancialImportStatus).not.toHaveBeenCalled();
+    expect(getRecentFinancialImports).not.toHaveBeenCalled();
   });
   it("uses the authenticated account and shared uploader, with a direct route back to a fresh dashboard",async()=>{
     const html = renderToStaticMarkup(await FinancialDataPage());
     expect(getFinancialMonths).toHaveBeenCalledExactlyOnceWith("own-account",null,client);
     expect(getFinancialImportStatus).toHaveBeenCalledExactlyOnceWith("own-account",client);
+    expect(getRecentFinancialImports).toHaveBeenCalledExactlyOnceWith("own-account",10,client);
     expect(html).toContain("Financial data");
     expect(html).toContain("No financial data loaded yet.");
     expect(html).toContain("Choose file");
     expect(html).toContain("Download template");
+    expect(html).toContain("Recent imports");
     expect(html).toContain('href="/downloads/elidan-financial-template-v2.xlsx"');
     expect(html).toContain('href="/dashboard"');
     expect(html).toContain("View dashboard");

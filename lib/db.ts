@@ -15,7 +15,7 @@ import { supabase } from "./supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Plan, FeatureTier } from "./featureGates";
 import type { CheckoutAttempt } from "./subscriptionCheckout";
-import type { FinancialImportStatus } from "./financialDataStatus";
+import type { FinancialImportHistory, FinancialImportStatus } from "./financialDataStatus";
 import { areConsecutiveFinancialMonths } from "./calculations";
 import { FOUNDING_MEMBER_SPOTS } from "./launchConfig";
 import { DASHBOARD_MONTH_LIMIT, importedBusinessDetails, isFinancialImportResult, type FinancialImportMode, type FinancialImportResult } from "./financialImportPolicy";
@@ -297,6 +297,25 @@ export async function getFinancialImportStatus(userId: string, client: SupabaseC
     return {available:false,lastImportedAt:null,filename:null};
   }
   return {available:true,lastImportedAt:data?.created_at ?? null,filename:data?.filename ?? null};
+}
+
+/** Recent account-scoped source-import audit records. Uploaded files are not retained. */
+export async function getRecentFinancialImports(
+  userId: string,
+  limit = 10,
+  client: SupabaseClient = supabase
+): Promise<FinancialImportHistory> {
+  const {data,error} = await client.from("data_imports")
+    .select("id,import_type,filename,months_imported,status,created_at")
+    .eq("user_id",userId)
+    .in("import_type",["excel","csv","quickbooks"])
+    .order("created_at",{ascending:false})
+    .limit(limit);
+  if (error) {
+    console.error("financialData:importHistory:error",{code:error.code});
+    return {available:false,imports:[]};
+  }
+  return {available:true,imports:data ?? []};
 }
 
 /**

@@ -1,7 +1,17 @@
+import type { DataImport } from "./types";
+
 export interface FinancialImportStatus {
   available: boolean;
   lastImportedAt: string | null;
   filename: string | null;
+}
+
+export type FinancialImportHistoryItem = Pick<DataImport,
+  "id" | "import_type" | "filename" | "months_imported" | "status" | "created_at">;
+
+export interface FinancialImportHistory {
+  available: boolean;
+  imports: FinancialImportHistoryItem[];
 }
 
 export interface FinancialDataProvenanceMonth {
