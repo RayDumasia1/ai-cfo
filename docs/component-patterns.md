@@ -979,6 +979,8 @@ Keys containing account-specific state must include the account UUID. Global key
 
 Session timeout uses safe session storage for the absolute-session timestamp. If storage is unavailable or invalid, it starts a fresh in-memory timestamp while keeping idle warning/logout timers active; logout continues even when timestamp removal fails. Tests inject blocked property access, quota/removal exceptions, invalid boolean content and different account keys.
 
+Authentication event auditing is an append-only server operation. `lib/auditLog.ts` uses the service-role client so a completed logout can still record its result after the user session cookie is cleared; browser roles retain no broader audit-table access. Audit insertion failure is logged without raw database details and never changes the login/logout response.
+
 ## 10 Document History
 
 | Version | Date | Changes |

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       await logSessionEvent({
-        userId: "unknown",
+        userId: null,
         action: "failed_login",
         userAgent: req.headers.get("user-agent") ?? undefined,
         reason: error.message,

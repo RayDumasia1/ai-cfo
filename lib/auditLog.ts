@@ -1,7 +1,7 @@
-import { createClient } from "@/utils/supabase/server";
+import { createServiceClient } from "@/utils/supabase/service";
 
 interface SessionEventParams {
-  userId: string;
+  userId: string | null;
   action: "login" | "logout" | "timeout" | "failed_login";
   ipAddress?: string;
   userAgent?: string;
@@ -12,15 +12,15 @@ interface SessionEventParams {
 
 /**
  * Records an auth event to session_audit_log.
- * Fails silently so callers are never blocked by logging errors.
- * Requires the session_audit_log table to exist in Supabase — see the
- * DB migration in the plan for the CREATE TABLE statement.
+ * This append-only server path uses the service client because logout removes
+ * the user's authenticated session before the outcome can be recorded.
+ * Failures never block the authentication action.
  */
 export async function logSessionEvent(
   params: SessionEventParams
 ): Promise<void> {
   try {
-    const supabase = await createClient();
+    const supabase = createServiceClient();
     const { error } = await supabase.from("session_audit_log").insert({
       user_id: params.userId,
       action: params.action,
@@ -31,12 +31,9 @@ export async function logSessionEvent(
       status: params.status,
     });
     if (error) {
-      console.error("auditLog:insert:error", error.message);
+      console.error("auditLog:insert:error", { reason: "database_error" });
     }
-  } catch (err) {
-    console.error(
-      "auditLog:exception",
-      err instanceof Error ? err.message : String(err)
-    );
+  } catch {
+    console.error("auditLog:exception", { reason: "request_exception" });
   }
 }
