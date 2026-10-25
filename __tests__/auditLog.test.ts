@@ -43,7 +43,7 @@ describe("session audit logging", () => {
     insert.mockResolvedValue({
       error: {
         code: "42501",
-        message: "permission denied secret detail",
+        message: 'null value in column "user_id" violates not-null constraint; secret detail',
         details: "private row detail",
         hint: "private hint",
       },
@@ -62,6 +62,25 @@ describe("session audit logging", () => {
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("secret detail");
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("private row detail");
     expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("private hint");
+  });
+
+  it("logs only an allowlisted column for a not-null violation", async () => {
+    insert.mockResolvedValue({
+      error: {
+        code: "23502",
+        message: 'null value in column "user_id" violates not-null constraint; private row',
+      },
+    });
+
+    await logSessionEvent({ userId: null, action: "failed_login", status: "failure" });
+
+    expect(console.error).toHaveBeenCalledWith("auditLog:insert:error", {
+      reason: "database_error",
+      action: "failed_login",
+      code: "23502",
+      column: "user_id",
+    });
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("private row");
   });
 
   it("records failed logins without inventing an account UUID", async () => {
