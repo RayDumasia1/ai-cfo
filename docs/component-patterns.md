@@ -817,6 +817,8 @@ Financial-data provenance is presented on the dedicated Financial Data page from
 
 The Financial Data page has one explicit return control: **Back to dashboard** at the top. The upload card refreshes the current route after success and does not repeat a second dashboard link below the primary workflow.
 
+The complete DATA-01D page hierarchy, responsive import history, collapsed source details, Clear Financial Data interaction states and single dashboard return passed preview validation on 24 October 2026.
+
 Clear Financial Data uses the same quiet destructive-entry treatment as account sign-out: muted text at rest, Elidan `--danger` red on pointer hover and keyboard focus, and no filled danger styling until the user enters the explicit confirmation state. The confirmation card repeats the permanent-deletion scope and uses the shared danger token for its border and destructive button. This keeps the irreversible action discoverable without competing with the primary upload control.
 
 ### Upload review hierarchy and safeguards
