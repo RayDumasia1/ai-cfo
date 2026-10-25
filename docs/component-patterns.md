@@ -981,6 +981,18 @@ Session timeout uses safe session storage for the absolute-session timestamp. If
 
 Authentication event auditing is an append-only server operation. `lib/auditLog.ts` uses the service-role client so a completed logout can still record its result after the user session cookie is cleared; browser roles retain no broader audit-table access. Successful login/logout/timeout rows require an existing Auth user UUID. A failed login has no authenticated identity and stores `user_id=NULL`; `session_audit_user_identity_check` permits NULL only for `failed_login`, while the authenticated insert policy still requires `auth.uid() = user_id`. Audit insertion failure logs only its action, bounded PostgreSQL error code and, for a not-null violation, a schema-allowlisted column name. It never logs raw messages, row details, identities or secrets and never changes the login/logout response.
 
+### Financial upload resource budget
+
+Financial import authentication, verified-email, and paid-subscription checks still run before the request body is read. After authorization, `lib/financialUploadLimits.ts` provides the shared upload budget. Browser checks give immediate feedback, while `lib/financialImportHandler.ts` repeats every applicable check and remains authoritative. Rejected uploads never reach the financial transaction RPC and do not change saved data.
+
+The launch budget is 2 MB per `.xlsx` or `.csv` file and 2.25 MB for a request that supplies a numeric `Content-Length`. File names are limited to 200 characters. XLSX files must be valid, unencrypted ZIP archives with at most 200 entries, no ZIP64 sentinel sizes, no more than 20 MB total expanded content, and no compression ratio above 100:1. Workbook parsing is capped at 8 sheets, 250 used rows per sheet, and 64 used columns per sheet. A financial import may contain at most 240 unique monthly records, representing 20 years. API and log output include at most 25 parser issues plus one omission summary.
+
+The 250-row allowance supports the version-2 template and up to 240 monthly records while leaving room for its headings; 64 columns and 8 sheets leave expansion room beyond the current template. CSV uploads share the file, parsed-row, parsed-column, month, and error limits but do not use ZIP checks. MIME type is not trusted because browsers and operating systems report spreadsheet MIME values inconsistently; extension validation and XLSX archive structure establish the accepted formats.
+
+`Content-Length` is an early rejection optimization, not the only defense: clients may omit it, and Next.js proxy buffering is not treated as an application rejection contract. The server validates the resulting `File` before calling `arrayBuffer`, validates XLSX central-directory metadata before SheetJS expansion, and validates workbook structure before row conversion. Oversized file/request responses use HTTP 413; unsupported, empty, malformed, encrypted, or over-complex workbooks use controlled HTTP 400 errors with stable codes. Unexpected parser details are not returned to users.
+
+Local tests cover the current launch template, metadata boundaries, malformed and high-expansion archives, entry/sheet/row/column/month limits, bounded errors, early authorization, and absence of database writes on rejection. These tests do not establish the hosting provider's multipart buffering ceiling or behavior for every third-party workbook producer. Preview validation should exercise a normal v2 workbook, CSV, empty file, renamed non-workbook, and file over 2 MB, confirming actionable messages and unchanged financial data after each rejection. No SQL migration is required.
+
 ## 10 Document History
 
 | Version | Date | Changes |

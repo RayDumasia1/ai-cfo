@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { CheckCircle2, Loader2, Upload, XCircle } from "lucide-react";
 import { useImportUpload } from "@/app/components/useImportUpload";
 import ImportReviewCard from "@/app/components/ImportReviewCard";
+import { FinancialUploadLimitError, validateFinancialFileMetadata } from "@/lib/financialUploadLimits";
 
 interface OnboardingImportZoneProps {
   /** Fired only after the reviewed import is confirmed successfully. */
@@ -28,6 +29,12 @@ export default function OnboardingImportZone({
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".xlsx")) {
       fail("Please upload an Excel (.xlsx) file.");
+      return;
+    }
+    try {
+      validateFinancialFileMetadata(file);
+    } catch (error) {
+      fail(error instanceof FinancialUploadLimitError ? error.message : "The selected file could not be checked.");
       return;
     }
     upload(file);
@@ -116,7 +123,7 @@ export default function OnboardingImportZone({
       >
         <Upload size={32} className="text-line" />
         <span className="mt-3 text-sm font-medium text-dim">Drop your .xlsx file here</span>
-        <span className="mt-1 text-[13px] text-dim">or click to browse</span>
+        <span className="mt-1 text-[13px] text-dim">or click to browse · 2 MB maximum</span>
       </button>
     </>
   );

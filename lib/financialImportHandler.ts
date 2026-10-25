@@ -11,6 +11,14 @@ import {
 } from "@/lib/financialImportPolicy";
 import { hasVerifiedEmail, emailVerificationRequired } from "@/lib/authPolicy";
 import {
+  FinancialUploadLimitError,
+  MAX_FINANCIAL_MONTHS,
+  MAX_FINANCIAL_REQUEST_BYTES,
+  boundedImportErrors,
+  validateFinancialArchive,
+  validateFinancialFileMetadata,
+} from "@/lib/financialUploadLimits";
+import {
   hasPaidSubscription,
   getFinancialImportReviewState,
   commitReviewedFinancialImport,
@@ -61,6 +69,15 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
         code: "IMPORT_REVIEW_REQUIRED", requestId }, { status: 409, headers: { "Cache-Control": "no-store" } });
     }
 
+    const contentLength = request.headers.get("content-length");
+    if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > MAX_FINANCIAL_REQUEST_BYTES) {
+      return NextResponse.json({
+        error: "The upload request is too large. Upload a file of 2 MB or less.",
+        code: "IMPORT_REQUEST_TOO_LARGE",
+        requestId,
+      }, { status: 413, headers: { "Cache-Control": "no-store" } });
+    }
+
     // ── File ──────────────────────────────────────────────────────────────────
     let formData: FormData;
     try {
@@ -72,6 +89,15 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    try {
+      validateFinancialFileMetadata(file);
+    } catch (error) {
+      if (error instanceof FinancialUploadLimitError) {
+        return NextResponse.json({ error: error.message, code: error.code, requestId },
+          { status: error.code === "IMPORT_FILE_TOO_LARGE" ? 413 : 400, headers: { "Cache-Control": "no-store" } });
+      }
+      throw error;
     }
     filename = file.name;
     const modes = formData.getAll("mode");
@@ -88,6 +114,15 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     });
 
     const buffer = await file.arrayBuffer();
+    try {
+      validateFinancialArchive(buffer, file.name);
+    } catch (error) {
+      if (error instanceof FinancialUploadLimitError) {
+        return NextResponse.json({ error: error.message, code: error.code, requestId },
+          { status: 400, headers: { "Cache-Control": "no-store" } });
+      }
+      throw error;
+    }
     const identity = { userId: user.id, mode, filename: file.name, fileHash: importFileHash(buffer) };
     let expectedState: string | null = null;
     if (operation === "confirm") {
@@ -103,11 +138,18 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     let parsed;
     try {
       parsed = parseExcelBuffer(buffer);
-    } catch {
+    } catch (error) {
+      if (error instanceof FinancialUploadLimitError) {
+        return NextResponse.json({ error: error.message, code: error.code, requestId },
+          { status: 400, headers: { "Cache-Control": "no-store" } });
+      }
       return NextResponse.json(
         { error: "The file could not be read. Please upload a valid workbook.", requestId },
         { status: 400 }
       );
+    }
+    if (parsed.months.length > MAX_FINANCIAL_MONTHS) {
+      parsed.errors.push(`The file contains more than ${MAX_FINANCIAL_MONTHS} financial months. Import no more than 20 years at a time.`);
     }
     if (parsed.months.length === 0 && parsed.errors.length === 0) {
       parsed.errors.push("The workbook must contain at least one financial month.");
@@ -139,15 +181,16 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     });
 
     if (parsed.errors.length > 0) {
+      const safeErrors = boundedImportErrors(parsed.errors);
       console.warn("import:parse:errors", {
         requestId,
         userId,
         filename,
-        errors: parsed.errors,
+        errors: safeErrors,
       });
 
       return NextResponse.json(
-        { success: false, errors: parsed.errors, requestId },
+        { success: false, errors: safeErrors, requestId },
         { status: 400 }
       );
     }

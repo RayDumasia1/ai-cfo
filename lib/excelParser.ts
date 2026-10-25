@@ -1,5 +1,6 @@
 import "server-only";
 import * as XLSX from "xlsx";
+import { MAX_WORKBOOK_ROWS_PER_SHEET, validateWorkbookStructure } from "./financialUploadLimits";
 import type { FinancialMonthInsert, BusinessProfileInsert } from "./types";
 import type { ImportNotice } from "./importNotices";
 import type { ParseResult } from "./financialWorkbookTypes";
@@ -204,7 +205,12 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParseResult {
   const months: Omit<FinancialMonthInsert, "user_id" | "business_id">[] = [];
   const profile: Partial<Omit<BusinessProfileInsert, "user_id">> = {};
 
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    cellDates: true,
+    sheetRows: MAX_WORKBOOK_ROWS_PER_SHEET + 1,
+  });
+  validateWorkbookStructure(workbook);
 
   if (workbook.Sheets["Monthly Cash"]) return parseV2Workbook(workbook);
 

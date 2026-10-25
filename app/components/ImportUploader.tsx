@@ -5,6 +5,7 @@ import { useImportUpload } from "./useImportUpload";
 import ImportReviewCard from "./ImportReviewCard";
 import { DEFAULT_IMPORT_MODE, type FinancialImportMode } from "@/lib/financialImportPolicy";
 import { FINANCIAL_TEMPLATE_URL } from "@/lib/financialTemplate";
+import { FinancialUploadLimitError, validateFinancialFileMetadata } from "@/lib/financialUploadLimits";
 
 type ClearState = "idle" | "confirming" | "clearing";
 
@@ -69,7 +70,14 @@ export default function ImportUploader({
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) upload(file, mode);
+    if (file) {
+      try {
+        validateFinancialFileMetadata(file);
+        upload(file, mode);
+      } catch (error) {
+        fail(error instanceof FinancialUploadLimitError ? error.message : "The selected file could not be checked.");
+      }
+    }
     e.target.value = "";
   }
 
@@ -293,7 +301,7 @@ export default function ImportUploader({
             Import Financial Data
           </p>
           <p className="mt-0.5 text-xs font-light" style={{ color: "var(--dim)" }}>
-            Excel (.xlsx) or CSV — monthly summary format required
+            Excel (.xlsx) or CSV · 2 MB maximum · monthly summary format required
           </p>
         </div>
 

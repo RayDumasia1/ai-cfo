@@ -24,6 +24,12 @@ import { POST as REVIEW } from "../app/api/import/review/route";
 import { POST as LEGACY } from "../app/api/import/route";
 import { POST as LEGACY_MODES } from "../app/api/import/modes/route";
 import { importFileHash, issueImportReviewToken, verifyImportReviewToken } from "../lib/financialImportReviewToken";
+import {
+  MAX_FINANCIAL_FILE_BYTES,
+  MAX_FINANCIAL_MONTHS,
+  MAX_FINANCIAL_REQUEST_BYTES,
+  MAX_IMPORT_ERRORS_RETURNED,
+} from "../lib/financialUploadLimits";
 
 const rpc = vi.fn();
 const getUser = vi.fn();
@@ -34,11 +40,19 @@ let parsed: ParseResult;
 const reviewedState = "a".repeat(32);
 let reviewedFileHash: string;
 
+function workbookBytes(label = "synthetic workbook") {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[label]]), "Monthly Data");
+  return new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+}
+
+const defaultWorkbook = workbookBytes();
+
 function month(date = "2026-09-01") {
   return { month_date: date, opening_cash: 100, closing_cash: 90, total_revenue: 50,
     total_expenses: 60, payroll: null, ar_outstanding: null, ap_outstanding: null, notes: null };
 }
-function request(file: File | string | null = new File(["synthetic workbook"], "import.xlsx"), modes: (string | File)[] = []) {
+function request(file: File | string | null = new File([defaultWorkbook], "import.xlsx"), modes: (string | File)[] = []) {
   const body = new FormData();
   if (file !== null) body.append("file", file);
   body.append("user_id", "another-account");
@@ -52,7 +66,7 @@ function request(file: File | string | null = new File(["synthetic workbook"], "
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "synthetic-import-review-test-key");
-  reviewedFileHash = importFileHash(new TextEncoder().encode("synthetic workbook").buffer);
+  reviewedFileHash = importFileHash(defaultWorkbook.buffer);
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -98,6 +112,39 @@ describe("financial import authorization and validation", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("rejects an oversized request before reading multipart form data", async () => {
+    const req = request();
+    req.headers.set("content-length", String(MAX_FINANCIAL_REQUEST_BYTES + 1));
+    const readForm = vi.spyOn(req, "formData");
+    const response = await POST(req);
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ code: "IMPORT_REQUEST_TOO_LARGE" });
+    expect(readForm).not.toHaveBeenCalled();
+    expect(parseExcelBuffer).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized file before parsing or writing", async () => {
+    const response = await POST(request(new File([
+      new Uint8Array(MAX_FINANCIAL_FILE_BYTES + 1),
+    ], "large.xlsx")));
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ code: "IMPORT_FILE_TOO_LARGE" });
+    expect(parseExcelBuffer).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [new File([], "empty.xlsx"), "IMPORT_FILE_EMPTY"],
+    [new File(["values"], "financials.txt"), "IMPORT_FILE_TYPE"],
+  ])("rejects invalid file metadata before parsing: %s", async (file, code) => {
+    const response = await POST(request(file));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code });
+    expect(parseExcelBuffer).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("returns 400 for an unreadable workbook", async () => {
     vi.mocked(parseExcelBuffer).mockImplementation(() => { throw new Error("Internal parser detail"); });
     const response = await POST(request());
@@ -118,6 +165,29 @@ describe("financial import authorization and validation", () => {
     expect(await response.json()).toMatchObject({ success: false, errors: expect.any(Array) });
     expect(createServiceClient).not.toHaveBeenCalled();
     expect(from).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than 20 years of monthly records before any financial writes", async () => {
+    parsed.months = Array.from({ length: MAX_FINANCIAL_MONTHS + 1 }, (_, index) => ({
+      ...month(`${2026 - Math.floor(index / 12)}-${String(12 - (index % 12)).padStart(2, "0")}-01`),
+      closing_cash: 90 + index,
+    }));
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect((await response.json()).errors).toContain(
+      `The file contains more than ${MAX_FINANCIAL_MONTHS} financial months. Import no more than 20 years at a time.`
+    );
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("bounds parser errors returned to the user and logs the same safe list", async () => {
+    parsed.errors = Array.from({ length: MAX_IMPORT_ERRORS_RETURNED + 10 }, (_, index) => `Issue ${index + 1}`);
+    const response = await POST(request());
+    const body = await response.json();
+    expect(response.status).toBe(400);
+    expect(body.errors).toHaveLength(MAX_IMPORT_ERRORS_RETURNED + 1);
+    expect(body.errors.at(-1)).toContain("10 additional issues were omitted");
     expect(rpc).not.toHaveBeenCalled();
   });
 });
@@ -337,8 +407,8 @@ describe("read-only upload review and guarded confirmation", () => {
     if (kind === "tampered") form.set("reviewToken",String(form.get("reviewToken")) + "a");
     if (kind === "account") form.set("reviewToken",issueImportReviewToken({userId:"other-user",mode:"update_months",filename:"import.xlsx",fileHash:reviewedFileHash},reviewedState));
     if (kind === "mode") form.set("mode","replace_all");
-    if (kind === "filename") form.set("file",new File(["synthetic workbook"],"renamed.xlsx"));
-    if (kind === "file") form.set("file",new File(["different bytes"],"import.xlsx"));
+    if (kind === "filename") form.set("file",new File([defaultWorkbook],"renamed.xlsx"));
+    if (kind === "file") form.set("file",new File([workbookBytes("different workbook")],"import.xlsx"));
     if (kind === "expired") form.set("reviewToken",issueImportReviewToken({userId:user.id,mode:"update_months",filename:"import.xlsx",fileHash:reviewedFileHash},reviewedState,Date.now()-3600000));
     if (kind === "repeated") form.append("reviewToken",String(form.get("reviewToken")));
     const response = await POST(new NextRequest("https://app.example.invalid/api/import/confirm",{method:"POST",body:form}));
