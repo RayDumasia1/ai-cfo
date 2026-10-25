@@ -25,7 +25,7 @@ export default function BurnRateCard({cash,months,isNewUser=false}:BurnRateCardP
       currency: metric.window.reportingCurrency ?? "USD", maximumFractionDigits: 0 });
     return <StatCard label="Operating Cash Buffer"
       value={`${coverage.toFixed(1)} months`}
-      subtext={`Could cover about ${coverage.toFixed(1)} months of recent operating cash payments with no new customer collections · ${money.format(metric.operating.averageCashPaid!)}/mo average`} />;
+      subtext={`Operating payments covered with no new collections · ${money.format(metric.operating.averageCashPaid!)}/mo average`} />;
   }
   if (cash === null && months.length > 0) {
     return <StatCard label="Cash Buffer" value="—" subtext="Latest month is missing closing cash" />;

@@ -50,6 +50,8 @@ FIN-03A does not change stored data or SQL. FIN-03B dispatches dashboard cards a
 
 For version-2 datasets, the four dashboard cards become Available Cash, Operating Cash Buffer, Operating Cash Trend and Operating Runway. Available Cash subtracts the reported unavailable amount and shows it separately. Operating cards use customer collections and operating payments; runway copy states that debt principal, owner draws, investing activity and future commitments are excluded. Partial-period cash uses its cutoff date while the trend window remains limited to completed months.
 
+The metric row uses four equal minmax columns on wide screens, two columns on tablets and one column on narrow screens. Values may wrap instead of forcing one column wider than the others. Trend language leads with the owner decision signal—collections or spending outpaced the other—and a single note below the cards explains the operating scope and exclusions without repeating dense methodology in every card. The alert disclosure remains present where the limitation is material to an urgent runway conclusion. The alerts disclosure control exposes its expanded state to assistive technology.
+
 Version-2 alerts use distinct identifiers so legacy dismissals cannot hide a newly defined operating alert:
 
 - `OPERATING_RUNWAY_DANGER` and `OPERATING_RUNWAY_WARNING` require three eligible current months;

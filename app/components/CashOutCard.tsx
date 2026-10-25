@@ -30,7 +30,7 @@ export default function CashOutCard({cash,months,isNewUser=false}:CashOutCardPro
     }
     return <StatCard label="Operating Runway"
       value={`${metric.operating.estimatedRunwayMonths.toFixed(1)} months`}
-      subtext={`At the recent operating pace, available cash may last until ${runoutDate(metric.operating.estimatedRunwayMonths,metric.cash.asOfDate??metric.window.periodEnd??undefined)} · Excludes non-operating payments and future commitments${freshness==="stale"?" · Data may be out of date":""}`} />;
+      subtext={`At the recent operating pace, available cash may last until ${runoutDate(metric.operating.estimatedRunwayMonths,metric.cash.asOfDate??metric.window.periodEnd??undefined)}${freshness==="stale"?" · Data may be out of date":""}`} />;
   }
   if (cash===null&&months.length>0) {
     return <StatCard label="Cash Runway" value="—" subtext="Latest month is missing closing cash" />;

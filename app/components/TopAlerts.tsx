@@ -109,7 +109,10 @@ export default function TopAlerts({
         </div>
 
         <button
+          type="button"
           onClick={toggle}
+          aria-expanded={!collapsed}
+          aria-controls="dashboard-alert-list"
           className="transition-opacity hover:opacity-75"
           style={{
             fontSize: "13px",
@@ -126,6 +129,7 @@ export default function TopAlerts({
 
       {/* Collapsible alerts list */}
       <div
+        id="dashboard-alert-list"
         style={{
           overflow: "hidden",
           maxHeight: collapsed ? "0" : "1000px",

@@ -46,10 +46,10 @@ describe("FIN-03B normalized dashboard",()=>{
     expect(html).toContain("$10,000 unavailable");
     expect(html).toContain("Operating Cash Buffer");
     expect(html).toContain("Operating Cash Trend");
-    expect(html).toContain("Operations used more cash");
+    expect(html).toContain("$15,000/mo shortfall");
     expect(html).toContain("Operating Runway");
     expect(html).toContain("4.0 months");
-    expect(html).toContain("Excludes non-operating payments and future commitments");
+    expect(html).toContain("Operating spending outpaced collections");
   });
 
   it("keeps funding and investing activity out of customer-facing operating results",()=>{
@@ -57,7 +57,7 @@ describe("FIN-03B normalized dashboard",()=>{
       debt_funding_received:index===0?250_000:0,investing_cash_received:index===0?100_000:0}));
     expect(currentRunway(70_000,funded,new Date("2026-10-15T00:00:00Z"))).toBe(4);
     const html=render(createElement(RunwayCard,{cash:70_000,months:funded}));
-    expect(html).toContain("$15,000/mo average operating cash used");
+    expect(html).toContain("$15,000/mo shortfall");
   });
 
   it("uses normalized runway and available cash for v2 alerts",()=>{
@@ -111,7 +111,7 @@ describe("FIN-03B normalized dashboard",()=>{
     const trend=render(createElement(RunwayCard,{cash:null,months:data}));
     expect(cash).toContain("$45,000");
     expect(cash).toContain("Oct 20, 2026");
-    expect(trend).toContain("$15,000/mo average operating cash used");
+    expect(trend).toContain("$15,000/mo shortfall");
   });
 
   it("does not treat unknown unavailable cash as zero",()=>{

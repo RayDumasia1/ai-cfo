@@ -19,9 +19,10 @@ export default function StatCard({
         borderRadius: "var(--radius-lg)",
         border: `1px solid ${highlight ? "var(--gold)" : "var(--line)"}`,
         boxShadow: "var(--shadow-sm)",
-        padding: "1.25rem 1.5rem",
+        padding: "1rem 1.25rem",
         height: "100%",
-        minHeight: 120,
+        minHeight: 140,
+        minWidth: 0,
         justifyContent: "space-between",
       }}
     >
@@ -33,7 +34,13 @@ export default function StatCard({
       </p>
       <p
         className="mt-3 font-medium leading-none"
-        style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
+        style={{
+          color: "var(--ink)",
+          fontSize: "clamp(1.4rem, 1.65vw, 1.75rem)",
+          letterSpacing: "-1px",
+          lineHeight: 1.1,
+          overflowWrap: "break-word",
+        }}
       >
         {value}
       </p>

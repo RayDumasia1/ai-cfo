@@ -145,7 +145,7 @@ export default async function DashboardPage({
         financialDataStatus={<FinancialDataStatusCard months={recentMonths.map(month=>month.month_date)} importStatus={importStatus} />}
       >
         {/* Stat cards */}
-        <div className="mb-8" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, alignItems: "stretch" }}>
+        <div className="mb-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 items-stretch">
           <CashPositionCard
             initialData={cashPosition}
             minCashReserve={profile?.min_cash_reserve}
@@ -164,6 +164,18 @@ export default async function DashboardPage({
             isNewUser={isNewUser}
           />
         </div>
+
+        {recentMonths[0]?.data_contract_version === 2 && (
+          <div
+            className="mb-6 rounded-md border border-line px-3 py-2 text-xs leading-relaxed text-dim"
+            style={{ background: "color-mix(in srgb, var(--teal) 4%, var(--surface))" }}
+            role="note"
+          >
+            <strong className="font-medium text-ink">About these operating metrics:</strong>{" "}
+            Buffer, trend, and runway use customer collections and operating payments.
+            They exclude non-operating payments and future commitments.
+          </div>
+        )}
 
         {/* Revenue vs Burn chart — always rendered; component handles empty state */}
         <div className="mb-8">

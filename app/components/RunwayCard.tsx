@@ -21,15 +21,15 @@ export default function RunwayCard({cash,months,isNewUser=false}:RunwayCardProps
     const freshness=financialDataFreshness(metric.window.periodEnd);
     const suffix=freshness==="historical"?" · Update your data":freshness==="stale"?" · Data may be out of date":"";
     if (metric.operating.direction==="cash_generating") {
-      return <StatCard label="Operating Cash Trend" value="Operations brought in more cash"
-        subtext={`${money.format(metric.operating.averageNetCashFlow)}/mo average across ${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
+      return <StatCard label="Operating Cash Trend" value={`${money.format(metric.operating.averageNetCashFlow)}/mo surplus`}
+        subtext={`Collections outpaced operating spending across ${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
     }
     if (metric.operating.direction==="break_even") {
-      return <StatCard label="Operating Cash Trend" value="Operating cash in matched cash out"
-        subtext={`${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
+      return <StatCard label="Operating Cash Trend" value="$0/mo net"
+        subtext={`Collections matched operating spending across ${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
     }
-    return <StatCard label="Operating Cash Trend" value="Operations used more cash"
-      subtext={`${money.format(metric.operating.averageCashBurn!)}/mo average operating cash used across ${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
+    return <StatCard label="Operating Cash Trend" value={`${money.format(metric.operating.averageCashBurn!)}/mo shortfall`}
+      subtext={`Operating spending outpaced collections across ${metric.window.monthsUsed} usable ${metric.window.monthsUsed===1?"month":"months"}${suffix}`} />;
   }
   if (cash===null&&months.length>0) {
     return <StatCard label="Cash Trend" value="—" subtext="Latest month is missing closing cash" />;

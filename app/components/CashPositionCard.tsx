@@ -63,10 +63,10 @@ export default function CashPositionCard({
       : financialMonthLabel(latest.month_date);
     return <div className="bg-surface flex flex-col" style={{borderRadius:"var(--radius-lg)",
       border:"1px solid var(--line)",borderLeft:`3px solid ${borderColor}`,
-      boxShadow:"var(--shadow-sm)",padding:"1.25rem 1.5rem",height:"100%",minHeight:120,
+      boxShadow:"var(--shadow-sm)",padding:"1rem 1.25rem",height:"100%",minHeight:140,
       justifyContent:"space-between"}}>
       <p className="text-[10px] font-medium uppercase tracking-[0.14em]" style={{color:"var(--dim)"}}>Available Cash</p>
-      <p className="mt-3 font-medium leading-none" style={{color:"var(--ink)",fontSize:32,
+      <p className="mt-3 font-medium leading-none" style={{color:"var(--ink)",fontSize:28,
         letterSpacing:"-1px",whiteSpace:"nowrap"}}>{money.format(cash)}</p>
       <p className="mt-2 text-xs font-light" style={{color:"var(--dim)",lineHeight:1.4,maxWidth:"100%"}}>
         {`As of ${asOf} · ${unavailable}${comparison}`}
