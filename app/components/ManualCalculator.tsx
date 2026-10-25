@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { calculateFinancials } from "@/lib/calculations";
-import type { FinancialSnapshot } from "@/lib/types";
+import { operatingCashMetrics, type OperatingCashMetrics } from "@/lib/normalizedCashHealth";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -61,7 +60,9 @@ function MiniStatCard({ label, value, valueColor = "var(--ink)" }: {
   );
 }
 
-function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; onReset: () => void }) {
+type ScenarioResult = OperatingCashMetrics & { availableCash: number };
+
+function ResultsSection({ snapshot, onReset }: { snapshot: ScenarioResult; onReset: () => void }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -69,11 +70,15 @@ function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; on
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const cashDisplay = formatCurrency(snapshot.cashPosition);
-  const burnDisplay = snapshot.burnRate > 0 ? formatCurrency(snapshot.burnRate) : "Not consuming cash";
-  const coverageDisplay=snapshot.reportedSpendingCoverage === null ? "—" : `${snapshot.reportedSpendingCoverage.toFixed(1)} mo`;
+  const cashDisplay = formatCurrency(snapshot.availableCash);
+  const flowDisplay = snapshot.direction === "cash_consuming"
+    ? `${formatCurrency(snapshot.averageCashBurn)}/mo shortfall`
+    : snapshot.direction === "cash_generating"
+      ? `${formatCurrency(snapshot.averageNetCashFlow)}/mo surplus`
+      : "$0/mo net";
+  const coverageDisplay=snapshot.cashCoverageMonths === null ? "—" : `${snapshot.cashCoverageMonths.toFixed(1)} mo`;
   const runwayDisplay =
-    snapshot.runwayMonths !== null ? `${snapshot.runwayMonths.toFixed(1)} mo` : "Not applicable";
+    snapshot.estimatedRunwayMonths !== null ? `${snapshot.estimatedRunwayMonths.toFixed(1)} mo` : "Not applicable";
 
   return (
     <div style={{
@@ -88,13 +93,13 @@ function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; on
         gap: 8,
         width: "100%",
       }}>
-        <MiniStatCard label="Cash Position" value={cashDisplay} />
-        <MiniStatCard label="Spending Coverage" value={coverageDisplay} />
-        <MiniStatCard label="Estimated Net Cash Burn" value={burnDisplay} />
+        <MiniStatCard label="Available Cash" value={cashDisplay} />
+        <MiniStatCard label="Operating Cash Buffer" value={coverageDisplay} />
+        <MiniStatCard label="Operating Cash Trend" value={flowDisplay} />
         <MiniStatCard
-          label="Estimated Cash Runway"
+          label="Operating Runway"
           value={runwayDisplay}
-          valueColor={runwayColor(snapshot.runwayMonths)}
+          valueColor={runwayColor(snapshot.estimatedRunwayMonths)}
         />
       </div>
       <button
@@ -153,7 +158,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
   const [cash, setCash] = useState("");
   const [revenue, setRevenue] = useState("");
   const [expenses, setExpenses] = useState("");
-  const [snapshot, setSnapshot] = useState<FinancialSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<ScenarioResult | null>(null);
   const [calcKey, setCalcKey] = useState(0);
   const [validationError, setValidationError] = useState(false);
 
@@ -182,12 +187,10 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
     }
 
     setValidationError(false);
-    const result = calculateFinancials({
-      cashBalance: cashValue,
-      monthlyRevenue: revenueValue,
-      monthlyExpenses: expenseValue,
+    setSnapshot({
+      availableCash: cashValue,
+      ...operatingCashMetrics(cashValue, revenueValue, expenseValue),
     });
-    setSnapshot(result);
     setCalcKey((k) => k + 1);
   }
 
@@ -204,7 +207,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
       {/* Section A — Inputs */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div>
-          <label htmlFor="mc-cash" style={labelStyle}>Current cash balance</label>
+          <label htmlFor="mc-cash" style={labelStyle}>Available cash</label>
           <input
             id="mc-cash"
             type="number"
@@ -219,7 +222,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
           />
         </div>
         <div>
-          <label htmlFor="mc-revenue" style={labelStyle}>Average monthly cash collected</label>
+          <label htmlFor="mc-revenue" style={labelStyle}>Monthly customer collections</label>
           <input
             id="mc-revenue"
             type="number"
@@ -234,7 +237,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
           />
         </div>
         <div>
-          <label htmlFor="mc-expenses" style={labelStyle}>Average monthly cash paid</label>
+          <label htmlFor="mc-expenses" style={labelStyle}>Monthly operating spending</label>
           <input
             id="mc-expenses"
             type="number"
@@ -252,7 +255,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
 
       {validationError && (
         <p style={{ fontSize: 12, color: "#E84545", marginTop: 8, marginBottom: 0 }}>
-          Please enter valid positive numbers in all three fields.
+          Enter zero or a positive amount in all three fields.
         </p>
       )}
 

@@ -59,6 +59,45 @@ export type NormalizedCashHealth = {
   };
 };
 
+export type OperatingCashMetrics = {
+  averageCashCollected: number;
+  averageCashPaid: number;
+  averageNetCashFlow: number;
+  averageCashBurn: number;
+  direction: Exclude<CashDirection, "unavailable">;
+  cashCoverageMonths: number | null;
+  estimatedRunwayMonths: number | null;
+};
+
+/**
+ * Shared deterministic operating-cash calculation for normalized financial
+ * records and user-entered scenarios. Callers are responsible for validating
+ * that the three inputs are finite, nonnegative amounts in one currency.
+ */
+export function operatingCashMetrics(
+  availableCash: number,
+  averageCashCollected: number,
+  averageCashPaid: number,
+): OperatingCashMetrics {
+  const averageNetCashFlow = averageCashCollected - averageCashPaid;
+  const averageCashBurn = Math.max(-averageNetCashFlow, 0);
+  const nonnegativeCash = Math.max(availableCash, 0);
+
+  return {
+    averageCashCollected,
+    averageCashPaid,
+    averageNetCashFlow,
+    averageCashBurn,
+    direction: averageNetCashFlow < 0
+      ? "cash_consuming"
+      : averageNetCashFlow > 0 ? "cash_generating" : "break_even",
+    cashCoverageMonths: averageCashPaid > 0
+      ? nonnegativeCash / averageCashPaid : null,
+    estimatedRunwayMonths: averageCashBurn > 0
+      ? nonnegativeCash / averageCashBurn : null,
+  };
+}
+
 const EMPTY_RESULT: NormalizedCashHealth = {
   cash: {
     asOfDate: null,
@@ -276,8 +315,6 @@ export function normalizedCashHealth(
   const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
   const averageCashCollected = average(eligible.map(month => month.cash_collected_from_customers!));
   const averageCashPaid = average(eligible.map(month => month.operating_cash_paid!));
-  const averageNetCashFlow = averageCashCollected - averageCashPaid;
-  const averageCashBurn = Math.max(-averageNetCashFlow, 0);
   const availableForRatios = result.cash.availableCash === null
     ? null
     : Math.max(result.cash.availableCash, 0);
@@ -292,18 +329,12 @@ export function normalizedCashHealth(
     sourceType: first.source_type,
     stoppedBecause,
   };
-  result.operating = {
-    averageCashCollected,
-    averageCashPaid,
-    averageNetCashFlow,
-    averageCashBurn,
-    direction: averageNetCashFlow < 0
-      ? "cash_consuming"
-      : averageNetCashFlow > 0 ? "cash_generating" : "break_even",
-    cashCoverageMonths: availableForRatios !== null && averageCashPaid > 0
-      ? availableForRatios / averageCashPaid : null,
-    estimatedRunwayMonths: availableForRatios !== null && averageCashBurn > 0
-      ? availableForRatios / averageCashBurn : null,
-  };
+  result.operating = availableForRatios === null
+    ? {
+      ...operatingCashMetrics(0, averageCashCollected, averageCashPaid),
+      cashCoverageMonths: null,
+      estimatedRunwayMonths: null,
+    }
+    : operatingCashMetrics(availableForRatios, averageCashCollected, averageCashPaid);
   return result;
 }

@@ -1,6 +1,6 @@
 # FIN-03 normalized cash engine
 
-**Status:** FIN-03A and FIN-03B in preview; FIN-03C scope approved
+**Status:** FIN-03A and FIN-03B in preview; FIN-03C1 implemented locally; FIN-03C2 approved
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract](financial-metric-contract.md) and [financial data contract v2](financial-data-contract-v2.md)
 
@@ -49,6 +49,8 @@ FIN-03A does not change stored data or SQL. FIN-03B dispatches dashboard cards a
 ## FIN-03C calculator and scenario allocation
 
 FIN-03C is split into two bounded increments. FIN-03C1 removes the calculator's separate formula path and makes dashboard, alert, calculator and scenario results use the same version-aware definitions and edge-case rules. Version-1 data remains on the FIN-02 compatibility model; version-2 data uses the normalized engine.
+
+FIN-03C1 uses the exported `operatingCashMetrics()` primitive for both classified monthly data and manually entered What-If values. The manual inputs are explicitly Available cash, Monthly customer collections and Monthly operating spending; results use Available Cash, Operating Cash Buffer, Operating Cash Trend and Operating Runway. This increment aligns deterministic formulas and language. Loading the customer's saved baseline and baseline-versus-scenario controls remain FIN-03C2.
 
 FIN-03C2 replaces the dashboard's placeholder three-field calculator with a useful Starter scenario experience. It starts from the customer's current saved baseline and shows baseline and proposed results for available cash, monthly operating surplus or shortfall, operating cash buffer and conditional operating runway. Starter users can adjust customer collections, operating spending and available cash, and can model a clearly separated one-time cash receipt or payment. The experience must distinguish recurring changes from one-time events, explain results in owner-friendly language, restore the saved baseline, and handle missing, limited, partial and stale data explicitly.
 
