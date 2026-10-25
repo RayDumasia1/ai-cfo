@@ -23,6 +23,9 @@ describe("reviewed financial upload", () => {
     expect(markup).toContain('<option value="update_months" selected="">');
     expect(markup).toContain("Keep other months.");
     expect(markup).toContain("aria-describedby=");
+    expect(markup).toContain("hover:text-danger");
+    expect(markup).toContain("focus-visible:text-danger");
+    expect(markup).not.toContain("#6B7A8D");
   });
 
   it.each(["update_months","replace_all"] as const)("reviews before sending a %s confirmation", async mode => {

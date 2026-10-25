@@ -32,6 +32,16 @@ function formatMonthLabel(iso: string): string {
   );
 }
 
+function ClearFinancialDataButton({onClick}:{onClick:()=>void}) {
+  return <button
+    type="button"
+    onClick={onClick}
+    className="py-2 text-left text-sm font-normal text-dim transition-colors hover:text-danger focus-visible:text-danger focus-visible:outline-none focus-visible:underline"
+  >
+    Clear all financial data
+  </button>;
+}
+
 export default function ImportUploader({
   hasData = false,
   isNewUser = false,
@@ -91,7 +101,7 @@ export default function ImportUploader({
         className="bg-surface px-6 py-5"
         style={{
           borderRadius: "var(--radius-lg)",
-          border: "1px solid #ef4444",
+          border: "1px solid var(--danger)",
           boxShadow: "var(--shadow-sm)",
         }}
       >
@@ -105,6 +115,7 @@ export default function ImportUploader({
         </p>
         <div className="mt-4 flex items-center gap-3">
           <button
+            type="button"
             onClick={() => setClearState("idle")}
             className="px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-70"
             style={{
@@ -116,11 +127,12 @@ export default function ImportUploader({
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleClear}
             className="px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80"
             style={{
               borderRadius: "var(--radius-sm)",
-              backgroundColor: "#ef4444",
+              backgroundColor: "var(--danger)",
             }}
           >
             Clear data
@@ -221,13 +233,7 @@ export default function ImportUploader({
             Upload another file
           </button>
           {localHasData && (
-            <button
-              onClick={() => setClearState("confirming")}
-              className="text-xs font-light transition-opacity hover:opacity-70 text-left"
-              style={{ color: "#6B7A8D" }}
-            >
-              Clear all financial data
-            </button>
+            <ClearFinancialDataButton onClick={() => setClearState("confirming")} />
           )}
         </div>
       </div>
@@ -336,13 +342,7 @@ export default function ImportUploader({
         </p>
 
         {localHasData && (
-          <button
-            onClick={() => setClearState("confirming")}
-            className="text-xs font-light transition-opacity hover:opacity-70"
-            style={{ color: "#6B7A8D" }}
-          >
-            Clear all financial data
-          </button>
+          <ClearFinancialDataButton onClick={() => setClearState("confirming")} />
         )}
       </div>
     </div>
