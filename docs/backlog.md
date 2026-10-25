@@ -1,0 +1,96 @@
+# Elidan AI delivery backlog
+
+Updated 24 October 2026. This is the working queue for the application review, financial-data work and agreed follow-ups. Implement and validate one bounded increment at a time, then update this record.
+
+## Release status
+
+| Release | Status and validation |
+| --- | --- |
+| Revenue vs Expenses chart, `13f7620` | Production deployment succeeded, deployment `7304304197`. Main and preview contain this commit. User confirmed preview gaps, recorded/missing/zero tooltips, narrow layout and keyboard checks. 962 tests, TypeScript, targeted lint and build passed. No SQL required. Production runtime smoke testing is separate from deployment success. |
+| Consecutive-month comparisons, `8332ec6` | In production. Missing-prior-month and genuine consecutive comparison cases covered; older records are not treated as last month. |
+| Missing closing cash, `c05bcf8` | In production. Blank/zero/positive balances validated; unknown cash is not $0 or Stable. |
+| Financial data page, `16e0330` | In production after confirmed preview navigation/import/return/status validation. |
+
+## Product direction and source documents
+
+The current product direction is an accuracy-first CFO guidance platform for small and medium business owners who may not have financial training. Spreadsheet entry must stay simple and explain inputs in plain language; the calculation model must preserve missing/zero distinctions, disclose source periods and uncertainty, and avoid conclusions the supplied data cannot support. Accounting integrations will normalize richer source data into the same versioned financial contract rather than changing metric meaning by provider.
+
+Longer term, the platform must support three access models: a business owner/team using its own workspace; an independent CFO/CPA practice managing multiple client organizations; and an Elidan advisor assigned to one or more customers for included or separately purchased services. Financial records belong to the customer organization. Access is derived from organization membership, professional-client relationships, or explicit time-bounded Elidan advisor assignments. Advisor access is assignment-scoped, read-only by default, auditable, and distinct from subscription feature tiers and purchased service entitlements. Do not introduce new schema or authorization behavior that assumes one user permanently equals one business.
+
+The following confidential source documents are available locally under the Git-ignored `docs/product-reference/` folder. They inform product decisions but are not part of the repository:
+
+- `elidan-product-playbook-v1_4.docx` — October 2026 product positioning, roadmap, tier promises and human advisory direction.
+- `elidan-subscription-architecture-v1_3.docx` — October 2026 tier, quota, feature-gate and Stripe architecture.
+
+These Word documents remain unchanged, must not be committed or published, and are not executable schema specifications. Repository documentation records the approved current behavior and explicitly reconciles older source material when product decisions change.
+
+Known reconciliation items: both references still state a 30-day Founding restoration window; current approved behavior permits self-service only while a scheduled cancellation remains within the paid billing cycle, followed by manual case-by-case support with no guaranteed Founding rate. The subscription reference also predates `suspended`, `pending_cancellation`, test-member identity/registry controls, `usage_limit`, and the current webhook protections. Its one-row-per-user model does not cover future organizations, professional client access, advisor assignments, or service engagements. The playbook describes the human advisory offer but does not yet define pooled advisor assignment, reassignment, access expiry, internal versus customer-visible notes, or fulfillment tracking.
+
+## Priority and status
+
+- **Confirmed gap:** current code shows the behavior; a reproduction or policy decision can still be needed before changing it.
+- **Investigate:** risk or test-coverage gap, not a reproduced production defect.
+- **Planned:** agreed enhancement/design work, not an existing malfunction.
+- **Completed:** the bounded change shipped; this does not certify the entire surrounding system.
+
+High priority covers access, billing, data integrity and misleading financial conclusions. Medium covers reliability, transparency and workflow gaps. Lower priority covers polish and optional future capability. A newly verified access, billing or data-loss defect takes precedence over the sequence below.
+
+## Ordered work queue
+
+FIN-01 is approved and documented. FIN-02 is implemented locally and awaiting preview validation. DATA-01 follows after the tested FIN-02 release is promoted. Later entries remain queued; their presence does not authorize combining them into the next release.
+
+| Order / ID | Priority and status | Result and acceptance |
+| --- | --- | --- |
+| 1 — FIN-01 | Completed · Product direction approved 24 October 2026 | [Financial metric contract v0.2](financial-metric-contract.md) establishes cash health as the product model: available cash, near-term obligations, cash cushion, cash direction and conditional liquidity runway; separate accounting and management views; completed/comparable windows; missing/zero/partial/stale rules; alerts; owner draws/debt/tax restrictions; corrected scenarios; and a redesigned versioned spreadsheet direction. No formulas or stored data changed in this specification increment. |
+| 2 — FIN-02 | High · Implemented locally; preview validation pending | Applies the v0.2 compatibility model without changing stored fields: reported spending coverage uses cash divided by average reported cash paid; estimated runway uses cash divided by estimated net cash burn and is not applicable for break-even/cash-generating activity. Owner-facing cards use Cash Balance, Cash Buffer, Cash Trend and Cash Runway with explanatory copy. The dashboard and manual calculator agree; chart and alerts use cash-collected/cash-paid language; gaps/blanks stop the newest three-month window; runway alerts require three eligible months; data over 90 days does not emit current alerts or a current depletion date. Empty-alert messaging distinguishes current, stale, historical and missing data. Scenario A/C, missing/zero/gap/stale, freshness copy and fractional-date cases are tested. No SQL required. Preview must validate cards, calculator, chart, alerts and stale data before promotion. |
+| 3 — DATA-01 | High · Planned; depends on FIN-01 | Version the cash-flow contract across DB, template, parser/review and revisions. Define operating receipts/payments, investing/financing movements, opening-to-closing reconciliation, available/restricted cash, source/currency/basis and completeness. Preserve old uploads/settings, NULL versus zero, account isolation and atomic writes. Preview migration/rollback checks precede deployment; do not invent historical cash-flow fields from revenue/expenses alone. |
+| 4 — FIN-03 | High · Planned; depends on DATA-01 | Implement the approved common engine for cards, alerts and manual calculations. Operating cash burn uses operating cash payments less receipts; funding is not operating income. Specify averaging/completeness and nonpositive-burn/unknown/zero/negative-cash states. Operating runway is an estimate, not a complete forecast of debt, capital spending and future commitments. Test cash generation, funding injections, gaps, partial periods and basis differences. |
+| 5 — AUD-01 | High · Investigate original-review carryover | Reconcile original review categories against current code/tests/SQL: Auth/authorization/account isolation, paid/feature gates, checkout/webhooks, API validation/errors, queries/constraints/duplicates, email, storage/forms/accessibility/loading, significant performance and critical tests. Use the completed ledger below to avoid reopening fixed versions. Verify direct Supabase/RLS access separately from app guards. Exit with reproduced findings or explicit remaining test gaps; unit tests alone do not establish live security. |
+| 6 — BILL-01 | High · Investigate billing reliability | Test duplicate/concurrent/retried/out-of-order webhooks and subscription replacement; choose durable event idempotency/current-state reconciliation as needed. Terminal cleanup and invoice reconciliation already shipped; general nonterminal ordering and an event ledger have not. Email recovery must be independent of committed billing state. Acceptance: stale/duplicate events cannot incorrectly grant/revoke access or reassign Founding identity; failures retry safely. Evidence: `app/api/stripe/webhook/route.ts` and subscription helpers/tests. |
+| 7 — UI-01 | High · Confirmed unguarded storage paths; fault tests needed | Optional storage must not abort logout, session initialization or UI actions. `hooks/useSessionTimeout.ts` touches sessionStorage before logout; ScenarioPanel, Founding welcome, UpgradeModal and PlanComparisonCard retain direct localStorage calls. Test denied/quota/corrupt storage and account changes. UpgradeModal's feature-only notified marker must not imply another account registered interest. Preserve the already-fixed account-scoped alert preferences and cookie handling. |
+| 8 — LEGAL-01 | High · Product direction approved 24 October 2026; counsel approval required before wording/implementation | Define accurate customer-facing disclosures for automated financial guidance, AI-generated explanations and human advisory services. Cover reliance on user/provider data, estimates and incomplete/stale inputs; scope exclusions for accounting, tax, legal and investment advice; when a qualified professional should be consulted; and the distinct role/credentials of an assigned Elidan advisor. Review the exact phrase “not financial advice” with counsel because it must not contradict Elidan's CFO-guidance and paid-advisory claims. Decide placement in signup/onboarding acknowledgment, Terms, Privacy/Legal settings, metric methodology/help, AI outputs, emails/exports and advisor booking. Disclosures must be plain, accessible and visible near material decisions, with policy/version and acceptance timestamps where affirmative agreement is required. They do not reduce Elidan's duty to calculate accurately, disclose uncertainty, secure data or avoid unsupported claims. Current app evidence: welcome and Settings link to external Terms, but no repository-controlled financial-guidance/data-quality disclosure was found. |
+| 9 — API-01 | Medium · Confirmed missing application upload budget; impact testing needed | Define file-size/row/sheet/processing budgets before costly workbook parsing. The handler reads the whole file and XLSX parsing is synchronous. Measure realistic/adverse workbooks, preserve error contracts and saved data on rejection. Hosting payload limits do not establish safe parser/decompressed-workbook budgets. |
+| 10 — DB-01 | Medium · Investigate live DB coverage | Verify preview RLS/grants/constraints and actual multi-session contention for imports/clear/review/action capacity/status updates. Existing rollback verifiers/mocks do not prove simultaneous requests. Verify usage RPC ownership and atomic quota enforcement before real AI endpoints are enabled; the helper's read/check/increment sequence alone does not establish limit safety. Use dedicated preview accounts and rollback/cleanup checks only. |
+| 11 — EMAIL-01 | Medium · Planned reliability follow-up | Define durable notification retry/outbox and provider delivery/bounce handling. Acceptance checks/escaping are complete; best-effort billing/support sends have no durable recovery and ambiguous/concurrent sends may duplicate. Require observable failures, documented dedupe/retry behavior and no rollback of committed billing/registration. Decide notify-me email normalization before changing case-sensitive duplicate handling. |
+| 12 — GRAPH-02 | Medium · Planned | Add an accessible expandable chart data table, series differentiation beyond colour and further responsive/readability refinements. Preserve NULL/zero distinctions and bounded calendar gaps. These were not included in the chart release. |
+| 13 — HIST-01 | Medium · Planned; specification first | Define a read-only historical view with date/year selection, coverage and source/basis/context labels. Browse retained current monthly data without changing the dashboard's latest-month interpretation or reimporting files. Distinguish historical monthly records from the newest-20 displaced-dataset revisions. No implicit restoration or forecast promise. |
+| 14 — HIST-02 | Medium · Planned; separate from HIST-01 | Design import/revision history visibility and, only if approved, comparison/restoration. Current archives are server-only, capped at 20 operations and purged by Clear Data. Original-file storage/export and longer retention require separate privacy/storage/retention decisions; they are not current capabilities. |
+| 15 — ORG-01 | Medium · Planned; architecture contract before multi-user schema | Define organization-owned financial workspaces, memberships and roles without weakening current account isolation. Cover business teams, independent CFO/CPA practices with multiple client organizations, invitations, delegated permissions, client switching, audit history, revocation and data ownership. Provide a safe migration path from current user-owned rows; do not retrofit ownership during an unrelated feature. |
+| 16 — ADV-01 | Medium · Planned; depends on ORG-01 and commercial policy | Define Elidan's advisor pool and service-engagement model. Separate plan inclusion, one-time purchases and fulfillment from platform feature tiers and Stripe subscription state. Record customer/advisor assignment, service type, start/end/status, assigner, call allowance/purchase, scheduling/attendance and deliverables. Default to scoped read access; separately authorize notes, recommendations, scenarios or financial edits. Separate internal notes from customer-visible guidance, revoke access on end/reassignment, and retain an audit trail. |
+| 17 — INT-01 | Medium · Planned; depends on metric/source contracts | Build QuickBooks first against shared calculations/atomic publication. Approve initial company/date coverage and overlaps; one authoritative source per month; server credentials/account mapping; freshness/completeness; failed/partial versus confirmed-zero responses; queued/idempotent sync/reconciliation; historical corrections and automated revision retention. Disconnect stops sync/keeps data. Clear Data must invalidate queued/in-flight work to prevent repopulation. Confirm the product sequence for Xero separately; the October references place it with Core while the current repository direction defers providers beyond QuickBooks. |
+| 18 — UX-01 | Medium · Investigate remaining review coverage | Audit untouched forms/modals for Enter submission, synchronous duplicate guards, focus/labels, announcements, loading and focus restoration, especially notify/upgrade/dialog paths. Preserve completed password/name/threshold/import fixes. Profile frequent session-activity handlers and large import/revision processing before asserting a significant performance defect. |
+| 19 — LAYOUT-01 | Lower · Planned | Revisit dashboard hierarchy after correctness/reliability work. Keep financial-data entry compact and current/historical context explicit. Separate layout from financial formula changes; check scenario visibility against launch policy. |
+| 20 — DOC-01 | Lower · Confirmed documentation drift | Reconcile architecture/playbook/README with actual Next 16.2.7, Inter, Founding billing-cycle policy, valid suspended tier, migration dependencies, feature availability and release status. Update the product references or publish superseding decision records for organization ownership, professional client access and Elidan advisor engagements. Older component-pattern paragraphs contain historical "pending" wording; use explicit release records rather than assuming those are newly failed checks. |
+
+For every increment: record the trigger and expected behavior, update architecture documentation, run meaningful checks, validate preview, apply required production migrations (never verification scripts), promote the tested commit and update this queue. Reorder if the audit verifies a higher-risk defect. Do not implement unrelated queue items together.
+
+## Completed review and financial data work
+
+These are shipped changes, not open defects. Current guarantees and explicit limits are in [component-patterns.md](component-patterns.md).
+
+| Completed scope | Evidence commits |
+| --- | --- |
+| Checkout hardening, Founding lifecycle/identity/test spots and billing-cycle restoration | `db4daa3`; October 21–22 migrations and documented policy corrections |
+| Webhook status normalization, subscription matching, terminal cleanup and invoice reconciliation | `f4de74e` |
+| Verified-email API boundaries and session-cookie propagation/cleanup | `6d7be95`, `cf9df38` |
+| Subscription initialization preserves concurrent webhook state | `00a2162` |
+| Atomic financial imports and Clear Data | `9106e8c`, `5070237` |
+| Email acceptance errors, safe logging, dynamic HTML escaping, notify-me validation/duplicates | `1c2fad4` |
+| Welcome-page notify-me access and feedback | `51f1f18` |
+| Finite/ranged thresholds and confirmed saves/restores with decimal/null handling | `d71aeb7`, `63c8db3` |
+| Account-scoped alert preferences; validated/confirmed dismissals | `939e32c`, `be9e254` |
+| Shared authenticated API error boundary | `1bb9d63` |
+| Validated and confirmed password changes | `bf9808b` |
+| DB-enforced action capacity and atomic action/status-history updates | `bb149c5`, `543888d` |
+| Unavailable AI endpoints do not consume allowance | `588adc8` |
+| Scoped confirmed business-name edits | `6e42055` |
+| Preserve account settings/details during imports and settings during Clear Data | `4eb7866`, `1e971a0` |
+| Displaced-dataset revisions and explicit update-month/replace-all modes | `589e341`, `2eaced0` |
+| Review-before-write, signed expiring reviews, stale-state guards, shared onboarding review | `323725c` |
+| Missing-month consequences and severity/disclosure hierarchy | `2e42688`, `d1b7411` |
+| Financial data page, scoped status and navigation | `16e0330` |
+| Missing latest closing cash remains unknown | `c05bcf8` |
+| Consecutive-calendar-month comparisons and comparative alert guards | `8332ec6` |
+| Chart gaps, revenue/expense labels/summary and explicit tooltips | `13f7620` |
+
+No separate original finding-by-finding inventory was found in the repository. AUD-01 stays open to reconcile unmapped original findings against current code; absence from this ledger is not proof of resolution. Do not inspect production services/account data for that audit without explicit authorization.

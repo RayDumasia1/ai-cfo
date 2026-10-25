@@ -1,6 +1,16 @@
 # Elidan AI — UI Component Patterns & Design System
 **Version 1.2 · June 2026 · Internal**
 
+Delivery status, remaining fixes and agreed future work: [Application backlog](backlog.md).
+
+Approved financial definitions and worked examples: [Financial metric contract v0.2](financial-metric-contract.md). FIN-01 establishes product direction. FIN-02 implements the legacy-schema compatibility model; DATA-01 and FIN-03 remain future increments.
+
+FIN-02 treats legacy `total_revenue` as reported cash collected and `total_expenses` as reported cash paid in customer-facing copy. `legacyCashHealth()` is the shared dashboard calculation: it accepts only the newest uninterrupted run of up to three months, stops at a gap or blank required value, separates reported spending coverage from estimated net-cash runway, and returns no runway for break-even or cash-generating activity. Current runway alerts require three eligible months and stop after 90 days; historical data does not produce a current depletion date. The manual calculator uses the same definitions. No database migration accompanies FIN-02.
+
+The default owner dashboard translates those definitions into Cash Balance, Cash Buffer, Cash Trend and Cash Runway. Supporting copy explains the practical meaning and states when an update is required. Professional terminology belongs in methodology/detail views rather than the owner summary. A zero-alert result is not automatically healthy: use `financialDataFreshness()` so current, stale, historical and missing data receive different empty-state guidance.
+
+Cash Balance accents are freshness-aware. Current data may use the saved minimum-reserve comparison, 46–90-day data uses a warning accent, and data older than 90 days uses a neutral accent. A historical balance must not inherit a green healthy-state treatment.
+
 ---
 
 ## 01 Brand Tokens

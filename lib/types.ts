@@ -13,6 +13,10 @@ export type FinancialSnapshot = {
   cashPosition: number;
   /** Net monthly cash flow. Positive = burning, negative = generating. */
   burnRate: number;
+  /** Reported average monthly cash paid in the legacy compatibility model. */
+  averageCashPaid: number;
+  /** Cash divided by reported monthly cash paid. Null when cash paid is zero. */
+  reportedSpendingCoverage: number | null;
   /** Months until cash reaches zero. Null when not burning (profitable or break-even). */
   runwayMonths: number | null;
   /** Calendar month cash runs out, e.g. "August 2027". Null when not burning. */

@@ -28,7 +28,7 @@ describe("missing closing cash is unknown, not zero",()=>{
     expect(query.eq).toHaveBeenCalledWith("user_id","own-account");
     expect(query.order).toHaveBeenCalledWith("month_date",{ascending:false});
     expect(query.limit).toHaveBeenCalledWith(2);
-    expect(currentRunway(cash!.cash,[100])).toBeNull();
+    expect(currentRunway(cash!.cash,[{...month,total_revenue:0,total_expenses:100}])).toBeNull();
   });
   it("shows an explicit cash empty state without a false comparison or reserve result",()=>{
     const html=renderToStaticMarkup(createElement(CashPositionCard,{initialData:{cash:null,month:"2025-12-01",previousCash:900},minCashReserve:1000}));
@@ -53,15 +53,17 @@ describe("missing closing cash is unknown, not zero",()=>{
     expect((await getCurrentCashPosition("own-account",client))?.cash).toBe(0);
     const cash=renderToStaticMarkup(createElement(CashPositionCard,{initialData:{cash:0,month:"2025-12-01",previousCash:null}}));
     expect(cash).toContain("$0");
-    expect(text(renderToStaticMarkup(createElement(RunwayCard,{cash:0,months:[month]})))).toContain("0.0 months");
-    expect(renderToStaticMarkup(createElement(CashOutCard,{cash:0,months:[month]}))).not.toContain("missing closing cash");
+    const complete={...month,total_revenue:0,total_expenses:100};
+    expect(text(renderToStaticMarkup(createElement(RunwayCard,{cash:0,months:[complete]})))).toContain("More cash out than in");
+    expect(renderToStaticMarkup(createElement(CashOutCard,{cash:0,months:[complete]}))).not.toContain("missing closing cash");
   });
   it("keeps known positive cash calculations and comparisons",()=>{
     const cash=renderToStaticMarkup(createElement(CashPositionCard,{initialData:{cash:900,month:"2025-12-01",previousCash:800}}));
     expect(cash).toContain("$900");
-    expect(cash).toContain("+$100 vs last month");
-    expect(text(renderToStaticMarkup(createElement(RunwayCard,{cash:900,months:[month]})))).toContain("9.0 months");
-    expect(renderToStaticMarkup(createElement(CashOutCard,{cash:900,months:[month]}))).toContain("Based on $100/mo avg burn");
+    expect(cash).toContain("+$100 vs previous month");
+    const complete={...month,total_revenue:0,total_expenses:100};
+    expect(text(renderToStaticMarkup(createElement(RunwayCard,{cash:900,months:[complete]})))).toContain("More cash out than in");
+    expect(renderToStaticMarkup(createElement(CashOutCard,{cash:900,months:[complete]}))).toContain("Your data is too old to estimate your current runway");
   });
   it("preserves the no-records state",async()=>{
     query.limit.mockResolvedValue({data:[],error:null});

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { FeatureTier } from "@/lib/featureGates";
 import type { Action, Alert, DismissedAlert, SnoozeType } from "@/lib/types";
+import type { FinancialDataFreshness } from "@/lib/calculations";
 import TopAlerts from "@/app/components/TopAlerts";
 import BottomAlerts from "@/app/components/BottomAlerts";
 import ScenarioPanel from "@/app/components/ScenarioPanel";
@@ -19,6 +20,7 @@ interface DashboardClientProps {
   dataVersion: string | null;
   snoozeDuration: SnoozeType;
   hasData: boolean;
+  dataFreshness: FinancialDataFreshness;
   financialDataStatus: ReactNode;
   /** Server-rendered content between TopAlerts and BottomAlerts (stat cards, chart). */
   children: ReactNode;
@@ -37,6 +39,7 @@ export default function DashboardClient({
   dataVersion,
   snoozeDuration,
   hasData,
+  dataFreshness,
   financialDataStatus,
   children,
 }: DashboardClientProps) {
@@ -55,7 +58,7 @@ export default function DashboardClient({
 
       {children}
 
-      {/* Bottom alerts — success only, or "everything healthy" when zero total */}
+      {/* Bottom alerts — success only, or freshness-aware guidance when none fire */}
       <div className="mb-8">
         <BottomAlerts
           alerts={visibleAlerts}
@@ -63,6 +66,7 @@ export default function DashboardClient({
           dataVersion={dataVersion}
           snoozeDuration={snoozeDuration}
           onCreateAction={(prefill) => openModal(prefill)}
+          dataFreshness={dataFreshness}
         />
       </div>
 

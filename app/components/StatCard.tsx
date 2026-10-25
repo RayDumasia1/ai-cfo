@@ -40,7 +40,7 @@ export default function StatCard({
       {subtext && (
         <p
           className="mt-2 text-xs font-light"
-          style={{ color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}
+          style={{ color: "var(--dim)", lineHeight: 1.4, maxWidth: "100%" }}
         >
           {subtext}
         </p>

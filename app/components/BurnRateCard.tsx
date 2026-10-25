@@ -1,113 +1,25 @@
 "use client";
 
-import { monthlyBurnRate, burnRateChangeMoM, areConsecutiveFinancialMonths } from "@/lib/calculations";
+import { legacyCashHealth } from "@/lib/calculations";
 import type { FinancialMonth } from "@/lib/types";
+import StatCard from "./StatCard";
 
-interface BurnRateCardProps {
-  /** Recent financial months, newest-first. Minimum 1 required for a value; 2 for MoM change. */
-  months: FinancialMonth[];
-  /** New users see a setup prompt in the empty state. */
-  isNewUser?: boolean;
-}
+interface BurnRateCardProps { cash:number|null; months:FinancialMonth[]; isNewUser?:boolean; }
+const currency=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0});
 
-function formatBurnRate(n: number): string {
-  return (
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(n) + "/mo"
-  );
-}
-
-export default function BurnRateCard({ months, isNewUser = false }: BurnRateCardProps) {
-  // Extract expenses newest-first (nulls preserved — monthlyBurnRate skips them).
-  const expenses = months.map((m) => m.total_expenses);
-  const avgBurn = monthlyBurnRate(expenses);
-
-  // MoM change requires the immediately preceding calendar month and a positive baseline.
-  let momChange: number | null = null;
-  const e0 = expenses[0];
-  const e1 = expenses[1];
-  const consecutive = areConsecutiveFinancialMonths(months[0]?.month_date, months[1]?.month_date);
-  if (consecutive && e0 != null && e1 != null && e1 > 0) {
-    momChange = burnRateChangeMoM(e0, e1);
+/** Legacy-data cash cushion. The filename remains stable to avoid unrelated import churn. */
+export default function BurnRateCard({cash,months,isNewUser=false}:BurnRateCardProps) {
+  if (cash === null && months.length > 0) {
+    return <StatCard label="Cash Buffer" value="—" subtext="Latest month is missing closing cash" />;
   }
-
-  // ── No data ───────────────────────────────────────────────────────────────
-  if (avgBurn === null) {
-    return (
-      <div
-        className="bg-surface flex flex-col"
-        style={{
-          borderRadius: "var(--radius-lg)",
-          border: "1px solid var(--line)",
-          boxShadow: "var(--shadow-sm)",
-          padding: "1.25rem 1.5rem",
-          height: "100%",
-          minHeight: 120,
-          justifyContent: "space-between",
-        }}
-      >
-        <p
-          className="text-[10px] font-medium uppercase tracking-[0.14em]"
-          style={{ color: "var(--dim)" }}
-        >
-          Monthly Burn
-        </p>
-        <p
-          className="mt-3 font-medium leading-none"
-          style={{ color: "var(--ink)", fontSize: 32, letterSpacing: "-1px", whiteSpace: "nowrap" }}
-        >
-          —
-        </p>
-        <p className="mt-2 text-xs font-light" style={{ color: "var(--dim)" }}>
-          {isNewUser ? "Complete setup to see this" : "No data imported yet"}
-        </p>
-      </div>
-    );
+  const metric=legacyCashHealth(cash,months);
+  if (metric.reportedSpendingCoverage === null) {
+    const subtext=metric.monthsUsed === 0
+      ? (isNewUser ? "Complete setup to see this" : "Cash collected or paid is missing")
+      : metric.averageCashPaid === 0 ? "No reported cash paid" : "No data imported yet";
+    return <StatCard label="Cash Buffer" value="—" subtext={subtext} />;
   }
-
-  // ── MoM subtext ───────────────────────────────────────────────────────────
-  let subtextNode: React.ReactNode;
-  if (momChange === null) {
-    subtextNode = (
-      <span style={{ color: "var(--dim)" }}>{consecutive && e0 != null && e1 != null && e1 <= 0
-        ? "Percentage change unavailable" : "Previous-month data unavailable"}</span>
-    );
-  } else {
-    const pct = Math.abs(momChange).toFixed(1);
-    const increased = momChange > 0;
-    subtextNode = (
-      <span style={{ color: increased ? "#ef4444" : "#22c55e" }}>
-        {increased ? "↑" : "↓"} {pct}% vs last month
-      </span>
-    );
-  }
-
-  return (
-    <div
-      className="bg-surface flex flex-col"
-      style={{
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--line)",
-        boxShadow: "var(--shadow-sm)",
-        padding: "1.25rem 1.5rem",
-      }}
-    >
-      <p
-        className="text-[10px] font-medium uppercase tracking-[0.14em]"
-        style={{ color: "var(--dim)" }}
-      >
-        Monthly Burn
-      </p>
-      <p
-        className="mt-3 text-[1.65rem] font-medium leading-none"
-        style={{ color: "var(--ink)" }}
-      >
-        {formatBurnRate(avgBurn)}
-      </p>
-      <p className="mt-2 text-xs font-light">{subtextNode}</p>
-    </div>
-  );
+  return <StatCard label="Cash Buffer"
+    value={`${metric.reportedSpendingCoverage.toFixed(1)} months`}
+    subtext={`Could cover about ${metric.reportedSpendingCoverage.toFixed(1)} months of recent spending with no new cash in · ${currency.format(metric.averageCashPaid!)}/mo average`} />;
 }

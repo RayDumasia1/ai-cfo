@@ -58,31 +58,31 @@ describe("chart presentation",()=>{
     const result=html([month("2024-12-01"),month("2024-10-01")]);
     expect(result).toContain('data-axis-type="number"');
     expect(result).toContain("Oct 2024 | Nov 2024 | Dec 2024");
-    expect(result).toContain('data-series="Revenue" data-connect-nulls="false"');
-    expect(result).toContain('data-series="Expenses" data-connect-nulls="false"');
+    expect(result).toContain('data-series="Cash collected" data-connect-nulls="false"');
+    expect(result).toContain('data-series="Cash paid" data-connect-nulls="false"');
     expect(result).toContain("1 missing month; gaps break the lines");
-    expect(result).toContain("Revenue vs Expenses");
+    expect(result).toContain("Cash Collected vs Cash Paid");
     expect(result).not.toContain("Burn Rate");
   });
   it.each([
-    [200,100,"December 2025 revenue exceeded expenses by $100."],
-    [100,200,"December 2025 expenses exceeded revenue by $100."],
-    [100,100,"December 2025 revenue equaled expenses."],
-    [0,0,"December 2025 revenue equaled expenses."],
-    [null,100,"Revenue was not provided for December 2025; comparison unavailable."],
-    [100,null,"Expenses were not provided for December 2025; comparison unavailable."],
-    [null,null,"Revenue and expenses were not provided for December 2025; comparison unavailable."],
+    [200,100,"December 2025 cash collected exceeded cash paid by $100."],
+    [100,200,"December 2025 cash paid exceeded cash collected by $100."],
+    [100,100,"December 2025 cash collected equaled cash paid."],
+    [0,0,"December 2025 cash collected equaled cash paid."],
+    [null,100,"Cash collected was not provided for December 2025; comparison unavailable."],
+    [100,null,"Cash paid was not provided for December 2025; comparison unavailable."],
+    [null,null,"Cash collected and cash paid were not provided for December 2025; comparison unavailable."],
   ])("accurately describes revenue %s and expenses %s",(revenue,expenses,expected)=>{
     const result=html([month("2025-12-01",revenue as number|null,expenses as number|null)]);
     expect(result).toContain(expected);
     expect(result).not.toContain("cash flow");
   });
   it("describes only the latest month and uses cents when needed",()=>{
-    expect(html([month("2025-12-01",100.25,100),month("2025-11-01",900,1)])).toContain("December 2025 revenue exceeded expenses by $0.25.");
+    expect(html([month("2025-12-01",100.25,100),month("2025-11-01",900,1)])).toContain("December 2025 cash collected exceeded cash paid by $0.25.");
   });
   it("keeps an upload link in the empty state",()=>{
     const result=html([]);
-    expect(result).toContain("Revenue vs Expenses · No data yet");
+    expect(result).toContain("Cash Collected vs Cash Paid · No data yet");
     expect(result).toContain('href="/dashboard/financial-data"');
   });
 });

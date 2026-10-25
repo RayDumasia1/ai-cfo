@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { calculateFinancials } from "@/lib/calculations";
-import { isFeatureComingSoon } from "@/lib/launchConfig";
 import type { FinancialSnapshot } from "@/lib/types";
 
 function formatCurrency(value: number): string {
@@ -14,21 +13,21 @@ function formatCurrency(value: number): string {
 }
 
 function runwayColor(months: number | null): string {
-  if (months === null) return "#22C55E";
-  if (months > 6) return "#22C55E";
-  if (months >= 3) return "#F59E0B";
-  return "#E84545";
+  if (months === null) return "var(--success)";
+  if (months > 6) return "var(--success)";
+  if (months >= 3) return "var(--warning)";
+  return "var(--danger)";
 }
 
-function MiniStatCard({ label, value, valueColor = "#0A1A2F" }: {
+function MiniStatCard({ label, value, valueColor = "var(--ink)" }: {
   label: string;
   value: string;
   valueColor?: string;
 }) {
   return (
     <div style={{
-      backgroundColor: "#F4F7FA",
-      border: "1px solid #D8E2EC",
+      backgroundColor: "var(--bg)",
+      border: "1px solid var(--line)",
       borderRadius: 10,
       padding: 12,
       minWidth: 0,
@@ -39,7 +38,7 @@ function MiniStatCard({ label, value, valueColor = "#0A1A2F" }: {
         fontWeight: 500,
         textTransform: "uppercase",
         letterSpacing: "0.1em",
-        color: "#6B7A8D",
+        color: "var(--dim)",
         margin: "0 0 4px",
         whiteSpace: "nowrap",
         overflow: "hidden",
@@ -71,13 +70,10 @@ function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; on
   }, []);
 
   const cashDisplay = formatCurrency(snapshot.cashPosition);
-  const burnDisplay =
-    snapshot.riskLevel === "Healthy" && snapshot.burnRate < 0
-      ? `+${formatCurrency(Math.abs(snapshot.burnRate))}`
-      : formatCurrency(snapshot.burnRate);
+  const burnDisplay = snapshot.burnRate > 0 ? formatCurrency(snapshot.burnRate) : "Not consuming cash";
+  const coverageDisplay=snapshot.reportedSpendingCoverage === null ? "—" : `${snapshot.reportedSpendingCoverage.toFixed(1)} mo`;
   const runwayDisplay =
-    snapshot.runwayMonths !== null ? `${snapshot.runwayMonths.toFixed(1)} mo` : "Stable";
-  const cashOutDisplay = snapshot.runoutDate ?? "Stable";
+    snapshot.runwayMonths !== null ? `${snapshot.runwayMonths.toFixed(1)} mo` : "Not applicable";
 
   return (
     <div style={{
@@ -93,13 +89,13 @@ function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; on
         width: "100%",
       }}>
         <MiniStatCard label="Cash Position" value={cashDisplay} />
-        <MiniStatCard label="Monthly Burn" value={burnDisplay} />
+        <MiniStatCard label="Spending Coverage" value={coverageDisplay} />
+        <MiniStatCard label="Estimated Net Cash Burn" value={burnDisplay} />
         <MiniStatCard
-          label="Runway"
+          label="Estimated Cash Runway"
           value={runwayDisplay}
           valueColor={runwayColor(snapshot.runwayMonths)}
         />
-        <MiniStatCard label="Cash-Out Date" value={cashOutDisplay} />
       </div>
       <button
         type="button"
@@ -108,7 +104,7 @@ function ResultsSection({ snapshot, onReset }: { snapshot: FinancialSnapshot; on
           background: "none",
           border: "none",
           fontSize: 13,
-          color: "#6B7A8D",
+          color: "var(--dim)",
           cursor: "pointer",
           padding: "8px 0 0",
           display: "block",
@@ -223,7 +219,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
           />
         </div>
         <div>
-          <label htmlFor="mc-revenue" style={labelStyle}>Average monthly revenue</label>
+          <label htmlFor="mc-revenue" style={labelStyle}>Average monthly cash collected</label>
           <input
             id="mc-revenue"
             type="number"
@@ -238,7 +234,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
           />
         </div>
         <div>
-          <label htmlFor="mc-expenses" style={labelStyle}>Average monthly expenses</label>
+          <label htmlFor="mc-expenses" style={labelStyle}>Average monthly cash paid</label>
           <input
             id="mc-expenses"
             type="number"
@@ -275,7 +271,7 @@ export default function ManualCalculator({ bare = false }: { bare?: boolean }) {
           marginTop: 16,
         }}
       >
-        Calculate My Runway →
+        Calculate Cash Health →
       </button>
     </form>
   );

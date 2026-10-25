@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# confidential local product references
+/docs/product-reference/
+
 # vercel
 .vercel
 

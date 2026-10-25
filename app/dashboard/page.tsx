@@ -9,7 +9,7 @@ import {
   getActions,
   getFinancialImportStatus,
 } from "@/lib/db";
-import { alertEngine, isAlertSnoozed, currentRunway } from "@/lib/calculations";
+import { alertEngine, isAlertSnoozed, currentRunway, financialDataFreshness } from "@/lib/calculations";
 import { isNewUser as isNewUserCheck, parseSuperuserEmails } from "@/lib/onboarding";
 import CashPositionCard from "@/app/components/CashPositionCard";
 import BurnRateCard from "@/app/components/BurnRateCard";
@@ -65,6 +65,7 @@ export default async function DashboardPage({
   const visibleAlerts = allAlerts.filter(
     (alert) => !isAlertSnoozed(alert.code, dismissedAlerts ?? [], dataVersion)
   );
+  const dataFreshness=financialDataFreshness(recentMonths[0]?.month_date);
 
   const isNewUser = isNewUserCheck({
     monthsCount: recentMonths.length,
@@ -75,7 +76,7 @@ export default async function DashboardPage({
 
   const calculatedRunway = currentRunway(
     cashPosition?.cash ?? null,
-    recentMonths.map((m) => m.total_expenses)
+    recentMonths
   );
 
   const isFoundingMember = subscription?.plan === "founding_member";
@@ -140,6 +141,7 @@ export default async function DashboardPage({
         dataVersion={dataVersion}
         snoozeDuration={snoozeDuration}
         hasData={recentMonths.length > 0}
+        dataFreshness={dataFreshness}
         financialDataStatus={<FinancialDataStatusCard months={recentMonths.map(month=>month.month_date)} importStatus={importStatus} />}
       >
         {/* Stat cards */}
@@ -149,11 +151,10 @@ export default async function DashboardPage({
             minCashReserve={profile?.min_cash_reserve}
             isNewUser={isNewUser}
           />
-          <BurnRateCard months={recentMonths ?? []} isNewUser={isNewUser} />
+          <BurnRateCard cash={cashPosition?.cash ?? null} months={recentMonths ?? []} isNewUser={isNewUser} />
           <RunwayCard
             cash={cashPosition?.cash ?? null}
             months={recentMonths ?? []}
-            runwayWarningThreshold={profile?.runway_warning_threshold}
             isNewUser={isNewUser}
           />
           <CashOutCard

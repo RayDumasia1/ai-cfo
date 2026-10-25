@@ -38,21 +38,18 @@ describe("calendar-based month-over-month comparisons",()=>{
     expect(cash).toEqual({cash:900,month:"2025-04-01",previousCash:null});
     const html=renderToStaticMarkup(createElement(CashPositionCard,{initialData:cash}));
     expect(html).not.toContain("+$100 vs last month");
-    expect(html).toContain("Previous-month cash unavailable");
+    expect(html).toContain("Previous-month comparison unavailable");
   });
   it("suppresses misleading burn/runway changes across a gap while retaining current metrics",()=>{
     const months=[current,previous];
-    const burn=clean(renderToStaticMarkup(createElement(BurnRateCard,{months})));
+    const burn=clean(renderToStaticMarkup(createElement(BurnRateCard,{months,cash:900})));
     const runway=clean(renderToStaticMarkup(createElement(RunwayCard,{months,cash:900})));
-    expect(burn).toContain("$150/mo");
-    expect(runway).toContain("6.0 months");
-    for(const html of [burn,runway]) {
-      expect(html).toContain("Previous-month data unavailable");
-      expect(html).not.toContain("vs last month");
-    }
+    expect(burn).toContain("4.5 months");
+    expect(burn).toContain("$200/mo average");
+    expect(runway).toContain("Cash in matched cash out");
   });
   it("suppresses only comparative alerts across gaps, retaining current-state alerts",()=>{
-    const codes=alertEngine([current,previous],profile).map(alert=>alert.code);
+    const codes=alertEngine([current,previous],profile,new Date("2025-05-01T00:00:00Z")).map(alert=>alert.code);
     expect(codes).not.toContain("BURN_RATE_SPIKE");
     expect(codes).not.toContain("REVENUE_GROWTH");
     expect(codes).toContain("CASH_BELOW_RESERVE");
@@ -62,15 +59,14 @@ describe("calendar-based month-over-month comparisons",()=>{
     query.limit.mockResolvedValue({data:months,error:null});
     const cash=await getCurrentCashPosition("own-account",client);
     expect(cash?.previousCash).toBe(800);
-    expect(renderToStaticMarkup(createElement(CashPositionCard,{initialData:cash}))).toContain("+$100 vs last month");
-    expect(clean(renderToStaticMarkup(createElement(BurnRateCard,{months})))).toContain("100.0% vs last month");
-    expect(clean(renderToStaticMarkup(createElement(RunwayCard,{months,cash:900})))).toContain("months vs last month");
-    expect(alertEngine(months,profile).map(alert=>alert.code)).toEqual(expect.arrayContaining(["BURN_RATE_SPIKE","REVENUE_GROWTH"]));
+    expect(renderToStaticMarkup(createElement(CashPositionCard,{initialData:cash}))).toContain("+$100 vs previous month");
+    expect(clean(renderToStaticMarkup(createElement(BurnRateCard,{months,cash:900})))).toContain("$150/mo average");
+    expect(clean(renderToStaticMarkup(createElement(RunwayCard,{months,cash:900})))).toContain("Cash in matched cash out");
+    expect(alertEngine(months,profile,new Date("2025-05-01T00:00:00Z")).map(alert=>alert.code)).toEqual(expect.arrayContaining(["BURN_RATE_SPIKE","REVENUE_GROWTH"]));
   });
   it("does not present a percentage change from zero expenses as zero percent",()=>{
     const months=[current,{...previous,month_date:"2025-03-01",total_expenses:0}];
-    const html=clean(renderToStaticMarkup(createElement(BurnRateCard,{months})));
-    expect(html).not.toContain("0.0% vs last month");
-    expect(html).toContain("Percentage change unavailable");
+    const html=clean(renderToStaticMarkup(createElement(BurnRateCard,{months,cash:900})));
+    expect(html).toContain("$100/mo average");
   });
 });

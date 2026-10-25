@@ -24,10 +24,10 @@ export default function RevenueBurnChart({months}:RevenueBurnChartProps) {
   const descriptionId = useId();
   const chart = getRevenueVsBurnChartData(months);
   if (!chart) return <section aria-labelledby={titleId} style={CARD_STYLE}>
-    <h2 id={titleId} className="text-sm font-medium" style={{color:"var(--ink)"}}>Revenue vs Expenses · No data yet</h2>
+    <h2 id={titleId} className="text-sm font-medium" style={{color:"var(--ink)"}}>Cash Collected vs Cash Paid · No data yet</h2>
     <div className="flex min-h-52 flex-col items-center justify-center gap-3 pt-4">
       <BarChart2 aria-hidden size={32} style={{color:"var(--line)"}} strokeWidth={1.5} />
-      <p className="max-w-72 text-center text-sm" style={{color:"var(--dim)"}}>Upload your financial data to see your revenue and expenses trend.</p>
+      <p className="max-w-72 text-center text-sm" style={{color:"var(--dim)"}}>Upload your financial data to see reported cash collected and cash paid.</p>
       <Link href="/dashboard/financial-data" className="text-sm underline" style={{color:"var(--teal)"}}>Upload data</Link>
     </div>
   </section>;
@@ -40,17 +40,17 @@ export default function RevenueBurnChart({months}:RevenueBurnChartProps) {
   const periodLabel = storedCount === 1 ? labels[0] : `${labels[0]} – ${labels[storedCount-1]}`;
   let insight: string;
   if (latest.difference === null) {
-    const missing = latest.revenue === null && latest.expenses === null ? "Revenue and expenses were"
-      : latest.revenue === null ? "Revenue was" : "Expenses were";
+    const missing = latest.revenue === null && latest.expenses === null ? "Cash collected and cash paid were"
+      : latest.revenue === null ? "Cash collected was" : "Cash paid was";
     insight = `${missing} not provided for ${latestLabel}; comparison unavailable.`;
-  } else if (latest.difference === 0) insight = `${latestLabel} revenue equaled expenses.`;
+  } else if (latest.difference === 0) insight = `${latestLabel} cash collected equaled cash paid.`;
   else insight = latest.difference > 0
-    ? `${latestLabel} revenue exceeded expenses by ${dollars.format(latest.difference)}.`
-    : `${latestLabel} expenses exceeded revenue by ${dollars.format(Math.abs(latest.difference))}.`;
+    ? `${latestLabel} cash collected exceeded cash paid by ${dollars.format(latest.difference)}.`
+    : `${latestLabel} cash paid exceeded cash collected by ${dollars.format(Math.abs(latest.difference))}.`;
 
   return <section aria-labelledby={titleId} aria-describedby={descriptionId} style={CARD_STYLE}>
     <div className="mb-4 space-y-1">
-      <h2 id={titleId} className="text-sm font-medium" style={{color:"var(--ink)"}}>Revenue vs Expenses · {periodLabel}</h2>
+      <h2 id={titleId} className="text-sm font-medium" style={{color:"var(--ink)"}}>Cash Collected vs Cash Paid · {periodLabel}</h2>
       <p id={descriptionId} className="text-xs" style={{color:"var(--dim)"}}>
         {storedCount} stored {storedCount === 1 ? "month" : "months"} · Monthly totals in USD
         {missingMonths > 0 && ` · ${missingMonths} missing ${missingMonths === 1 ? "month" : "months"}; gaps break the lines`}
@@ -68,15 +68,15 @@ export default function RevenueBurnChart({months}:RevenueBurnChartProps) {
           tickFormatter={value=>axisDollars.format(value)} width={56} />
         <Tooltip filterNull={false} content={({active,label})=><RevenueExpensesTooltip active={active}
           point={points.find(point=>point.monthIndex === Number(label))} />} />
-        <Line type="linear" dataKey="revenue" name="Revenue" connectNulls={false} stroke="var(--teal)"
+        <Line type="linear" dataKey="revenue" name="Cash collected" connectNulls={false} stroke="var(--teal)"
           strokeWidth={2} dot={{r:3,fill:"var(--teal)",strokeWidth:0}} activeDot={{r:4}} />
-        <Line type="linear" dataKey="expenses" name="Expenses" connectNulls={false} stroke="var(--danger)"
+        <Line type="linear" dataKey="expenses" name="Cash paid" connectNulls={false} stroke="var(--danger)"
           strokeWidth={2} dot={{r:3,fill:"var(--danger)",strokeWidth:0}} activeDot={{r:4}} />
       </LineChart>
     </ResponsiveContainer>
     <div className="mt-3 flex justify-center gap-6 text-xs" style={{color:"var(--dim)"}} aria-label="Chart legend">
-      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--teal)"}} />Revenue</span>
-      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--danger)"}} />Expenses</span>
+      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--teal)"}} />Cash collected</span>
+      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--danger)"}} />Cash paid</span>
     </div>
   </section>;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { isNewUser, parseSuperuserEmails } from '../lib/onboarding'
 import { currentRunway } from '../lib/calculations'
+import type { FinancialMonth } from '../lib/types'
 
 const supers = parseSuperuserEmails('ray@elidan.ai, Admin@Example.com')
 
@@ -38,15 +39,17 @@ describe('isNewUser', () => {
 })
 
 describe('currentRunway', () => {
-  // Scenario A — healthy: $300k cash, $30k burn → 10 months
-  it('Scenario A: healthy runway', () =>
-    expect(currentRunway(300_000, [30_000, 30_000, 30_000])).toBe(10))
-  // Scenario C — critical: $50k cash, $25k burn → 2 months
-  it('Scenario C: critical runway', () =>
-    expect(currentRunway(50_000, [25_000, 25_000, 25_000])).toBe(2))
-  it('averages only the 3 most recent months', () =>
-    expect(currentRunway(120_000, [20_000, 40_000, 30_000, 999_999])).toBe(4))
-  it('no cash → null', () => expect(currentRunway(null, [10_000])).toBeNull())
+  const month=(date:string,paid:number,collected=0)=>({month_date:date,total_expenses:paid,total_revenue:collected}) as FinancialMonth
+  const three=(paid:number,collected=0)=>[
+    month('2026-09-01',paid,collected),month('2026-08-01',paid,collected),month('2026-07-01',paid,collected),
+  ]
+  it('Scenario A: cash-generating activity has no depletion runway', () =>
+    expect(currentRunway(300_000, three(30_000,35_000),new Date('2026-10-15'))).toBeNull())
+  it('Scenario C: uses net reported cash burn', () =>
+    expect(currentRunway(50_000, three(40_000,15_000),new Date('2026-10-15'))).toBe(2))
+  it('averages only the 3 most recent consecutive months', () =>
+    expect(currentRunway(120_000, [...three(40_000,10_000),month('2026-06-01',999_999,0)],new Date('2026-10-15'))).toBe(4))
+  it('no cash → null', () => expect(currentRunway(null, three(10_000),new Date('2026-10-15'))).toBeNull())
   it('no expenses → null', () => expect(currentRunway(100_000, [])).toBeNull())
-  it('zero burn → null', () => expect(currentRunway(100_000, [0, 0])).toBeNull())
+  it('zero net burn → null', () => expect(currentRunway(100_000, three(10_000,10_000),new Date('2026-10-15'))).toBeNull())
 })

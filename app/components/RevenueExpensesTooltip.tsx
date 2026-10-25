@@ -14,8 +14,8 @@ export default function RevenueExpensesTooltip({active,point}:{active?:boolean;p
     borderRadius:"var(--radius-md)",boxShadow:"var(--shadow-md)",color:"var(--ink)"}}>
     <p className="mb-2 font-medium">{label}{point.missingThrough && point.missingThrough !== point.monthDate ? `–${financialMonthLabel(point.missingThrough)}` : ""}</p>
     {point.missingThrough && <p className="mb-2">No financial data provided for {point.missingThrough === point.monthDate ? "this month" : "this period"}.</p>}
-    <p>Revenue: {currency(point.revenue)}</p>
-    <p>Expenses: {currency(point.expenses)}</p>
-    <p className="mt-2">Revenue − expenses: {point.difference === null ? "Not available" : currency(point.difference)}</p>
+    <p>Cash collected: {currency(point.revenue)}</p>
+    <p>Cash paid: {currency(point.expenses)}</p>
+    <p className="mt-2">Net reported cash: {point.difference === null ? "Not available" : currency(point.difference)}</p>
   </div>;
 }

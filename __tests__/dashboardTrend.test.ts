@@ -39,13 +39,14 @@ describe("twelve-month dashboard trends", () => {
   it("leaves three-month burn, runway, and alerts unchanged when older records are displayed", () => {
     const recent = [month("2025-12-01",300),month("2025-11-01",200),month("2025-10-01",100),...year.slice(3,6)];
     const expanded = [...recent,...year.slice(6).map(m => ({...m,total_expenses:99999,closing_cash:0}))];
-    const expenses = (months: FinancialMonth[]) => months.map(m => m.total_expenses);
-    expect(monthlyBurnRate(expenses(expanded))).toBe(200);
-    expect(currentRunway(1000,expenses(expanded))).toBe(5);
-    expect(currentRunway(1000,expenses(expanded))).toBe(currentRunway(1000,expenses(recent)));
+    expect(monthlyBurnRate(expanded.map(month=>month.total_expenses))).toBe(200);
+    const now=new Date("2026-01-15T00:00:00Z");
+    expect(currentRunway(1000,expanded,now)).toBeNull();
+    expect(currentRunway(1000,expanded,now)).toBe(currentRunway(1000,recent,now));
     const profile = { min_cash_reserve: 1500, runway_warning_threshold: 6,
       runway_danger_threshold: 3, burn_rate_warning_pct: 0.2 } as BusinessProfile;
-    expect(alertEngine(expanded,profile)).toEqual(alertEngine(recent,profile));
+    expect(alertEngine(expanded,profile,new Date("2026-01-15T00:00:00Z")))
+      .toEqual(alertEngine(recent,profile,new Date("2026-01-15T00:00:00Z")));
   });
 
   it("labels historical dates and missing months rather than implying data is from today", () => {

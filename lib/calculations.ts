@@ -111,9 +111,9 @@ export function runwayMonths(cashBalance: number, burn: number): number {
  */
 export function runoutDate(months: number, anchorMonthDate?: string): string {
   const date = anchorMonthDate
-    ? new Date(anchorMonthDate + "T12:00:00Z") // noon UTC avoids DST/timezone shifts
+    ? new Date(Date.UTC(Number(anchorMonthDate.slice(0,4)),Number(anchorMonthDate.slice(5,7)),0,12))
     : new Date();
-  date.setUTCMonth(date.getUTCMonth() + Math.floor(months));
+  date.setUTCDate(date.getUTCDate()+months*30.436875);
   return date.toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
@@ -146,6 +146,67 @@ export function monthlyBurnRate(
   return sample.reduce((sum, v) => sum + v, 0) / sample.length;
 }
 
+export type LegacyCashHealth = {
+  monthsUsed: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  averageCashCollected: number | null;
+  averageCashPaid: number | null;
+  estimatedNetCashFlow: number | null;
+  estimatedNetCashBurn: number | null;
+  reportedSpendingCoverage: number | null;
+  estimatedRunway: number | null;
+};
+
+/**
+ * FIN-02 compatibility model for the legacy monthly schema.
+ *
+ * The legacy columns contain reported cash collected/paid, despite their
+ * historical revenue/expense names. Only the newest uninterrupted run of up
+ * to three months is eligible. A blank required value stops the window rather
+ * than being skipped or treated as zero.
+ */
+export function legacyCashHealth(
+  cash: number | null,
+  monthsNewestFirst: FinancialMonth[]
+): LegacyCashHealth {
+  const eligible: FinancialMonth[] = [];
+  for (const month of monthsNewestFirst) {
+    if (eligible.length === 3) break;
+    const previous = eligible[eligible.length - 1];
+    if (previous && !areConsecutiveFinancialMonths(previous.month_date, month.month_date)) break;
+    if (month.total_revenue == null || month.total_expenses == null) break;
+    eligible.push(month);
+  }
+
+  if (eligible.length === 0) {
+    return { monthsUsed:0, periodStart:null, periodEnd:null, averageCashCollected:null,
+      averageCashPaid:null, estimatedNetCashFlow:null, estimatedNetCashBurn:null,
+      reportedSpendingCoverage:null, estimatedRunway:null };
+  }
+
+  const average = (values: number[]) => values.reduce((sum,value)=>sum+value,0)/values.length;
+  const averageCashCollected = average(eligible.map(month=>month.total_revenue!));
+  const averageCashPaid = average(eligible.map(month=>month.total_expenses!));
+  const estimatedNetCashFlow = averageCashCollected-averageCashPaid;
+  const estimatedNetCashBurn = Math.max(-estimatedNetCashFlow,0);
+  const nonnegativeCash = cash == null ? null : Math.max(cash,0);
+
+  return {
+    monthsUsed:eligible.length,
+    periodStart:eligible[eligible.length-1].month_date,
+    periodEnd:eligible[0].month_date,
+    averageCashCollected,
+    averageCashPaid,
+    estimatedNetCashFlow,
+    estimatedNetCashBurn,
+    reportedSpendingCoverage:nonnegativeCash != null && averageCashPaid > 0
+      ? nonnegativeCash/averageCashPaid : null,
+    estimatedRunway:nonnegativeCash != null && estimatedNetCashBurn > 0
+      ? nonnegativeCash/estimatedNetCashBurn : null,
+  };
+}
+
 /** Financial rows use first-of-month dates. Compare calendar keys without timezone arithmetic. */
 export function areConsecutiveFinancialMonths(current?: string | null, previous?: string | null): boolean {
   const valid = (date: string | null | undefined): date is string =>
@@ -162,11 +223,30 @@ export function areConsecutiveFinancialMonths(current?: string | null, previous?
  */
 export function currentRunway(
   cash: number | null,
-  expensesNewestFirst: (number | null)[]
+  monthsNewestFirst: FinancialMonth[],
+  now = new Date()
 ): number | null {
-  const burn = monthlyBurnRate(expensesNewestFirst);
-  if (cash == null || burn == null || burn <= 0) return null;
-  return runwayMonths(cash, burn);
+  if ((financialDataAgeDays(monthsNewestFirst[0]?.month_date,now) ?? Infinity) > 90) return null;
+  return legacyCashHealth(cash,monthsNewestFirst).estimatedRunway;
+}
+
+/** Age of the latest reported month measured from its calendar month-end. */
+export function financialDataAgeDays(monthDate: string | null | undefined, now = new Date()): number | null {
+  if (!monthDate || !/^\d{4}-(0[1-9]|1[0-2])-01$/.test(monthDate)) return null;
+  const year=Number(monthDate.slice(0,4));
+  const month=Number(monthDate.slice(5,7));
+  const periodEnd=new Date(Date.UTC(year,month,0,23,59,59,999));
+  return Math.max(0,(now.getTime()-periodEnd.getTime())/86_400_000);
+}
+
+export type FinancialDataFreshness = "current" | "stale" | "historical" | "unknown";
+
+export function financialDataFreshness(monthDate: string | null | undefined, now = new Date()): FinancialDataFreshness {
+  const age=financialDataAgeDays(monthDate,now);
+  if (age==null) return "unknown";
+  if (age>90) return "historical";
+  if (age>45) return "stale";
+  return "current";
 }
 
 /**
@@ -291,23 +371,22 @@ export function getRevenueVsBurnChartData(
  */
 export function alertEngine(
   months: FinancialMonth[],
-  profile: BusinessProfile
+  profile: BusinessProfile,
+  now = new Date()
 ): Alert[] {
   const alerts: Alert[] = [];
 
   const m0 = months[0];
   const m1 = months[1];
   const comparableMonths = areConsecutiveFinancialMonths(m0?.month_date, m1?.month_date);
+  const dataAgeDays=financialDataAgeDays(m0?.month_date,now);
+  if (dataAgeDays != null && dataAgeDays > 90) return [];
 
   // Derive shared metrics
-  const expenses = months.map((m) => m.total_expenses);
-  const avgBurn = monthlyBurnRate(expenses);
   const cash = m0?.closing_cash ?? null;
-
-  const runway =
-    cash != null && avgBurn != null && avgBurn > 0
-      ? runwayMonths(cash, avgBurn)
-      : null;
+  const cashHealth = legacyCashHealth(cash,months);
+  const runway = cashHealth.monthsUsed === 3 && (dataAgeDays ?? Infinity) <= 90
+    ? cashHealth.estimatedRunway : null;
 
   // Rule 1 — RUNWAY_DANGER
   if (runway != null && runway < profile.runway_danger_threshold) {
@@ -343,8 +422,8 @@ export function alertEngine(
       alerts.push({
         code: "BURN_RATE_SPIKE",
         severity: "warning",
-        title: "Burn rate spike detected",
-        message: `Monthly expenses increased by ${burnChangePct.toFixed(1)}% last month, exceeding your ${(profile.burn_rate_warning_pct * 100).toFixed(0)}% warning threshold.`,
+        title: "Cash spending increased",
+        message: `Reported cash paid increased by ${burnChangePct.toFixed(1)}% last month, exceeding your ${(profile.burn_rate_warning_pct * 100).toFixed(0)}% warning threshold.`,
       });
     }
   }
@@ -372,8 +451,8 @@ export function alertEngine(
     alerts.push({
       code: "HIGH_AR",
       severity: "warning",
-      title: "High accounts receivable",
-      message: `Accounts receivable ($${m0.ar_outstanding.toLocaleString("en-US")}) exceeds your current cash balance. Consider accelerating collections.`,
+      title: "Receivables exceed cash",
+      message: `Reported accounts receivable ($${m0.ar_outstanding.toLocaleString("en-US")}) exceeds current cash. Review aging and expected collection dates; this does not mean the full balance is currently available.`,
     });
   }
 
@@ -389,8 +468,8 @@ export function alertEngine(
       alerts.push({
         code: "REVENUE_GROWTH",
         severity: "success",
-        title: "Revenue growth",
-        message: `Revenue grew ${(revGrowth * 100).toFixed(1)}% last month. Strong momentum — keep it up.`,
+        title: "Cash collections increased",
+        message: `Reported customer collections increased ${(revGrowth * 100).toFixed(1)}% last month. Review whether the change is recurring or timing-related.`,
       });
     }
   }
@@ -410,11 +489,14 @@ export function alertEngine(
 export function calculateFinancials(input: FinancialInput): FinancialSnapshot {
   const position = cashPosition(input.cashBalance);
   const burn = burnRate(input.monthlyExpenses, input.monthlyRevenue);
+  const spendingCoverage = input.monthlyExpenses > 0 ? position/input.monthlyExpenses : null;
 
   if (burn < 0) {
     return {
       cashPosition: position,
       burnRate: burn,
+      averageCashPaid: input.monthlyExpenses,
+      reportedSpendingCoverage: spendingCoverage,
       runwayMonths: null,
       runoutDate: null,
       riskLevel: "Healthy",
@@ -427,6 +509,8 @@ export function calculateFinancials(input: FinancialInput): FinancialSnapshot {
     return {
       cashPosition: position,
       burnRate: burn,
+      averageCashPaid: input.monthlyExpenses,
+      reportedSpendingCoverage: spendingCoverage,
       runwayMonths: null,
       runoutDate: null,
       riskLevel: "Healthy",
@@ -443,6 +527,8 @@ export function calculateFinancials(input: FinancialInput): FinancialSnapshot {
   return {
     cashPosition: position,
     burnRate: burn,
+    averageCashPaid: input.monthlyExpenses,
+    reportedSpendingCoverage: spendingCoverage,
     runwayMonths: runway,
     runoutDate: runout,
     riskLevel: risk,

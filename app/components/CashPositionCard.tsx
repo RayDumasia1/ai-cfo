@@ -3,6 +3,7 @@
 import StatCard from "./StatCard";
 import type { CashPositionResult } from "@/lib/db";
 import { financialMonthLabel } from "@/lib/financialDataStatus";
+import { financialDataFreshness } from "@/lib/calculations";
 
 interface CashPositionCardProps {
   initialData: CashPositionResult | null;
@@ -28,7 +29,7 @@ export default function CashPositionCard({
   if (!initialData) {
     return (
       <StatCard
-        label="Cash Position"
+        label="Cash Balance"
         value="—"
         subtext={isNewUser ? "Complete setup to see this" : "No data imported yet"}
       />
@@ -37,30 +38,33 @@ export default function CashPositionCard({
 
   const { cash, month, previousCash } = initialData;
   if (cash === null) {
-    return <StatCard label="Cash Position" value="—" subtext={`Closing cash missing for ${financialMonthLabel(month)}`} />;
+    return <StatCard label="Cash Balance" value="—" subtext={`Closing cash missing for ${financialMonthLabel(month)}`} />;
   }
 
-  // Colour logic
-  let borderColor = "var(--teal)";
-  if (minCashReserve != null && minCashReserve > 0) {
-    borderColor = cash > minCashReserve ? "#22C55E" : "#E84545";
+  // Current data can carry a reserve status. Older balances use a freshness
+  // accent so a stale historical balance is not presented as healthy.
+  const freshness=financialDataFreshness(month);
+  let borderColor = freshness==="historical" ? "var(--line)"
+    : freshness==="stale" ? "var(--warning)" : "var(--teal)";
+  if (freshness==="current"&&minCashReserve != null && minCashReserve > 0) {
+    borderColor = cash > minCashReserve ? "var(--success)" : "var(--danger)";
   }
 
-  // MoM change subtext — only shown when previous month data exists
-  let subtext = "Previous-month cash unavailable";
+  let comparison = "Previous-month comparison unavailable";
   if (previousCash !== null) {
     const delta = cash - previousCash;
     const deltaStr = formatCurrency(Math.abs(delta));
     const prefix = delta >= 0 ? `+${deltaStr}` : `-${deltaStr}`;
-    subtext = `${prefix} vs last month`;
+    comparison = `${prefix} vs previous month`;
   }
+  const subtext=`Last reported ${financialMonthLabel(month)} · ${comparison}`;
 
   return (
     <div
       className="bg-surface flex flex-col"
       style={{
         borderRadius: "var(--radius-lg)",
-        border: "1px solid #D8E2EC",
+        border: "1px solid var(--line)",
         borderLeft: `3px solid ${borderColor}`,
         boxShadow: "var(--shadow-sm)",
         padding: "1.25rem 1.5rem",
@@ -73,7 +77,7 @@ export default function CashPositionCard({
         className="text-[10px] font-medium uppercase tracking-[0.14em]"
         style={{ color: "var(--dim)" }}
       >
-        Cash Position
+        Cash Balance
       </p>
       <p
         className="mt-3 font-medium leading-none"
@@ -83,7 +87,7 @@ export default function CashPositionCard({
       </p>
       <p
         className="mt-2 text-xs font-light"
-        style={{ color: "var(--dim)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}
+        style={{ color: "var(--dim)", lineHeight: 1.4, maxWidth: "100%" }}
       >
         {subtext}
       </p>
