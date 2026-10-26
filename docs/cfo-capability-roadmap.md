@@ -93,7 +93,7 @@ This is a strong Growth capability after cost allocation and project/customer ma
 ## Recommended implementation sequence
 
 1. Finish current chart transparency and zero-collections anomaly guidance.
-2. Specify and build the rolling 13-week forecast, including commitments, AR/AP timing, assumptions, freshness and actual-versus-plan variance.
+2. Specify and build the [rolling 13-week forecast](forecast-01-13-week-cash-forecast.md), including commitments, AR/AP timing, assumptions, freshness and actual-versus-plan variance.
 3. Add saved, versioned scenarios and forecast-to-action tracking.
 4. Implement QuickBooks normalization into the shared model and reconciliation controls.
 5. Add dimensional profitability and unit-economics definitions before AI performance recommendations.
