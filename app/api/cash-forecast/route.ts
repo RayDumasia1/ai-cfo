@@ -54,7 +54,14 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
       const {data:profile,error}=await admin.from("business_profiles").select("id,data_version").eq("user_id",userId).single(); if(error)throw error;
       result=await admin.rpc("begin_cash_forecast_draft",{p_user_id:userId,p_business_id:profile.id,p_reporting_currency:"USD",p_as_of_date:asOf,p_start_date:start,p_starting_included_cash:cash,p_starting_unavailable_cash:0,p_minimum_reserve:reserve,p_source_data_version:profile.data_version,p_formula_policy_version:"forecast-1",p_source_snapshot:{source:"manual"},p_parent_version_id:null});
     }
-    if(result.error)throw result.error; return NextResponse.json(await load(userId,admin));
+    if(result.error) {
+      if(body.action==="revise"&&result.error.code==="23505")
+        return NextResponse.json(await load(userId,admin));
+      if(body.action==="revise"&&result.error.code==="55000")
+        return NextResponse.json({error:"A weekly plan update is already in progress. Reload to continue it."},{status:409});
+      throw result.error;
+    }
+    return NextResponse.json(await load(userId,admin));
   }
   const state=await load(userId,admin); if(!state.version||state.version.status!=="draft")return NextResponse.json({error:"Start or update a draft first."},{status:409});
   if(body.action==="discard") {

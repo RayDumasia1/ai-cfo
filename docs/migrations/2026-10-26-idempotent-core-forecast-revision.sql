@@ -1,0 +1,96 @@
+-- Apply in PREVIEW first. Makes repeated requests to revise the same published
+-- Core forecast return the existing child draft instead of violating the
+-- one-active-draft constraint.
+BEGIN;
+
+CREATE OR REPLACE FUNCTION public.begin_core_forecast_revision(
+  p_user_id uuid,
+  p_published_version_id uuid,
+  p_as_of_date date,
+  p_start_date date,
+  p_starting_included_cash numeric,
+  p_minimum_reserve numeric
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path=''
+AS $$
+DECLARE
+  v_old public.cash_forecast_versions%ROWTYPE;
+  v_existing public.cash_forecast_versions%ROWTYPE;
+  v_result jsonb;
+  v_new_version uuid;
+  v_updated_at timestamptz;
+BEGIN
+  SELECT * INTO v_old
+  FROM public.cash_forecast_versions
+  WHERE id=p_published_version_id
+    AND user_id=p_user_id
+    AND case_type='base'
+    AND status='published'
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Published base forecast not found' USING ERRCODE='P0002';
+  END IF;
+
+  SELECT * INTO v_existing
+  FROM public.cash_forecast_versions
+  WHERE forecast_id=v_old.forecast_id
+    AND user_id=p_user_id
+    AND case_type='base'
+    AND status='draft';
+
+  IF FOUND THEN
+    IF v_existing.parent_version_id IS DISTINCT FROM v_old.id THEN
+      RAISE EXCEPTION 'Another weekly plan draft already exists' USING ERRCODE='55000';
+    END IF;
+    RETURN jsonb_build_object(
+      'forecast_id',v_existing.forecast_id,
+      'version_id',v_existing.id,
+      'version_number',v_existing.version_number,
+      'status','draft',
+      'updated_at',v_existing.updated_at,
+      'reused',true
+    );
+  END IF;
+
+  IF EXISTS(SELECT 1 FROM public.cash_forecast_schedules WHERE version_id=v_old.id)
+     OR EXISTS(SELECT 1 FROM public.cash_forecast_assumptions WHERE version_id=v_old.id) THEN
+    RAISE EXCEPTION 'Core revision cannot copy advanced forecast records' USING ERRCODE='0A000';
+  END IF;
+
+  v_result:=public.begin_cash_forecast_draft(
+    p_user_id,
+    (SELECT business_id FROM public.cash_forecasts WHERE id=v_old.forecast_id),
+    (SELECT reporting_currency FROM public.cash_forecasts WHERE id=v_old.forecast_id),
+    p_as_of_date,p_start_date,p_starting_included_cash,v_old.starting_unavailable_cash,
+    p_minimum_reserve,v_old.source_data_version,v_old.formula_policy_version,v_old.source_snapshot,v_old.id
+  );
+  v_new_version:=(v_result->>'version_id')::uuid;
+
+  INSERT INTO public.cash_forecast_items(
+    version_id,user_id,item_key,description,counterparty,amount,direction,category,
+    expected_date,status,confidence,amount_is_estimated,date_is_estimated,zero_confirmed,
+    source_type,source_reference,source_updated_at,evidence,created_by,updated_by
+  )
+  SELECT v_new_version,p_user_id,item_key,description,counterparty,amount,direction,category,expected_date,
+    CASE WHEN status IN('paid','received','cancelled') THEN 'excluded' ELSE status END,
+    confidence,amount_is_estimated,date_is_estimated,zero_confirmed,source_type,source_reference,
+    source_updated_at,evidence,p_user_id,p_user_id
+  FROM public.cash_forecast_items
+  WHERE version_id=v_old.id;
+
+  SELECT updated_at INTO STRICT v_updated_at
+  FROM public.cash_forecast_versions
+  WHERE id=v_new_version;
+
+  RETURN v_result || jsonb_build_object('updated_at',v_updated_at,'reused',false);
+END $$;
+
+REVOKE ALL ON FUNCTION public.begin_core_forecast_revision(uuid,uuid,date,date,numeric,numeric)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_core_forecast_revision(uuid,uuid,date,date,numeric,numeric)
+  TO service_role;
+
+COMMIT;

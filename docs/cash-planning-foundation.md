@@ -60,5 +60,7 @@ The review translates confidence into evidence an owner can recognize: confirmed
 
 The owner-facing flow has one transition for each decision. Publishing moves focus to **Your cash outlook**. **Review and update plan** creates the editable revision immediately and opens the first item needing attention, without a second start button or a duplicate update form. Saving an item advances to the next flagged item; honestly retained estimates count as reviewed for that session while remaining visibly flagged in the calculation. **Review updated outlook** moves focus to the draft result, and **Publish updated plan** returns focus to the newly published outlook. Programmatic focus accompanies scrolling so keyboard and assistive-technology users arrive at the same destination as visual users.
 
+Starting a revision is idempotent for the same published version. The client rejects a second in-flight mutation immediately, and the database serializes revision creation on the published version and returns its existing child draft on a retry. This preserves the one-active-draft invariant without turning a double click or network retry into a server error.
+
 The weekly graph, exact-value table, cash-item evidence and immutable version remain available for a finance professional or an owner who wants detail. Owner guidance and professional evidence are two presentations of the same deterministic result, not separate calculations. Future Ask CFO and AI Insights may explain a published version only when they cite that version, its assumptions and its limitations.
 
