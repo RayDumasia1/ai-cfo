@@ -44,7 +44,7 @@ Technical terms may appear in methodology, professional views, exports or contex
 2. Decision templates for late customer payments, hiring, spending reductions, equipment, financing and taxes.
 3. Decision-focused results led by timing, lowest cash, reserve risk and suggested actions.
 4. Visible sources, assumptions, freshness, missing inputs and confidence.
-5. A handoff from a weekly-plan risk to a prefilled decision test without duplicating saved records.
+5. A handoff from a weekly-plan risk to a prefilled decision test without duplicating saved records. **Implemented in CASHPLAN-05:** the published outlook passes only a version and optional item identifier. The server verifies that the immutable published version belongs to the authenticated account, then loads its evidence. The decision test changes one planned amount/date or adds one temporary receipt to an in-memory copy and reruns the same deterministic 13-week engine. It compares the low point, first reserve warning and ending cash without changing the published plan or imported financial data. An optional action links back to the published forecast version. The existing monthly collections/spending test remains available separately.
 
 ## Published-plan guidance
 

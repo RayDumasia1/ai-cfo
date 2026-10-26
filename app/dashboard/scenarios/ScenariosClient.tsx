@@ -4,12 +4,16 @@ import Link from "next/link";
 import { useState } from "react";
 import ActionModal from "@/app/components/ActionModal";
 import ManualCalculator from "@/app/components/ManualCalculator";
+import type { ForecastDecisionContext } from "@/lib/cashPlanDecision";
 import type { ScenarioBaseline } from "@/lib/scenarioPlanning";
 import type { Action, ActionInsert } from "@/lib/types";
+import ForecastDecisionTest from "./ForecastDecisionTest";
 
-export default function ScenariosClient({ baseline, hasData }: {
+export default function ScenariosClient({ baseline, hasData, forecastContext = null, suggestedItemId }: {
   baseline: ScenarioBaseline;
   hasData: boolean;
+  forecastContext?: ForecastDecisionContext | null;
+  suggestedItemId?: string;
 }) {
   const [modalPrefill, setModalPrefill] = useState<Partial<ActionInsert>>();
   const [modalKey, setModalKey] = useState(0);
@@ -30,7 +34,15 @@ export default function ScenariosClient({ baseline, hasData }: {
   return (
     <>
       <section className="rounded-lg border border-line bg-surface p-5 shadow-sm sm:p-6">
-        <ManualCalculator bare baseline={baseline} hasData={hasData} onCreateAction={openAction} />
+        {forecastContext ? (
+          <ForecastDecisionTest
+            context={forecastContext}
+            suggestedItemId={suggestedItemId}
+            onCreateAction={openAction}
+          />
+        ) : (
+          <ManualCalculator bare baseline={baseline} hasData={hasData} onCreateAction={openAction} />
+        )}
       </section>
       {createdActionName && (
         <p role="status" className="mt-4 rounded-md border border-line bg-surface px-4 py-3 text-sm text-ink">

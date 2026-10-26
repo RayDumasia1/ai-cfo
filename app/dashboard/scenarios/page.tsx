@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getCurrentCashPosition, getFinancialMonths, hasPaidSubscription } from "@/lib/db";
+import { getCurrentCashPosition, getFinancialMonths, getPublishedForecastDecisionContext, hasPaidSubscription } from "@/lib/db";
 import { DASHBOARD_MONTH_LIMIT } from "@/lib/financialImportPolicy";
 import { scenarioBaseline } from "@/lib/scenarioPlanning";
 import { hasVerifiedEmail } from "@/lib/authPolicy";
@@ -8,15 +8,23 @@ import { createClient } from "@/utils/supabase/server";
 import ScenariosClient from "./ScenariosClient";
 import { CASH_PLANNING_COPY } from "@/lib/cashPlanning";
 
-export default async function ScenariosPage() {
+export default async function ScenariosPage({
+  searchParams = Promise.resolve({}),
+}: {
+  searchParams?: Promise<{ forecast?: string; item?: string }>;
+} = {}) {
+  const query = await searchParams;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect("/auth?reason=session_expired");
   if (!hasVerifiedEmail(user)) redirect(`/auth/verify?email=${encodeURIComponent(user.email ?? "")}`);
   if (!(await hasPaidSubscription(user.id, supabase))) redirect("/welcome");
-  const [cash, months] = await Promise.all([
+  const [cash, months, forecastContext] = await Promise.all([
     getCurrentCashPosition(user.id, supabase),
     getFinancialMonths(user.id, DASHBOARD_MONTH_LIMIT, supabase),
+    query.forecast
+      ? getPublishedForecastDecisionContext(user.id, query.forecast, supabase)
+      : Promise.resolve(null),
   ]);
   const baseline = scenarioBaseline(cash?.cash ?? null, months);
   return (
@@ -28,7 +36,12 @@ export default async function ScenariosPage() {
           {CASH_PLANNING_COPY.decisionTestDescription}
         </p>
       </div>
-      <ScenariosClient baseline={baseline} hasData={months.length > 0} />
+      <ScenariosClient
+        baseline={baseline}
+        hasData={months.length > 0}
+        forecastContext={forecastContext}
+        suggestedItemId={query.item}
+      />
     </div>
   );
 }

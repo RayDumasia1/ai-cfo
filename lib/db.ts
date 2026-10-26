@@ -38,6 +38,7 @@ import type {
   SnoozeType,
   UserAlertPreferences,
 } from "./types";
+import type {ForecastDecisionContext} from "./cashPlanDecision";
 
 // ─── Business Profile ─────────────────────────────────────────────────────────
 
@@ -431,6 +432,19 @@ export async function getLatestForecastCash(
   if (!data) return null;
   return { cash: data.closing_included_cash ?? data.closing_cash ?? null,
     asOfDate: data.period_cutoff_date ?? data.month_date };
+}
+
+/** Account-owned immutable weekly plan context for a temporary decision test. */
+export async function getPublishedForecastDecisionContext(userId:string,versionId:string,client:SupabaseClient=supabase):Promise<ForecastDecisionContext|null>{
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(versionId))return null;
+  const {data:version,error:versionError}=await client.from("cash_forecast_versions").select("id,forecast_id,as_of_date,start_date,starting_included_cash,minimum_reserve").eq("id",versionId).eq("user_id",userId).eq("status","published").maybeSingle();
+  if(versionError)throw versionError;if(!version)return null;
+  const [{data:forecast,error:forecastError},{data:items,error:itemError}]=await Promise.all([
+    client.from("cash_forecasts").select("reporting_currency").eq("id",version.forecast_id).eq("user_id",userId).maybeSingle(),
+    client.from("cash_forecast_items").select("id,description,amount,direction,category,expected_date,status,confidence,source_type,source_updated_at,amount_is_estimated,date_is_estimated").eq("version_id",version.id).eq("user_id",userId).order("expected_date"),
+  ]);
+  if(forecastError)throw forecastError;if(itemError)throw itemError;if(!forecast)return null;
+  return {versionId:version.id,asOfDate:version.as_of_date,startDate:version.start_date,startingCash:Number(version.starting_included_cash),minimumReserve:Number(version.minimum_reserve),currency:forecast.reporting_currency,items:(items??[]).map(item=>({id:item.id,description:item.description,amount:item.amount===null?null:Number(item.amount),direction:item.direction,category:item.category,expectedDate:item.expected_date,status:item.status,confidence:item.confidence,sourceType:item.source_type,sourceUpdatedAt:item.source_updated_at?.slice(0,10)??null,amountIsEstimate:item.amount_is_estimated,dateIsEstimate:item.date_is_estimated}))};
 }
 
 // ─── Dismissed Alerts ─────────────────────────────────────────────────────────

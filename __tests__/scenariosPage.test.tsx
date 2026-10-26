@@ -5,6 +5,7 @@ vi.mock("../utils/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("../lib/db", () => ({
   getCurrentCashPosition: vi.fn(),
   getFinancialMonths: vi.fn(),
+  getPublishedForecastDecisionContext: vi.fn(),
   hasPaidSubscription: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({
@@ -12,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { createClient } from "../utils/supabase/server";
-import { getCurrentCashPosition, getFinancialMonths, hasPaidSubscription } from "../lib/db";
+import { getCurrentCashPosition, getFinancialMonths, getPublishedForecastDecisionContext, hasPaidSubscription } from "../lib/db";
 import ScenariosPage from "../app/dashboard/scenarios/page";
 
 const getUser = vi.fn();
@@ -28,6 +29,7 @@ beforeEach(() => {
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
   vi.mocked(getCurrentCashPosition).mockResolvedValue(null);
   vi.mocked(getFinancialMonths).mockResolvedValue([]);
+  vi.mocked(getPublishedForecastDecisionContext).mockResolvedValue(null);
 });
 
 describe("Scenarios page boundary", () => {
@@ -57,5 +59,44 @@ describe("Scenarios page boundary", () => {
     expect(html).toContain("Decision tests are temporary");
     expect(html).toContain('href="/dashboard/actions"');
     expect(html).toContain('href="/dashboard/cash-planning"');
+  });
+
+  it("loads an account-owned published plan for a weekly decision test", async () => {
+    vi.mocked(getPublishedForecastDecisionContext).mockResolvedValue({
+      versionId: "11111111-1111-4111-8111-111111111111",
+      asOfDate: "2026-10-26",
+      startDate: "2026-10-26",
+      startingCash: 50_000,
+      minimumReserve: 20_000,
+      currency: "USD",
+      items: [{
+        id: "bill-1",
+        description: "Supplier payment",
+        amount: 10_000,
+        direction: "outflow",
+        category: "operating_vendor_payment",
+        expectedDate: "2026-11-02",
+        status: "expected",
+        confidence: "high",
+        sourceType: "manual",
+        sourceUpdatedAt: "2026-10-26",
+        amountIsEstimate: false,
+        dateIsEstimate: false,
+      }],
+    });
+
+    const versionId = "11111111-1111-4111-8111-111111111111";
+    const html = renderToStaticMarkup(await ScenariosPage({
+      searchParams: Promise.resolve({ forecast: versionId, item: "bill-1" }),
+    }));
+
+    expect(getPublishedForecastDecisionContext).toHaveBeenCalledExactlyOnceWith(
+      "own-account",
+      versionId,
+      client
+    );
+    expect(html).toContain("Testing a published weekly plan");
+    expect(html).toContain("Supplier payment");
+    expect(html).toContain("Current low point");
   });
 });
