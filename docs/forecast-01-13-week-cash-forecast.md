@@ -1,6 +1,6 @@
 # FORECAST-01 — rolling 13-week cash forecast
 
-**Status:** FORECAST-01A product and data contract drafted 25 October 2026; implementation not started  
+**Status:** FORECAST-01A approved; FORECAST-01B deterministic engine implemented locally 25 October 2026
 **Audience:** Small and medium business owners, professional CFO/CPA users and Elidan advisors  
 **Depends on:** [CFO capability roadmap](cfo-capability-roadmap.md), [financial data contract v2](financial-data-contract-v2.md), [normalized cash engine](fin-03-normalized-engine.md)
 
@@ -225,6 +225,13 @@ Implement a pure calculation library for weekly roll-forward, reserve thresholds
 
 Define the read-only readiness/context result consumed by future Ask CFO and AI Insights. Its initial implementation may derive monthly-history capability without forecast tables so upgraded customers receive immediate value while later forecast increments add weekly capability.
 
+Implementation uses two framework-independent modules:
+
+- `cashForecast.ts` validates a single-currency forecast, applies explicit non-mutating assumptions and rolls actual available cash through exactly thirteen seven-day periods. It reports weekly inflows, outflows, operating cash flow, ending cash, reserve breaches, category totals, coverage and unresolved items. Overdue items remain unresolved and are never silently moved into the current week. Missing amounts/dates, confirmed zeroes, inactive items, outside-horizon items, low confidence and stale source evidence remain distinct.
+- `financialContextReadiness.ts` evaluates historical, current, insight, forecast and case-comparison readiness separately. Valid monthly history can support Ask CFO and AI Insights while forecast capability requests targeted weekly inputs. Provider presence is not a readiness requirement.
+
+The engine accepts freshness thresholds as policy inputs rather than embedding still-unapproved product durations. It accepts configurable currency precision, validates category direction to prevent sign errors and excludes funding from operating cash flow. Variance classification requires an explicit mapping or resolution and distinguishes on-plan, amount, timing, combined, unplanned, cancelled/missed and unresolved outcomes.
+
 ### FORECAST-01C — account-scoped storage
 
 Add forecasts, immutable versions, cash items, schedules, assumptions and source lineage with least-privilege policies and atomic publish/version operations. Include rollback and two-session concurrency verification.
@@ -241,13 +248,14 @@ Add retained downside/upside cases, version comparison, weekly actual matching a
 
 Before FORECAST-01C, approve:
 
-- whether Core includes one active published forecast or an unlimited rolling history with one active case;
 - the exact freshness thresholds for starting cash, invoices, bills and manually entered items;
 - whether minimum reserve defaults from Settings or is version-specific with a Settings suggestion;
 - forecast retention after plan downgrade, Clear Data and account deletion;
 - which forecast records an advisor may edit versus comment on after ORG-01/ADV-01;
 - launch wording and disclosures through LEGAL-01;
 - replacement of current “12-month cash flow forecast” marketing copy with the approved 13-week capability and any later long-range planning label.
+
+Approved direction: Core has one active base forecast with immutable published version history. Growth adds retained alternative cases and comparison. Actual bank evidence controls cash balances, accounting providers control invoice/bill records, and user corrections are explicit audited overrides; detailed mixed-source precedence and conflict resolution remain part of INT-01/storage design.
 
 ## Upgrade acceptance requirement
 
