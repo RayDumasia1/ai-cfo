@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { checkFeatureGate } from "@/lib/apiGate";
 import { calculateCashForecast, type ForecastCashItem } from "@/lib/cashForecast";
-import { FORECAST_FRESHNESS_POLICY, parseForecastItem, todayIso } from "@/lib/forecastWorkflow";
+import { FORECAST_FRESHNESS_POLICY, parseForecastDraftDiscardResult, parseForecastItem, todayIso } from "@/lib/forecastWorkflow";
 import { createServiceClient } from "@/utils/supabase/service";
 
 export const dynamic="force-dynamic";
@@ -61,12 +61,20 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     const versionId=String(body.versionId??""), expectedUpdatedAt=String(body.expectedUpdatedAt??"");
     if(versionId!==state.version.id||expectedUpdatedAt!==state.version.updated_at)
       return NextResponse.json({error:"This draft changed. Reload it before discarding it."},{status:409});
-    const {count,error:linkError}=await admin.from("actions").select("id",{count:"exact",head:true}).eq("user_id",userId).eq("linked_forecast_version_id",versionId);
-    if(linkError)throw linkError;
-    if((count??0)>0)return NextResponse.json({error:"This draft is linked to an action. Remove that action before discarding the draft."},{status:409});
-    const {data,error}=await admin.from("cash_forecast_versions").delete().eq("id",versionId).eq("user_id",userId).eq("status","draft").eq("updated_at",expectedUpdatedAt).select("id").maybeSingle();
+    const {data,error}=await admin.rpc("discard_cash_forecast_draft",{
+      p_user_id:userId,p_version_id:versionId,p_expected_updated_at:expectedUpdatedAt,
+    });
     if(error)throw error;
-    if(!data)return NextResponse.json({error:"This draft changed. Reload it before discarding it."},{status:409});
+    const result=parseForecastDraftDiscardResult(data);
+    if(!result)throw new Error("Invalid draft discard result");
+    if(!result.discarded) {
+      const message=result.reason==="linked_action"
+        ?"This draft is linked to an action. Remove that action before discarding the draft."
+        :result.reason==="linked_version"
+          ?"This draft is used by another weekly plan and cannot be discarded."
+          :"This draft changed. Reload it before discarding it.";
+      return NextResponse.json({error:message},{status:409});
+    }
     return NextResponse.json(await load(userId,admin));
   }
   if(body.action==="save_item") {

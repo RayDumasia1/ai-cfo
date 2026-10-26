@@ -55,3 +55,18 @@ export function parseForecastItem(body: unknown): { ok: true; value: Omit<Foreca
 }
 
 export function todayIso(): string { return new Date().toISOString().slice(0,10); }
+
+export type ForecastDraftDiscardResult =
+  | { discarded: true; reason: null }
+  | { discarded: false; reason: "changed" | "linked_action" | "linked_version" };
+
+export function parseForecastDraftDiscardResult(value: unknown): ForecastDraftDiscardResult | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const result = value as Record<string, unknown>;
+  if (result.discarded === true && result.reason === null) return { discarded: true, reason: null };
+  if (result.discarded === false
+    && (result.reason === "changed" || result.reason === "linked_action" || result.reason === "linked_version")) {
+    return { discarded: false, reason: result.reason };
+  }
+  return null;
+}
