@@ -22,6 +22,61 @@ export const FORECAST_DIRECTION_LABELS: Record<ForecastDirection,{ title:string;
   outflow: { title:"Cash expected out", description:"Payroll, bills, taxes, debt payments, purchases, or other cash you expect to pay." },
 };
 
+export const FORECAST_CONFIDENCE_OPTIONS: Array<{ value: ForecastCashItem["confidence"]; label: string; summary: string }> = [
+  { value:"confirmed", label:"Confirmed by a document or person", summary:"Confirmed" },
+  { value:"high", label:"Expected based on good evidence", summary:"Expected" },
+  { value:"medium", label:"Best current estimate", summary:"Estimated" },
+  { value:"low", label:"Not yet confirmed", summary:"Needs confirmation" },
+  { value:"unknown", label:"I cannot confirm this yet", summary:"Needs confirmation" },
+];
+
+export function forecastConfidenceSummary(confidence: ForecastCashItem["confidence"]): string {
+  return FORECAST_CONFIDENCE_OPTIONS.find(option=>option.value===confidence)?.summary??"Needs confirmation";
+}
+
+export function forecastConfidenceExplanation(confidence: ForecastCashItem["confidence"]): string {
+  switch (confidence) {
+    case "confirmed": return "Choose this when a document or person confirms both the amount and date.";
+    case "high": return "Choose this when you have good evidence, but the amount or date could still move.";
+    case "medium": return "Choose this for your best current estimate when some details may change.";
+    case "low": return "Choose this for an early estimate. It will stay marked Needs confirmation.";
+    default: return "Choose this when you cannot support the amount or date yet. It will stay marked Needs confirmation after you save it.";
+  }
+}
+
+export function forecastSaferTiming(expectedDate: string, direction: ForecastDirection): { date: string; label: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(expectedDate)) return null;
+  const date = new Date(`${expectedDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  const days = direction==="inflow"?14:-7;
+  date.setUTCDate(date.getUTCDate()+days);
+  return {date:date.toISOString().slice(0,10),label:direction==="inflow"?"Plan for this cash to arrive 2 weeks later":"Plan for this cash to leave 1 week earlier"};
+}
+
+export type ForecastItemOwnerGuidance = {
+  check: string[];
+  ifUnconfirmed: string;
+};
+
+export function forecastItemOwnerGuidance(category: ForecastCategory, direction: ForecastDirection): ForecastItemOwnerGuidance {
+  switch (category) {
+    case "customer_receipt": return {check:["Check the invoice amount and due date.","Confirm when the customer expects to pay.","Consider whether this customer usually pays late."],ifUnconfirmed:"Keep it as an estimate and test what happens if the payment arrives later."};
+    case "operating_vendor_payment": return {check:["Check the latest bill or contract.","Confirm the due date and payment terms.","Ask the vendor whether the timing can move if needed."],ifUnconfirmed:"Keep it as an estimate and plan for the payment to leave sooner."};
+    case "payroll": return {check:["Check the payroll register or provider schedule.","Use the date the money will leave the account.","Include payroll taxes and fees if they are withdrawn separately."],ifUnconfirmed:"Use the higher reasonable amount and earlier likely withdrawal date."};
+    case "tax": return {check:["Check the filing estimate or payment notice.","Confirm the due date with your accountant, payroll provider, or tax calendar."],ifUnconfirmed:"Use the higher reasonable estimate and do not move the date later without support."};
+    case "debt_principal":
+    case "debt_interest": return {check:["Check the lender statement or payment schedule.","Confirm the withdrawal date and whether it uses automatic payment."],ifUnconfirmed:"Use the scheduled payment date and the higher reasonable amount."};
+    case "new_debt":
+    case "owner_equity_funding": return {check:["Confirm that the funding is committed, not only discussed.","Check any conditions that must be met before funds arrive.","Confirm the expected deposit date."],ifUnconfirmed:"Keep it as an estimate and test a later funding date before relying on it."};
+    case "asset_proceeds": return {check:["Check the signed sale agreement or buyer confirmation.","Confirm the amount you will receive after fees and the expected closing date."],ifUnconfirmed:"Keep it as an estimate and test a later receipt date."};
+    case "owner_distribution": return {check:["Confirm the amount and date with the owner approving the distribution.","Check that the payment can wait if cash becomes tight."],ifUnconfirmed:"Treat it as planned cash out and consider moving it later."};
+    case "asset_purchase": return {check:["Check the purchase order, agreement, or vendor quote.","Confirm the deposit and final payment dates."],ifUnconfirmed:"Use the earlier likely date and higher reasonable amount."};
+    default: return direction==="inflow"
+      ? {check:["Identify who or what confirms the amount.","Confirm when the money should reach the account."],ifUnconfirmed:"Keep it as an estimate and test a later receipt date."}
+      : {check:["Find the bill, agreement, or person who can confirm the amount.","Confirm when the money will leave the account."],ifUnconfirmed:"Keep it as an estimate and plan for the money to leave sooner."};
+  }
+}
+
 export function forecastCategoriesFor(direction: ForecastDirection) {
   return FORECAST_CATEGORIES.filter(category=>category.direction===direction);
 }
@@ -33,7 +88,7 @@ export function forecastItemReviewReasons(
 ): string[] {
   const reasons: string[] = [];
   if (item.amount === null || item.expectedDate === null) reasons.push("Amount or date needed");
-  if (item.confidence === "low" || item.confidence === "unknown") reasons.push("Uncertain amount or date");
+  if (item.confidence === "low" || item.confidence === "unknown") reasons.push("Amount or date needs confirmation");
   const sourceDate = item.sourceUpdatedAt && /^\d{4}-\d{2}-\d{2}$/.test(item.sourceUpdatedAt)
     ? Date.parse(`${item.sourceUpdatedAt}T00:00:00Z`) : Number.NaN;
   const evaluated = /^\d{4}-\d{2}-\d{2}$/.test(evaluationDate)
