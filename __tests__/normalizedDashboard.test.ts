@@ -95,6 +95,31 @@ describe("FIN-03B normalized dashboard",()=>{
     }],null)).toBe(false);
   });
 
+  it("warns when the newest complete month has confirmed zero collections after a positive month",()=>{
+    const zero=[
+      month("2026-09-01",{cash_collected_from_customers:0}),
+      month("2026-08-01",{cash_collected_from_customers:38_000}),
+      month("2026-07-01",{cash_collected_from_customers:36_000}),
+    ];
+    expect(alertEngine(zero,profile,new Date("2026-10-15T00:00:00Z"))).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code:"CUSTOMER_COLLECTIONS_ZERO",severity:"warning",title:"No customer cash collected",
+        message:expect.stringContaining("September 2026 reports no customer cash collected, following $38,000"),
+      }),
+    ]));
+    expect(isDismissibleAlertCode("CUSTOMER_COLLECTIONS_ZERO")).toBe(true);
+  });
+
+  it("does not warn for consistently zero, partial, missing-comparison, or stale collections",()=>{
+    const codes=(data:FinancialMonth[],now=new Date("2026-10-15T00:00:00Z"))=>alertEngine(data,profile,now).map(item=>item.code);
+    expect(codes(months.map(item=>({...item,cash_collected_from_customers:0})))).not.toContain("CUSTOMER_COLLECTIONS_ZERO");
+    expect(codes([month("2026-09-01",{period_status:"partial",period_cutoff_date:"2026-09-20",cash_collected_from_customers:0}),...months.slice(1)]))
+      .not.toContain("CUSTOMER_COLLECTIONS_ZERO");
+    expect(codes([month("2026-09-01",{cash_collected_from_customers:0})])).not.toContain("CUSTOMER_COLLECTIONS_ZERO");
+    expect(codes([month("2026-09-01",{cash_collected_from_customers:0}),month("2026-08-01")],new Date("2027-02-15T00:00:00Z")))
+      .not.toContain("CUSTOMER_COLLECTIONS_ZERO");
+  });
+
   it("offers operating-specific actions for normalized risk alerts",()=>{
     const alert=alertEngine(months,profile,new Date("2026-10-15T00:00:00Z"))
       .find(item=>item.code==="OPERATING_RUNWAY_WARNING")!;

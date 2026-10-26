@@ -168,6 +168,7 @@ Alerts use the definitions displayed on the dashboard.
 - Preserve saved numeric thresholds during transition and explain once that the calculation changed. Re-evaluate the default six- and three-month thresholds before release.
 - Rename customer-facing `BURN_RATE_SPIKE` to Cash spending increase while it compares cash paid.
 - Rename legacy `REVENUE_GROWTH` language to Cash collections increased.
+- Treat confirmed zero customer collections as data, not missing data. During review, warn when a complete zero-collection month is adjacent to a positive collection month in the same workbook. For current normalized data, warn when the newest eligible complete month reports zero after a positive prior month; identify the period and comparison, allow dismissal, and offer a customer-collections review action. Do not emit this anomaly for partial, stale, missing-comparison or consistently zero histories.
 - Replace the implication that AR exceeding cash is inherently unhealthy. Add AP-versus-cash context with a warning that aggregate AP may not all be due immediately.
 - Continue comparing available cash with the customer's reserve. Keep runway to reserve separate from runway to zero.
 

@@ -145,6 +145,46 @@ function pushNotice(notices: ImportNotice[], warnings: string[], notice: ImportN
   warnings.push(notice.message);
 }
 
+function monthIndex(value: string): number {
+  return Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7));
+}
+
+function monthName(value: string): string {
+  return new Date(`${value}T12:00:00Z`).toLocaleDateString("en-US", {
+    month: "long", year: "numeric", timeZone: "UTC",
+  });
+}
+
+function zeroCollectionNotices(months: MonthInput[], currency: string | null): ImportNotice[] {
+  const complete = months
+    .filter(month => month.period_status === "complete" && month.period_cutoff_date === null)
+    .sort((a, b) => a.month_date.localeCompare(b.month_date));
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: currency ?? "USD", maximumFractionDigits: 0,
+  });
+  const notices: ImportNotice[] = [];
+  for (let index = 0; index < complete.length; index++) {
+    const current = complete[index];
+    if (current.cash_collected_from_customers !== 0) continue;
+    const adjacent = [complete[index - 1], complete[index + 1]].filter(month =>
+      month && Math.abs(monthIndex(month.month_date) - monthIndex(current.month_date)) === 1
+        && typeof month.cash_collected_from_customers === "number"
+        && month.cash_collected_from_customers > 0
+    );
+    if (adjacent.length === 0) continue;
+    const comparison = adjacent.map(month =>
+      `${monthName(month.month_date)} (${money.format(month.cash_collected_from_customers!)})`
+    ).join(" and ");
+    notices.push({
+      code: "zero_customer_collections",
+      category: "warning",
+      title: "Confirm no customer cash was collected",
+      message: `${monthName(current.month_date)} reports ${money.format(0)} collected from customers, while ${comparison} reports collections. Confirm that the zero is intentional.`,
+    });
+  }
+  return notices;
+}
+
 function readStartHere(workbook: XLSX.WorkBook, errors: string[]): {
   profile: Partial<Omit<BusinessProfileInsert, "user_id">>;
   currency: string | null;
@@ -377,6 +417,9 @@ export function parseV2Workbook(workbook: XLSX.WorkBook): ParseResult {
 
   parseOptionalDetail(workbook, months, errors);
   if (months.size === 0 && errors.length === 0) errors.push("The workbook must contain at least one financial month.");
+  for (const notice of zeroCollectionNotices([...months.values()], currency)) {
+    pushNotice(notices, warnings, notice);
+  }
   notices.push({
     code: "cash_contract_v2", category: "info", title: "Classified cash data",
     message: "This workbook uses Elidan's version-2 cash model. Cash activity is classified and reconciled before import.",

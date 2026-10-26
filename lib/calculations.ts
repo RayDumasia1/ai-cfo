@@ -555,15 +555,27 @@ function normalizedAlertEngine(
   }
 
   if (current && previous && previous.cash_collected_from_customers! > 0) {
-    const growth = (current.cash_collected_from_customers! - previous.cash_collected_from_customers!)
-      / previous.cash_collected_from_customers!;
-    if (growth > 0.05) {
-      alerts.push({
-        code: "CUSTOMER_COLLECTIONS_INCREASE",
-        severity: "success",
-        title: "Customer cash collections increased",
-        message: `Customer cash collections increased ${(growth * 100).toFixed(1)}% last month. Review whether the change is recurring or timing-related.`,
+    if (current.cash_collected_from_customers === 0) {
+      const period = new Date(`${current.month_date}T12:00:00Z`).toLocaleDateString("en-US", {
+        month: "long", year: "numeric", timeZone: "UTC",
       });
+      alerts.push({
+        code: "CUSTOMER_COLLECTIONS_ZERO",
+        severity: "warning",
+        title: "No customer cash collected",
+        message: `${period} reports no customer cash collected, following ${money.format(previous.cash_collected_from_customers!)} in the prior month. Confirm the data or review whether collections were delayed.`,
+      });
+    } else {
+      const growth = (current.cash_collected_from_customers! - previous.cash_collected_from_customers!)
+        / previous.cash_collected_from_customers!;
+      if (growth > 0.05) {
+        alerts.push({
+          code: "CUSTOMER_COLLECTIONS_INCREASE",
+          severity: "success",
+          title: "Customer cash collections increased",
+          message: `Customer cash collections increased ${(growth * 100).toFixed(1)}% last month. Review whether the change is recurring or timing-related.`,
+        });
+      }
     }
   }
 

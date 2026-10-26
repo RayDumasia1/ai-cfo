@@ -84,6 +84,43 @@ describe("version-2 financial workbook parser", () => {
     expect(result.errors).toContain('Monthly Cash row 7: "Asset sale proceeds" is required. Enter 0 when the confirmed amount is zero.');
   });
 
+  it("asks the user to confirm an isolated zero in customer collections", () => {
+    const book = workbook();
+    XLSX.utils.sheet_add_aoa(book.Sheets["Monthly Cash"], [[
+      "2026-02-01", "Complete", null, 110000, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, "No February collections",
+    ]], { origin: "A8" });
+    const result = parse(book);
+    expect(result.errors).toEqual([]);
+    expect(result.notices).toContainEqual(expect.objectContaining({
+      code: "zero_customer_collections",
+      category: "warning",
+      title: "Confirm no customer cash was collected",
+      message: expect.stringContaining("February 2026 reports $0 collected from customers, while January 2026 ($75,000) reports collections"),
+    }));
+  });
+
+  it("does not flag consistently zero or partial-period collections", () => {
+    const allZero = workbook();
+    XLSX.utils.sheet_add_aoa(allZero.Sheets["Monthly Cash"], [[
+      "2026-01-01", "Complete", null, 100000, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, "No January activity",
+    ]], { origin: "A7" });
+    XLSX.utils.sheet_add_aoa(allZero.Sheets["Monthly Cash"], [[
+      "2026-02-01", "Complete", null, 100000, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, "No February activity",
+    ]], { origin: "A8" });
+    expect(parse(allZero).errors).toEqual([]);
+    expect(parse(allZero).notices).not.toContainEqual(expect.objectContaining({code:"zero_customer_collections"}));
+
+    const partial = workbook();
+    XLSX.utils.sheet_add_aoa(partial.Sheets["Monthly Cash"], [[
+      "2026-02-01", "Partial", "2026-02-10", 110000, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, "Partial February",
+    ]], { origin: "A8" });
+    expect(parse(partial).notices).not.toContainEqual(expect.objectContaining({code:"zero_customer_collections"}));
+  });
+
   it("rejects an unexplained cash difference instead of trusting workbook formulas", () => {
     const book = workbook();
     XLSX.utils.sheet_add_aoa(book.Sheets["Monthly Cash"], [[111500]], { origin: "P7" });

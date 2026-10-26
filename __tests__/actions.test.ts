@@ -30,6 +30,7 @@ describe('alertToActionPrefill', () => {
     ['BURN_RATE_SPIKE', 'warning', 'Reduce monthly burn', 'expense_reduction', 'Monthly burn is back in line with previous months'],
     ['CASH_BELOW_RESERVE', 'danger', 'Rebuild cash reserve', 'expense_reduction', 'Cash balance is back above my minimum reserve'],
     ['HIGH_AR', 'warning', 'Collect outstanding invoices', 'revenue_increase', 'Outstanding invoices are collected and cash is in'],
+    ['CUSTOMER_COLLECTIONS_ZERO', 'warning', 'Review customer collections', 'revenue_increase', 'Confirm the zero is accurate and follow up on any delayed customer payments'],
   ] as const)('%s → %s', (code, severity, name, goal_type, description) => {
     expect(alertToActionPrefill(alert(code, severity))).toEqual({
       name,

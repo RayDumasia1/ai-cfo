@@ -117,6 +117,11 @@ const ALERT_ACTION_PREFILL: Partial<
     goal_type: "expense_reduction",
     description: "Operating cash spending is back in line with recent months",
   },
+  CUSTOMER_COLLECTIONS_ZERO: {
+    name: "Review customer collections",
+    goal_type: "revenue_increase",
+    description: "Confirm the zero is accurate and follow up on any delayed customer payments",
+  },
 };
 
 /**
