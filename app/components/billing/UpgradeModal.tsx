@@ -78,10 +78,11 @@ const TIER_HIGHLIGHTS: Record<FeatureTier, string[]> = {
   core: [
     "Ask your CFO financial questions with AI",
     "Connect QuickBooks automatically",
+    "Build a manual 13-week cash forecast",
   ],
   growth: [
     "Unlimited AI insights and Ask CFO",
-    "12-month cash flow forecasting",
+    "Compare forecast cases and variance",
     "Side-by-side scenario comparison",
   ],
   advisory: [
@@ -124,6 +125,8 @@ export default function UpgradeModal({
 
   useEffect(() => {
     if (!isOpen || typeof window === "undefined") return;
+    setCheckoutError(null);
+    setLoading(false);
     setNotifySubmitted(false);
     setNotifyEmail(userEmail ?? "");
     setEmailError(null);

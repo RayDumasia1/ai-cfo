@@ -21,6 +21,7 @@ vi.mock("../lib/stripe", () => ({
     subscriptions: { list: vi.fn(), retrieve: vi.fn(), cancel: vi.fn(), update: vi.fn() },
     invoicePayments: { list: vi.fn() },
     refunds: { create: vi.fn() },
+    billingPortal: { sessions: { create: vi.fn() } },
     checkout: { sessions: { create: vi.fn(), retrieve: vi.fn(), expire: vi.fn(), list: vi.fn() } },
     webhooks: { constructEvent: vi.fn() },
   },
@@ -164,6 +165,9 @@ beforeEach(() => {
     return sub as never;
   });
   vi.mocked(stripe.subscriptions.update).mockResolvedValue({ status: "active" } as never);
+  vi.mocked(stripe.billingPortal.sessions.create).mockResolvedValue({
+    url: "https://billing.stripe.example/session",
+  } as never);
   vi.mocked(stripe.invoicePayments.list).mockImplementation(() => ({
     autoPagingEach: async (visit: (row: Row) => Promise<void>) => {
       for (const payment of invoicePayments) await visit(payment);
@@ -203,6 +207,22 @@ afterEach(() => {
 });
 
 describe("subscription checkout", () => {
+  it("opens Stripe billing management when an active Starter subscriber upgrades to Core", async () => {
+    seedSubscription({ plan: "starter", feature_tier: "starter", status: "active",
+      stripe_subscription_id: "sub_starter" });
+    const response = await checkout(request("core"), {});
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      url: "https://billing.stripe.example/session",
+      manage_existing: true,
+    });
+    expect(stripe.billingPortal.sessions.create).toHaveBeenCalledWith({
+      customer: "cus_existing",
+      return_url: "https://app.example.invalid/dashboard/settings?tab=billing",
+    });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
   it("rejects an unverified account before creating customers, sessions or checkout attempts", async () => {
     vi.mocked(createClient).mockResolvedValue({
       auth: { getUser: async () => ({ data: { user: { id: userId, email: "test@example.invalid" } }, error: null }) },
@@ -255,9 +275,18 @@ describe("subscription checkout", () => {
   });
 
   it.each(["active", "pending_cancellation", "past_due", "unpaid", "incomplete", "paused"])(
-    "blocks an existing %s subscription before creating a session", async (status) => {
+    "routes an existing %s subscription to billing management without creating another checkout", async (status) => {
       seedSubscription({ status });
-      expect((await checkout(request(), {})).status).toBe(409);
+      const response = await checkout(request(), {});
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        url: "https://billing.stripe.example/session",
+        manage_existing: true,
+      });
+      expect(stripe.billingPortal.sessions.create).toHaveBeenCalledWith({
+        customer: "cus_existing",
+        return_url: "https://app.example.invalid/dashboard/settings?tab=billing",
+      });
       expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
     }
   );

@@ -50,7 +50,19 @@ export const POST = requireAuth(async (req: NextRequest, { userId }) => {
       (sub.stripe_subscription_id || sub.plan !== "starter") &&
       !["cancelled", "canceled", "incomplete_expired"].includes(sub.status);
     if (hasExistingSubscription) {
-      throw new CheckoutConflict("You already have a subscription. Manage it in billing settings.");
+      // Change the existing Stripe subscription through the hosted portal.
+      // Starting another Checkout subscription could double-bill the customer.
+      if (planKey === "founding_member") {
+        throw new CheckoutConflict("Manage your existing subscription in billing settings.");
+      }
+      if (!sub.stripe_customer_id) {
+        throw new CheckoutConflict("Your billing account needs support before the plan can be changed.");
+      }
+      const portal = await stripe.billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        return_url: `${appUrl}/dashboard/settings?tab=billing`,
+      });
+      return Response.json({ url: portal.url, manage_existing: true });
     }
 
     if (planKey === "founding_member") {
