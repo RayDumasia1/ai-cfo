@@ -118,9 +118,13 @@ The system must not call an unmatched value a performance variance until the use
 
 ## Input paths
 
-### Upgrade readiness and existing history
+### Onboarding and upgrade readiness
 
-A plan upgrade changes feature access; it does not create a new financial dataset. A Starter customer with valid contract-v2 history must be able to use Core Ask CFO and receive initial AI Insights immediately after the subscription change becomes authoritative. The customer is not required to upload the same history again, connect QuickBooks or complete a second financial onboarding flow.
+Readiness is evidence-based and applies both when an existing customer upgrades and when a new customer starts on Core or higher. A plan selection changes feature access; it does not determine whether the underlying data supports a particular conclusion.
+
+A Starter customer with valid contract-v2 history must be able to use Core Ask CFO and receive initial AI Insights immediately after the subscription change becomes authoritative. The customer is not required to upload the same history again, connect QuickBooks or complete a second financial onboarding flow.
+
+A new Core, Growth or Advisory customer follows the same readiness checks during onboarding. The customer may begin with an Elidan spreadsheet, QuickBooks, banking data, another supported financial provider or an approved combination. The onboarding flow normalizes evidence into shared financial contracts before enabling dependent guidance. No source is treated as inherently complete merely because it is connected.
 
 An account-scoped readiness/context service assembles the strongest evidence already available:
 
@@ -133,6 +137,17 @@ An account-scoped readiness/context service assembles the strongest evidence alr
 
 The service returns capability-specific readiness rather than one global ready/not-ready flag. Monthly history can support historical cash-health questions even when a 13-week forecast is unavailable. A forecast question that requires invoice dates, bill dates, payroll or taxes returns a targeted request for only those inputs. Missing QuickBooks access is never itself a reason to block guidance.
 
+At onboarding, the service distinguishes:
+
+- **connection complete:** credentials or a file were accepted;
+- **data retrieved:** source records were received;
+- **data normalized:** required values were mapped into Elidan's shared contracts;
+- **data reconciled:** applicable cash checks passed or unresolved differences are visible;
+- **capability ready:** sufficient current evidence exists for a named feature;
+- **enrichment needed:** specific missing inputs limit only identified questions or analyses.
+
+These states prevent a successful bank or accounting connection from being presented as financially complete. Banking may provide strong cash evidence while lacking invoice, bill, category or commitment context. Accounting data may provide invoices and bills while its bank balance or sync is stale. Spreadsheet customers receive the same calculation and completeness standards after server-side validation.
+
 Supported context levels are:
 
 | Available evidence | Supported guidance |
@@ -143,9 +158,11 @@ Supported context levels are:
 | Provider-normalized item data | More current item-level timing, monitoring and reconciliation |
 | Published forecast cases | Case comparison, assumption sensitivity and actual-versus-plan guidance |
 
+For mixed sources, Elidan records field-level or record-level provenance and applies an approved source-precedence policy. It does not silently add overlapping bank and accounting transactions, replace user-confirmed expected dates, or combine currencies. Conflicts enter a review queue before they influence a material calculation.
+
 Every Ask CFO answer and AI Insight records the context level, source periods, data version, freshness and material missing inputs used. An unsupported question produces an explanation and focused enrichment step instead of a guessed answer.
 
-### Manual/Core path
+### Manual and spreadsheet-first onboarding
 
 The owner enters or reviews:
 
@@ -166,6 +183,8 @@ A dedicated forecast workbook may provide line-item dates and amounts. The month
 ### Integration path
 
 QuickBooks or another provider can supply open invoices, bills, payment terms, actual transactions and balances. Provider due dates are evidence, not guaranteed cash dates. Elidan preserves provider identity and sync state, allows a user-confirmed expected date, and does not silently convert overdue items into current-week cash.
+
+Banking connections can confirm balances and cash movements but do not by themselves identify every invoice, bill, payroll obligation, tax payment or future commitment. Their onboarding result therefore enables supported cash-position and transaction-derived analysis while requesting targeted operating context for forecasting.
 
 ## Owner experience
 
@@ -233,4 +252,8 @@ Before FORECAST-01C, approve:
 ## Upgrade acceptance requirement
 
 A Starter customer with valid version-2 financial history who upgrades to Core or higher can use Ask CFO and receive supported AI Insights as soon as the subscription update is effective. Existing monthly records, settings, alerts and actions are reused. The absence of QuickBooks or weekly forecast inputs limits only the affected questions. The product asks for specific missing data when the customer requests unsupported forward-looking analysis and never requires a duplicate historical upload.
+
+## New-customer onboarding acceptance requirement
+
+A customer who initially purchases Core, Growth or Advisory is evaluated by the same capability-readiness rules before Ask CFO, AI Insights or forecasting claims are presented. Spreadsheet, accounting-platform and banking paths converge on shared normalized records, reconciliation, freshness and completeness checks. The onboarding flow clearly shows what is ready, what evidence supports it and what targeted information would unlock the next capability. A provider connection alone never implies that every feature has sufficient data, and the absence of a provider never prevents spreadsheet or manual customers from reaching the same supported capability state.
 
