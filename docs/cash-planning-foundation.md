@@ -64,5 +64,7 @@ Starting a revision is idempotent for the same published version. The client rej
 
 Revision creation and response loading are separate database operations. If the revision commits but the immediate state reload fails transiently, the API retries the read once and logs the failing stage and database code without financial values. If the response still fails, the client performs a read-only recovery request and continues with the committed draft rather than reporting that the entire revision failed.
 
+Guided-review mode is derived from the saved `parent_version_id`, not only browser state, so a reload or recovered response resumes the same owner workflow. When starting cash is stale, the balance date is intentionally cleared and must be re-entered to show when the owner verified it. If no scheduled cash item needs confirmation after that update, the flow states this explicitly and moves to the updated outlook instead of opening an empty review or returning to the weekly detail table without explanation.
+
 The weekly graph, exact-value table, cash-item evidence and immutable version remain available for a finance professional or an owner who wants detail. Owner guidance and professional evidence are two presentations of the same deterministic result, not separate calculations. Future Ask CFO and AI Insights may explain a published version only when they cite that version, its assumptions and its limitations.
 
