@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {FORECAST_CATEGORIES,forecastCategoriesFor,forecastSetupProgress,parseForecastDraftDiscardResult,parseForecastItem} from "../lib/forecastWorkflow";
+import {FORECAST_CATEGORIES,forecastCategoriesFor,forecastItemReviewReasons,forecastSetupProgress,parseForecastDraftDiscardResult,parseForecastItem} from "../lib/forecastWorkflow";
 
 describe("FORECAST-01D manual workflow validation",()=>{
  it("keeps every engine category direction explicit",()=>{
@@ -32,5 +32,16 @@ describe("FORECAST-01D manual workflow validation",()=>{
   expect(parseForecastDraftDiscardResult({discarded:true,reason:"changed"})).toBeNull();
   expect(parseForecastDraftDiscardResult({discarded:false,reason:null})).toBeNull();
   expect(parseForecastDraftDiscardResult({discarded:false,reason:"other"})).toBeNull();
+ });
+ it("identifies evidence that needs attention without changing its confidence",()=>{
+  const item={id:"invoice",description:"Customer payment",amount:1000,direction:"inflow" as const,category:"customer_receipt" as const,expectedDate:"2026-11-01",status:"expected" as const,confidence:"low" as const,sourceType:"manual",sourceUpdatedAt:"2026-10-01",amountIsEstimate:false,dateIsEstimate:false};
+  expect(forecastItemReviewReasons(item,"2026-10-26")).toEqual([
+   "Uncertain amount or date","Information needs refreshing",
+  ]);
+  expect(item.confidence).toBe("low");
+  expect(forecastItemReviewReasons({...item,confidence:"confirmed",sourceUpdatedAt:"2026-10-26"},"2026-10-26")).toEqual([]);
+  expect(forecastItemReviewReasons({...item,amount:null,expectedDate:null,confidence:"high",sourceUpdatedAt:null},"2026-10-26")).toEqual([
+   "Amount or date needed","Information needs refreshing",
+  ]);
  });
 });

@@ -20,6 +20,7 @@ describe("published weekly-plan next actions", () => {
     const html = renderToStaticMarkup(<PublishedGuidance
       guidance={{ ...base, needsInputReview: true, confidenceNote: "Review uncertain inputs." }}
       decisionHref="/dashboard/scenarios?forecast=version"
+      onReviewPlan={vi.fn()}
       onCreateAction={vi.fn()}
     />);
     expect(html).toContain("Review and update plan");
@@ -31,6 +32,7 @@ describe("published weekly-plan next actions", () => {
     const html = renderToStaticMarkup(<PublishedGuidance
       guidance={base}
       decisionHref="/dashboard/scenarios?forecast=version"
+      onReviewPlan={vi.fn()}
       onCreateAction={vi.fn()}
     />);
     expect(html).toContain("Test ways to protect cash");

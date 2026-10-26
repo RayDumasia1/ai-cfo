@@ -26,6 +26,24 @@ export function forecastCategoriesFor(direction: ForecastDirection) {
   return FORECAST_CATEGORIES.filter(category=>category.direction===direction);
 }
 
+export function forecastItemReviewReasons(
+  item: ForecastCashItem,
+  evaluationDate: string,
+  maxSourceAgeDays = FORECAST_FRESHNESS_POLICY.maxItemSourceAgeDays
+): string[] {
+  const reasons: string[] = [];
+  if (item.amount === null || item.expectedDate === null) reasons.push("Amount or date needed");
+  if (item.confidence === "low" || item.confidence === "unknown") reasons.push("Uncertain amount or date");
+  const sourceDate = item.sourceUpdatedAt && /^\d{4}-\d{2}-\d{2}$/.test(item.sourceUpdatedAt)
+    ? Date.parse(`${item.sourceUpdatedAt}T00:00:00Z`) : Number.NaN;
+  const evaluated = /^\d{4}-\d{2}-\d{2}$/.test(evaluationDate)
+    ? Date.parse(`${evaluationDate}T00:00:00Z`) : Number.NaN;
+  const ageDays = Number.isFinite(sourceDate) && Number.isFinite(evaluated)
+    ? Math.floor((evaluated - sourceDate) / 86_400_000) : null;
+  if (ageDays === null || ageDays < 0 || ageDays > maxSourceAgeDays) reasons.push("Information needs refreshing");
+  return reasons;
+}
+
 export function forecastSetupProgress(input:{ hasVersion:boolean; itemCount:number; valid:boolean; warningCount:number }) {
   if (!input.hasVersion) return { step:1, label:"Confirm your starting cash", readyToPublish:false } as const;
   if (input.itemCount===0) return { step:2, label:"Add the cash you expect", readyToPublish:false } as const;
