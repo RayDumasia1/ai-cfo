@@ -29,7 +29,7 @@ export default function ScenarioSummaryCard({ baseline }: { baseline: ScenarioBa
         <ChartLine aria-hidden="true" className="mt-0.5 shrink-0 text-teal" size={20} />
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id="scenario-summary-title" className="text-sm font-medium text-ink">Plan a cash scenario</h2>
+            <h2 id="scenario-summary-title" className="text-sm font-medium text-ink">Test a business decision</h2>
             {needsUpdate && <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">Update recommended</span>}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-dim">
@@ -42,7 +42,7 @@ export default function ScenarioSummaryCard({ baseline }: { baseline: ScenarioBa
         href="/dashboard/scenarios"
         className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-teal px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
       >
-        Explore scenarios <ArrowRight aria-hidden="true" size={15} />
+        Test a decision <ArrowRight aria-hidden="true" size={15} />
       </Link>
     </section>
   );

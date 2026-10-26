@@ -39,7 +39,7 @@ export default function ScenariosClient({ baseline, hasData }: {
         </p>
       )}
       <p className="mt-4 text-xs leading-relaxed text-dim">
-        Scenarios are for planning and are not saved. Actions you create are saved in your{" "}
+        Decision tests are temporary and do not change your saved financial data. Actions you create are saved in your{" "}
         <Link href="/dashboard/actions" className="font-medium text-teal underline">Action Tracker</Link>.
       </p>
       <ActionModal

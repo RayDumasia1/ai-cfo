@@ -6,6 +6,7 @@ import { scenarioBaseline } from "@/lib/scenarioPlanning";
 import { hasVerifiedEmail } from "@/lib/authPolicy";
 import { createClient } from "@/utils/supabase/server";
 import ScenariosClient from "./ScenariosClient";
+import { CASH_PLANNING_COPY } from "@/lib/cashPlanning";
 
 export default async function ScenariosPage() {
   const supabase = await createClient();
@@ -20,11 +21,11 @@ export default async function ScenariosPage() {
   const baseline = scenarioBaseline(cash?.cash ?? null, months);
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
-      <Link href="/dashboard" className="text-sm text-teal underline">Back to dashboard</Link>
+      <Link href="/dashboard/cash-planning" className="text-sm text-teal underline">Back to cash planning</Link>
       <div className="mb-8">
-        <h1 className="mt-4 text-2xl font-medium text-ink">Cash scenarios</h1>
+        <h1 className="mt-4 text-2xl font-medium text-ink">{CASH_PLANNING_COPY.decisionTest}</h1>
         <p className="mt-1 text-sm font-light text-dim">
-          Explore how possible changes could affect your cash without changing your saved financial data.
+          {CASH_PLANNING_COPY.decisionTestDescription}
         </p>
       </div>
       <ScenariosClient baseline={baseline} hasData={months.length > 0} />

@@ -111,13 +111,13 @@ export const UPGRADE_MESSAGES: Record<
     upgrade_to: 'core',
   },
   forecasting: {
-    title: '13-week cash forecast',
-    message: 'Plan upcoming cash receipts and payments — upgrade to Core from $99/month',
+    title: 'Weekly cash plan',
+    message: 'Plan expected cash in and cash out for the next 13 weeks — upgrade to Core from $99/month',
     upgrade_to: 'core',
   },
   scenario_comparison: {
-    title: 'Scenario comparison',
-    message: 'Compare multiple financial scenarios side by side — upgrade to Growth from $199/month',
+    title: 'Compare cash plans',
+    message: 'Compare base, downside, and growth cash plans side by side — upgrade to Growth from $199/month',
     upgrade_to: 'growth',
   },
   action_prefill: {

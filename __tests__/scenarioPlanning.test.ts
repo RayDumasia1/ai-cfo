@@ -74,7 +74,7 @@ describe("FIN-03C2 scenario baseline", () => {
     const baseline=scenarioBaseline(null,[row(),row({id:"aug",month_date:"2026-08-01"}),
       row({id:"jul",month_date:"2026-07-01"})],new Date("2026-10-15T00:00:00Z"));
     const html=renderToStaticMarkup(createElement(ScenarioSummaryCard,{baseline}));
-    expect(html).toContain("Plan a cash scenario");
+    expect(html).toContain("Test a business decision");
     expect(html).toContain("Starting from Sep 30, 2026 · 3 complete months");
     expect(html).toContain('href="/dashboard/scenarios"');
     expect(html).not.toContain("Expected monthly cash from customers");

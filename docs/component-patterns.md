@@ -21,6 +21,8 @@ FORECAST-01B adds a pure thirteen-week direct-cash engine and provider-neutral f
 
 The dedicated Scenarios page owns only the open/prefill state needed by its shared Action modal. It does not create an empty action-list prop during render or synchronize a list it does not display; doing so can trigger a render loop in state synchronization hooks and route the page into its error boundary.
 
+CASHPLAN-01/02 places the weekly forecast and temporary scenario calculator beneath one owner-facing **Cash planning** area. `/dashboard/cash-planning` explains the two tasks as **Weekly cash plan** and **Test a decision**. The sidebar exposes the parent once and treats both existing child routes as active descendants. Routes, APIs, feature gates, database records and deterministic engines remain separate and stable; this is an information-architecture and terminology boundary, not a calculation merger. Shared customer-facing labels live in `lib/cashPlanning.ts`. Internal forecast/scenario names remain valid where technical precision or backward compatibility requires them.
+
 Scenario-generated USD action goals use whole-dollar values, matching the planner's owner-facing currency display. Financial calculations retain their original precision; rounding happens only when the editable action prefill is created.
 
 The default owner dashboard translates those definitions into Cash Balance, Cash Buffer, Cash Trend and Cash Runway. Supporting copy explains the practical meaning and states when an update is required. Professional terminology belongs in methodology/detail views rather than the owner summary. A zero-alert result is not automatically healthy: use `financialDataFreshness()` so current, stale, historical and missing data receive different empty-state guidance.
@@ -229,7 +231,9 @@ Nav items:
 Current nav items (in order):
   Dashboard   → /dashboard
   Financial data → /dashboard/financial-data
-  Scenarios   → /dashboard/scenarios
+  Cash planning → /dashboard/cash-planning
+    Weekly cash plan → /dashboard/forecast
+    Test a decision → /dashboard/scenarios
   Actions     → /dashboard/actions
   Settings    → /dashboard/settings
   Reports     → hidden (Advisory only, not built)

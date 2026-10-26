@@ -46,7 +46,7 @@ const featureNames: Record<string, string> = {
   ask_cfo: "Ask your CFO",
   ai_insights: "AI Insights",
   quickbooks_sync: "QuickBooks Sync",
-  forecasting: "13-Week Cash Forecast",
+  forecasting: "Weekly Cash Plan",
   weekly_summary: "Weekly CFO Email",
   cfo_call: "CFO Call",
   team_seats: "Team Seats",
@@ -78,11 +78,11 @@ const TIER_HIGHLIGHTS: Record<FeatureTier, string[]> = {
   core: [
     "Ask your CFO financial questions with AI",
     "Connect QuickBooks automatically",
-    "Build a manual 13-week cash forecast",
+    "Plan expected cash week by week for 13 weeks",
   ],
   growth: [
     "Unlimited AI insights and Ask CFO",
-    "Compare forecast cases and variance",
+    "Compare cash plans and actual results",
     "Side-by-side scenario comparison",
   ],
   advisory: [

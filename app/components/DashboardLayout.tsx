@@ -36,11 +36,11 @@ function RisingColumnMark({ className }: { className?: string }) {
   );
 }
 
-const navItems: { label: string; href: string; icon: LucideIcon }[] = [
+const navItems: { label: string; href: string; icon: LucideIcon; childPaths?: string[] }[] = [
   { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
   { label: "Financial data", href: "/dashboard/financial-data", icon: Database },
-  { label: "Scenarios",       href: "/dashboard/scenarios", icon: ChartLine },
-  { label: "Cash forecast",   href: "/dashboard/forecast", icon: ChartLine },
+  { label: "Cash planning",   href: "/dashboard/cash-planning", icon: ChartLine,
+    childPaths: ["/dashboard/scenarios", "/dashboard/forecast"] },
   { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
   { label: "Reports",         href: "/reports",            icon: FileText },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },
@@ -109,7 +109,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             )
               return null;
             const isActive = pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              (item.href !== "/dashboard" && pathname.startsWith(item.href)) ||
+              item.childPaths?.some((path) => pathname.startsWith(path));
             return (
               <Link
                 key={item.label}

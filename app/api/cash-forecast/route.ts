@@ -56,7 +56,7 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
   if(body.action==="publish") {
     const items:ForecastCashItem[]=state.items.map(i=>({id:i.id,description:i.description,amount:i.amount,direction:i.direction,category:i.category,expectedDate:i.expected_date,status:i.status,confidence:i.confidence,sourceType:i.source_type,sourceUpdatedAt:i.source_updated_at?.slice(0,10)??null,amountIsEstimate:i.amount_is_estimated,dateIsEstimate:i.date_is_estimated}));
     const result=calculateCashForecast({startDate:state.version.start_date,asOfDate:state.version.as_of_date,evaluationDate:todayIso(),startingAvailableCash:state.version.starting_included_cash,minimumReserve:state.version.minimum_reserve,reportingCurrency:state.forecast.reporting_currency,items,freshnessPolicy:FORECAST_FRESHNESS_POLICY});
-    if(!result.valid)return NextResponse.json({error:"Resolve forecast errors before publishing.",details:result.errors},{status:400});
+    if(!result.valid)return NextResponse.json({error:"Resolve the weekly cash plan errors before publishing.",details:result.errors},{status:400});
     const published=await admin.rpc("publish_cash_forecast_version",{p_user_id:userId,p_forecast_id:state.forecast.id,p_version_id:state.version.id,p_calculation_result:result,p_expected_updated_at:state.version.updated_at});if(published.error)throw published.error;
     return NextResponse.json(await load(userId,admin));
   }

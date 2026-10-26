@@ -16,8 +16,8 @@ interface PlanComparisonCardProps {
 
 const PLAN_ROWS: { key: Plan; tier: FeatureTier; name: string; price: string; features: string }[] = [
   { key: "starter",  tier: "starter",  name: "Starter",  price: "$49 / mo",  features: "Dashboard · Excel import · Alerts" },
-  { key: "core",     tier: "core",     name: "Core",     price: "$99 / mo",  features: "Ask CFO · AI insights · 13-week cash forecast" },
-  { key: "growth",   tier: "growth",   name: "Growth",   price: "$199 / mo", features: "Unlimited AI · Forecast cases · Variance" },
+  { key: "core",     tier: "core",     name: "Core",     price: "$99 / mo",  features: "Ask CFO · AI insights · Weekly cash plan" },
+  { key: "growth",   tier: "growth",   name: "Growth",   price: "$199 / mo", features: "Unlimited AI · Cash plan comparison · Plan vs actual" },
   { key: "advisory", tier: "advisory", name: "Advisory", price: "$599 / mo", features: "Monthly CFO call · Team seats · Reports" },
 ];
 

@@ -52,10 +52,10 @@ describe("Scenarios page boundary", () => {
     const html = renderToStaticMarkup(await ScenariosPage());
     expect(getCurrentCashPosition).toHaveBeenCalledExactlyOnceWith("own-account", client);
     expect(getFinancialMonths).toHaveBeenCalledWith("own-account", expect.any(Number), client);
-    expect(html).toContain("Cash scenarios");
+    expect(html).toContain("Test a decision");
     expect(html).toContain("No saved financial baseline yet");
-    expect(html).toContain("Scenarios are for planning and are not saved");
+    expect(html).toContain("Decision tests are temporary");
     expect(html).toContain('href="/dashboard/actions"');
-    expect(html).toContain('href="/dashboard"');
+    expect(html).toContain('href="/dashboard/cash-planning"');
   });
 });
