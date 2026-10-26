@@ -113,6 +113,7 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     if(code==="40001") return NextResponse.json({error:"This weekly plan changed while you were working. Reload the page and try again."},{status:409});
     if(code==="23503"&&action==="delete_item") return NextResponse.json({error:"This cash item is connected to an action and cannot be removed until that action is deleted."},{status:409});
     if(code==="55000") return NextResponse.json({error:"This weekly plan is no longer editable. Reload the page to continue with the latest version."},{status:409});
+    if(code==="42501"&&action==="publish") return NextResponse.json({error:"The weekly plan could not be published because its database permissions need repair."},{status:503});
     throw error;
   }
 });
