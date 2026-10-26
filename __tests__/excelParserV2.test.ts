@@ -12,7 +12,7 @@ function workbook() {
   XLSX.utils.sheet_add_aoa(result.Sheets["Start Here"], [["Cash"]], { origin: "B12" });
   XLSX.utils.sheet_add_aoa(result.Sheets["Monthly Cash"], [[
     "2026-01-01", "Complete", null, 100000, 75000, 60000, 3000, 2000, 500,
-    8000, 0, 0, 10000, 0, 1500, 110000, 12000, null, null, "January close",
+    8000, 0, 0, 10000, 0, 1500, 110000, 12000, null, null, null, null, "January close",
   ]], { origin: "A7" });
   return result;
 }
@@ -88,7 +88,7 @@ describe("version-2 financial workbook parser", () => {
     const book = workbook();
     XLSX.utils.sheet_add_aoa(book.Sheets["Monthly Cash"], [[
       "2026-02-01", "Complete", null, 110000, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, "No February collections",
+      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, null, null, "No February collections",
     ]], { origin: "A8" });
     const result = parse(book);
     expect(result.errors).toEqual([]);
@@ -104,11 +104,11 @@ describe("version-2 financial workbook parser", () => {
     const allZero = workbook();
     XLSX.utils.sheet_add_aoa(allZero.Sheets["Monthly Cash"], [[
       "2026-01-01", "Complete", null, 100000, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, "No January activity",
+      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, null, null, "No January activity",
     ]], { origin: "A7" });
     XLSX.utils.sheet_add_aoa(allZero.Sheets["Monthly Cash"], [[
       "2026-02-01", "Complete", null, 100000, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, "No February activity",
+      0, 0, 0, 0, 0, 0, 100000, 12000, null, null, null, null, "No February activity",
     ]], { origin: "A8" });
     expect(parse(allZero).errors).toEqual([]);
     expect(parse(allZero).notices).not.toContainEqual(expect.objectContaining({code:"zero_customer_collections"}));
@@ -116,7 +116,7 @@ describe("version-2 financial workbook parser", () => {
     const partial = workbook();
     XLSX.utils.sheet_add_aoa(partial.Sheets["Monthly Cash"], [[
       "2026-02-01", "Partial", "2026-02-10", 110000, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, "Partial February",
+      0, 0, 0, 0, 0, 0, 110000, 12000, null, null, null, null, "Partial February",
     ]], { origin: "A8" });
     expect(parse(partial).notices).not.toContainEqual(expect.objectContaining({code:"zero_customer_collections"}));
   });

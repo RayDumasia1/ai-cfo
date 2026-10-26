@@ -51,27 +51,36 @@ describe("launch financial template v2", () => {
       "Other cash out",
       "Closing included cash",
       "Unavailable cash",
+      "Expected closing cash",
       "Reconciliation difference",
+      "Opening balance check",
       "Row check",
       "Notes",
     ]);
     expect(rows.slice(6).every(row => row[0] == null)).toBe(true);
   });
 
-  it("retains reconciliation and readiness formulas in customer input rows", () => {
+  it("retains expected cash, reconciliation, continuity, and readiness formulas", () => {
     const sheet = workbook.Sheets["Monthly Cash"];
-    expect(sheet.R7?.f).toContain("ROUND($P7-$D7");
-    expect(sheet.S7?.f).toContain("Ready to upload");
-    expect(sheet.R42?.f).toContain("ROUND($P42-$D42");
-    expect(sheet.S42?.f).toContain("Duplicate month");
+    expect(sheet.R7?.f).toContain("ROUND($D7+$E7-$F7");
+    expect(sheet.S7?.f).toContain("ROUND($P7-$R7");
+    expect(sheet.T7?.f).toContain("First entered month");
+    expect(sheet.T8?.f).toContain("Opening differs from prior closing");
+    expect(sheet.U7?.f).toContain("Ready to upload");
+    expect(sheet.R42?.f).toContain("ROUND($D42+$E42-$F42");
+    expect(sheet.S42?.f).toContain("ROUND($P42-$R42");
+    expect(sheet.U42?.f).toContain("Duplicate month");
   });
 
   it("includes a reconciled reference month outside the import sheet", () => {
     const sheet = workbook.Sheets["Worked Example"];
     expect(sheet.P6?.v).toBe(110000);
     expect(sheet.Q6?.v).toBe(12000);
-    expect(sheet.R6?.f).toContain("ROUND(P6-D6");
-    expect(sheet.R6?.v).toBe(0);
-    expect(sheet.S6?.v).toBe("Reconciles");
+    expect(sheet.R6?.f).toContain("ROUND(D6+E6-F6");
+    expect(sheet.R6?.v).toBe(110000);
+    expect(sheet.S6?.f).toContain("ROUND(P6-R6");
+    expect(sheet.S6?.v).toBe(0);
+    expect(sheet.T6?.v).toBe("First entered month");
+    expect(sheet.U6?.v).toBe("Ready to upload");
   });
 });

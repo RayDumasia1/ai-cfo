@@ -1,7 +1,7 @@
 # Financial template v2
 
-**Status:** Version-2 workbook published and end-to-end validated in preview; production promotion pending
-**Date:** 24 October 2026
+**Status:** Version-2.1 workbook candidate updated with customer guidance checks; preview validation pending
+**Date:** 25 October 2026
 **Depends on:** [Financial data contract v2](financial-data-contract-v2.md)
 
 ## Launch decision
@@ -13,7 +13,7 @@ The validated [version-2 workbook](templates/elidan-financial-template-v2.xlsx) 
 ## Workbook structure
 
 - **Start Here:** business context, reporting currency, accounting basis and short completion guidance. Workbook alert thresholds are intentionally absent because users manage them in Elidan Settings.
-- **Monthly Cash:** 36 blank monthly rows for the required contract fields. Inputs distinguish operating activity, owner distributions, debt principal and interest, investing activity, debt and owner funding, other cash activity, closing cash and unavailable cash.
+- **Monthly Cash:** 36 blank monthly rows for the required contract fields. Inputs distinguish operating activity, owner distributions, debt principal and interest, investing activity, debt and owner funding, other cash activity, closing cash and unavailable cash. Calculated guidance shows expected closing cash, the difference from actual closing cash and whether a consecutive month's opening balance matches the prior actual closing balance.
 - **Optional Detail:** taxes reserved, receivables expected within 30 days, bills due within 30 days, available credit, credit drawn and lowest observed cash. Month cells link to the matching Monthly Cash row.
 - **Worked Example:** one reconciled reference month outside the import sheet. It illustrates classification without becoming customer data.
 
@@ -31,11 +31,19 @@ Yellow cells with blue text are editable. Gray cells contain calculations.
 - Unavailable cash cannot exceed nonnegative closing included cash.
 - The workbook flags duplicate months and dates that do not begin on the first day of a month.
 
-Each Monthly Cash row calculates:
+Each Monthly Cash row calculates expected closing cash:
 
-`closing included cash − opening included cash − classified net cash activity`
+`opening included cash + classified net cash activity`
 
-A difference within one reporting-currency unit is shown as ready in the workbook. DATA-01C must independently validate every rule server-side and must never trust workbook formulas, cached results, colors or validation controls.
+It then calculates the reconciliation difference:
+
+`actual closing included cash − expected closing cash`
+
+A difference within one reporting-currency unit is shown as ready in the workbook. For consecutive rows, the workbook also compares the current opening balance with the prior month's actual closing balance. A difference is guidance for the user to review rather than an import blocker because legitimate transfers, account-scope changes and corrections can change the cash perimeter between periods.
+
+Actual opening and closing balances remain manual inputs sourced from bank or accounting records. The workbook does not automatically replace them with calculated amounts because an independently entered actual balance is what makes reconciliation useful. Users may copy a prior closing balance into the next opening balance only after confirming it against their records.
+
+DATA-01C must independently validate every required rule server-side and must never trust workbook formulas, cached results, colors or validation controls. The parser ignores `Expected closing cash`, `Reconciliation difference`, `Opening balance check` and `Row check`.
 
 ## DATA-01C parser map
 
@@ -52,7 +60,7 @@ The parser accepts the workbook choices `Cash`, `Accrual`, `Mixed` and `Unknown`
 
 Monthly Cash labels map to the required cash-perimeter and bridge columns documented in the financial-data contract. `Asset purchases` maps to `investing_cash_paid`; `Asset sale proceeds` maps to `investing_cash_received`; `New debt received` maps to `debt_funding_received`; and `Owner or equity funding` maps to `owner_funding_received`.
 
-The implemented parser ignores the workbook's `Reconciliation difference` and `Row check` values. It recalculates the bridge server-side and rejects an absolute difference above one reporting-currency unit. It merges Optional Detail by month, rejects duplicates and orphan detail, preserves blank optional values as null and sends only validated rows to the reviewed transaction.
+The implemented parser ignores the workbook's calculated guidance columns. It recalculates the bridge server-side and rejects an absolute difference above one reporting-currency unit. It merges Optional Detail by month, rejects duplicates and orphan detail, preserves blank optional values as null and sends only validated rows to the reviewed transaction.
 
 The strict database function independently allowlists fields, requires homogeneous version-2 spreadsheet rows, checks reconciliation again, archives displaced data and writes the profile fill, affected months, data version and success audit atomically. The existing version-1 engine remains unchanged. The reviewed wrapper rejects mixed contracts and prevents an update-mode version-1 upload from overwriting an existing version-2 month.
 
@@ -78,3 +86,13 @@ The public v2 download, review, atomic import and dashboard compatibility path w
 - Excess unavailable cash and an unexplained closing balance produce specific correction messages.
 - The template test checks sheet names, exact classified headers, blank customer rows, formulas and the reconciled example.
 - Parser and route tests cover confirmed zero versus blank, cutoff dates, reconciliation failures, optional-detail ownership and the exact atomic payload.
+
+## Version 2.1 customer guidance
+
+The October 2026 workbook refinement adds three owner-friendly aids without changing data-contract version 2 or the required upload fields:
+
+- **Expected closing cash** calculates the balance implied by opening cash and all classified monthly cash movements.
+- **Reconciliation difference** compares the user's actual closing balance with that expected result.
+- **Opening balance check** compares each consecutive month's opening cash with the prior month's actual closing balance and asks the user to review differences.
+
+The Start Here sheet explains where actual balances should come from and why users should verify a copied prior closing balance. The Worked Example demonstrates the new calculations. No database migration is required for this workbook-only enhancement.
