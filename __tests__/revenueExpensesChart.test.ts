@@ -14,8 +14,8 @@ vi.mock("recharts",()=>({
   Tooltip:()=>null,
   XAxis:({type,ticks,tickFormatter}:{type:string;ticks:number[];tickFormatter:(value:number)=>string})=>
     createElement("span",{"data-axis-type":type},ticks.map(tickFormatter).join(" | ")),
-  Line:({name,connectNulls}:{name:string;connectNulls:boolean})=>
-    createElement("span",{"data-series":name,"data-connect-nulls":String(connectNulls)}),
+  Line:({name,connectNulls,strokeDasharray}:{name:string;connectNulls:boolean;strokeDasharray?:string})=>
+    createElement("span",{"data-series":name,"data-connect-nulls":String(connectNulls),"data-dash":strokeDasharray ?? "solid"}),
 }));
 import RevenueBurnChart from "../app/components/RevenueBurnChart";
 
@@ -60,6 +60,7 @@ describe("chart presentation",()=>{
     expect(result).toContain("Oct 2024 | Nov 2024 | Dec 2024");
     expect(result).toContain('data-series="Cash collected" data-connect-nulls="false"');
     expect(result).toContain('data-series="Cash paid" data-connect-nulls="false"');
+    expect(result).toContain('data-series="Cash paid" data-connect-nulls="false" data-dash="6 4"');
     expect(result).toContain("1 missing month; gaps break the lines");
     expect(result).toContain("Cash Collected vs Cash Paid");
     expect(result).not.toContain("Burn Rate");
@@ -84,6 +85,20 @@ describe("chart presentation",()=>{
     const result=html([]);
     expect(result).toContain("Cash Collected vs Cash Paid · No data yet");
     expect(result).toContain('href="/dashboard/financial-data"');
+  });
+  it("provides an expandable accessible data table with exact, zero, missing, and signed values",()=>{
+    const result=html([
+      month("2025-03-01",1000.25,1200.5),
+      month("2025-01-01",0,null),
+    ]);
+    expect(result).toContain("View chart data");
+    expect(result).toContain("Monthly cash collected and cash paid values shown in the chart");
+    expect(result).toContain("January 2025");
+    expect(result).toContain("February 2025 (missing)");
+    expect(result).toContain("March 2025");
+    expect(result).toContain("$0");
+    expect(result).toContain("Not provided");
+    expect(result).toContain("−$200.25");
   });
 });
 

@@ -14,6 +14,16 @@ interface RevenueBurnChartProps { months: FinancialMonth[]; }
 const dollars = new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:0,maximumFractionDigits:2});
 const axisDollars = new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",notation:"compact",maximumFractionDigits:1});
 
+function tableAmount(value:number|null) {
+  return value === null ? "Not provided" : dollars.format(value);
+}
+
+function tableDifference(value:number|null) {
+  if (value === null) return "Not available";
+  if (value === 0) return dollars.format(0);
+  return `${value > 0 ? "+" : "−"}${dollars.format(Math.abs(value))}`;
+}
+
 const CARD_STYLE: React.CSSProperties = {
   background:"var(--surface)",border:"1px solid var(--line)",borderRadius:"var(--radius-lg)",
   boxShadow:"var(--shadow-sm)",padding:24,minHeight:316,
@@ -71,12 +81,34 @@ export default function RevenueBurnChart({months}:RevenueBurnChartProps) {
         <Line type="linear" dataKey="revenue" name="Cash collected" connectNulls={false} stroke="var(--teal)"
           strokeWidth={2} dot={{r:3,fill:"var(--teal)",strokeWidth:0}} activeDot={{r:4}} />
         <Line type="linear" dataKey="expenses" name="Cash paid" connectNulls={false} stroke="var(--danger)"
-          strokeWidth={2} dot={{r:3,fill:"var(--danger)",strokeWidth:0}} activeDot={{r:4}} />
+          strokeWidth={2} strokeDasharray="6 4" dot={{r:3,fill:"var(--surface)",stroke:"var(--danger)",strokeWidth:2}} activeDot={{r:4}} />
       </LineChart>
     </ResponsiveContainer>
     <div className="mt-3 flex justify-center gap-6 text-xs" style={{color:"var(--dim)"}} aria-label="Chart legend">
-      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--teal)"}} />Cash collected</span>
-      <span className="flex items-center gap-1.5"><span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{background:"var(--danger)"}} />Cash paid</span>
+      <span className="flex items-center gap-1.5"><svg aria-hidden width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--teal)" strokeWidth="2" /><circle cx="11" cy="4" r="3" fill="var(--teal)" /></svg>Cash collected</span>
+      <span className="flex items-center gap-1.5"><svg aria-hidden width="22" height="8"><line x1="1" y1="4" x2="21" y2="4" stroke="var(--danger)" strokeWidth="2" strokeDasharray="5 3" /><circle cx="11" cy="4" r="3" fill="var(--surface)" stroke="var(--danger)" strokeWidth="2" /></svg>Cash paid</span>
     </div>
+    <details className="mt-4 border-t pt-3 text-xs" style={{borderColor:"var(--line)"}}>
+      <summary className="w-fit cursor-pointer font-medium" style={{color:"var(--teal)"}}>View chart data</summary>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[520px] border-collapse text-left">
+          <caption className="sr-only">Monthly cash collected and cash paid values shown in the chart</caption>
+          <thead><tr style={{borderBottom:"1px solid var(--line)"}}>
+            {['Period','Cash collected','Cash paid','Difference'].map(label=><th key={label} scope="col" className="px-3 py-2 font-medium" style={{color:"var(--dim)"}}>{label}</th>)}
+          </tr></thead>
+          <tbody>{points.map(point=>{
+            const startLabel = financialMonthLabel(point.monthDate);
+            const endLabel = point.missingThrough ? financialMonthLabel(point.missingThrough) : null;
+            const period = endLabel && endLabel !== startLabel ? `${startLabel}–${endLabel}` : startLabel;
+            return <tr key={`${point.monthDate}-${point.missingThrough ?? "recorded"}`} style={{borderBottom:"1px solid var(--line)"}}>
+              <th scope="row" className="px-3 py-2.5 font-medium" style={{color:"var(--ink)"}}>{period}{point.missingThrough ? " (missing)" : ""}</th>
+              <td className="px-3 py-2.5" style={{color:"var(--dim)"}}>{tableAmount(point.revenue)}</td>
+              <td className="px-3 py-2.5" style={{color:"var(--dim)"}}>{tableAmount(point.expenses)}</td>
+              <td className="px-3 py-2.5" style={{color:"var(--dim)"}}>{tableDifference(point.difference)}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+    </details>
   </section>;
 }
