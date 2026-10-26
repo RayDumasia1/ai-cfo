@@ -32,9 +32,12 @@ async function expectSafeFailure(response: Response, phase: "authentication" | "
   const body = await response.json();
   expect(body).toEqual({ error: "Internal server error", requestId: expect.any(String) });
   expect(body.requestId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(console.error).toHaveBeenCalledExactlyOnceWith("requireAuth:error", {
-    requestId: body.requestId, phase,
-  });
+  expect(console.error).toHaveBeenCalledExactlyOnceWith("requireAuth:error", expect.objectContaining({
+    requestId: body.requestId,
+    phase,
+    method: "GET",
+    path: "/api/subscription",
+  }));
   const output = JSON.stringify([body, vi.mocked(console.error).mock.calls]);
   expect(output).not.toContain("private");
   expect(output).not.toContain("do-not-log");

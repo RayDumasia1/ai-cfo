@@ -34,15 +34,17 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
   const gate=await checkFeatureGate(userId,email,"forecasting",supabase); if(gate)return gate;
   const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
   if(!body||typeof body.action!=="string") return NextResponse.json({error:"Invalid request"},{status:400});
+  const action=body.action;
   const admin=createServiceClient();
-  if(body.action==="begin"||body.action==="revise"||body.action==="update_start") {
+  try {
+  if(action==="begin"||action==="revise"||action==="update_start") {
     const asOf=String(body.asOfDate??""),start=String(body.startDate??"");
     const cash=typeof body.startingCash==="number"?body.startingCash:Number.NaN;
     const reserve=typeof body.minimumReserve==="number"?body.minimumReserve:Number.NaN;
     if(!/^\d{4}-\d{2}-\d{2}$/.test(asOf)||!/^\d{4}-\d{2}-\d{2}$/.test(start)||start<asOf||!Number.isFinite(cash)||cash<0||!Number.isFinite(reserve)||reserve<0)
       return NextResponse.json({error:"Enter valid starting cash, reserve, and dates."},{status:400});
     let result;
-    if(body.action==="update_start") {
+    if(action==="update_start") {
       const versionId=String(body.versionId??""), expectedUpdatedAt=String(body.expectedUpdatedAt??"");
       if(!/^[0-9a-f-]{36}$/i.test(versionId)||!expectedUpdatedAt)
         return NextResponse.json({error:"Reload the draft and try again."},{status:409});
@@ -53,23 +55,23 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
       if(error)throw error;
       if(!data)return NextResponse.json({error:"This draft changed. Reload it before updating the starting point."},{status:409});
       return NextResponse.json(await loadAfterMutation(userId,admin));
-    } else if(body.action==="revise") {
+    } else if(action==="revise") {
       result=(await admin.rpc("begin_core_forecast_revision",{p_user_id:userId,p_published_version_id:String(body.versionId),p_as_of_date:asOf,p_start_date:start,p_starting_included_cash:cash,p_minimum_reserve:reserve}));
     } else {
       const {data:profile,error}=await admin.from("business_profiles").select("id,data_version").eq("user_id",userId).single(); if(error)throw error;
       result=await admin.rpc("begin_cash_forecast_draft",{p_user_id:userId,p_business_id:profile.id,p_reporting_currency:"USD",p_as_of_date:asOf,p_start_date:start,p_starting_included_cash:cash,p_starting_unavailable_cash:0,p_minimum_reserve:reserve,p_source_data_version:profile.data_version,p_formula_policy_version:"forecast-1",p_source_snapshot:{source:"manual"},p_parent_version_id:null});
     }
     if(result.error) {
-      if(body.action==="revise"&&result.error.code==="23505")
+      if(action==="revise"&&result.error.code==="23505")
         return NextResponse.json(await loadAfterMutation(userId,admin));
-      if(body.action==="revise"&&result.error.code==="55000")
+      if(action==="revise"&&result.error.code==="55000")
         return NextResponse.json({error:"A weekly plan update is already in progress. Reload to continue it."},{status:409});
       throw result.error;
     }
     return NextResponse.json(await loadAfterMutation(userId,admin));
   }
   const state=await load(userId,admin); if(!state.version||state.version.status!=="draft")return NextResponse.json({error:"Start or update a draft first."},{status:409});
-  if(body.action==="discard") {
+  if(action==="discard") {
     const versionId=String(body.versionId??""), expectedUpdatedAt=String(body.expectedUpdatedAt??"");
     if(versionId!==state.version.id||expectedUpdatedAt!==state.version.updated_at)
       return NextResponse.json({error:"This draft changed. Reload it before discarding it."},{status:409});
@@ -89,14 +91,14 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     }
     return NextResponse.json(await load(userId,admin));
   }
-  if(body.action==="save_item") {
+  if(action==="save_item") {
     const parsed=parseForecastItem(body.item); if(!parsed.ok)return NextResponse.json({error:parsed.error},{status:400});
     const i=parsed.value; const row={version_id:state.version.id,user_id:userId,item_key:i.id??crypto.randomUUID(),description:i.description,amount:i.amount,direction:i.direction,category:i.category,expected_date:i.expectedDate,status:i.status,confidence:i.confidence,amount_is_estimated:i.amountIsEstimate,date_is_estimated:i.dateIsEstimate,zero_confirmed:i.amount===0,source_type:"manual",source_updated_at:todayIso(),created_by:userId,updated_by:userId};
     const query=i.id?admin.from("cash_forecast_items").update(row).eq("id",i.id).eq("version_id",state.version.id).eq("user_id",userId):admin.from("cash_forecast_items").insert(row);
     const {error}=await query;if(error)throw error;return NextResponse.json(await load(userId,admin));
   }
-  if(body.action==="delete_item") { const {error}=await admin.from("cash_forecast_items").delete().eq("id",String(body.itemId)).eq("version_id",state.version.id).eq("user_id",userId);if(error)throw error;return NextResponse.json(await load(userId,admin)); }
-  if(body.action==="publish") {
+  if(action==="delete_item") { const {error}=await admin.from("cash_forecast_items").delete().eq("id",String(body.itemId)).eq("version_id",state.version.id).eq("user_id",userId);if(error)throw error;return NextResponse.json(await load(userId,admin)); }
+  if(action==="publish") {
     const items:ForecastCashItem[]=state.items.map(i=>({id:i.id,description:i.description,amount:i.amount,direction:i.direction,category:i.category,expectedDate:i.expected_date,status:i.status,confidence:i.confidence,sourceType:i.source_type,sourceUpdatedAt:i.source_updated_at?.slice(0,10)??null,amountIsEstimate:i.amount_is_estimated,dateIsEstimate:i.date_is_estimated}));
     const result=calculateCashForecast({startDate:state.version.start_date,asOfDate:state.version.as_of_date,evaluationDate:todayIso(),startingAvailableCash:state.version.starting_included_cash,minimumReserve:state.version.minimum_reserve,reportingCurrency:state.forecast.reporting_currency,items,freshnessPolicy:FORECAST_FRESHNESS_POLICY});
     if(!result.valid)return NextResponse.json({error:"Resolve the weekly cash plan errors before publishing.",details:result.errors},{status:400});
@@ -104,4 +106,13 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     return NextResponse.json(await load(userId,admin));
   }
   return NextResponse.json({error:"Unsupported action"},{status:400});
+  } catch(error) {
+    const failure=error&&typeof error==="object"?error as Record<string,unknown>:null;
+    const code=typeof failure?.code==="string"?failure.code:undefined;
+    console.error("cashForecast:mutation:error",{action,code});
+    if(code==="40001") return NextResponse.json({error:"This weekly plan changed while you were working. Reload the page and try again."},{status:409});
+    if(code==="23503"&&action==="delete_item") return NextResponse.json({error:"This cash item is connected to an action and cannot be removed until that action is deleted."},{status:409});
+    if(code==="55000") return NextResponse.json({error:"This weekly plan is no longer editable. Reload the page to continue with the latest version."},{status:409});
+    throw error;
+  }
 });

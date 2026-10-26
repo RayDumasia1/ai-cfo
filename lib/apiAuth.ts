@@ -49,7 +49,16 @@ export function requireAuth<Ctx = unknown>(handler: AuthedHandler<Ctx>) {
     } catch (err) {
       unstable_rethrow(err);
       const requestId = crypto.randomUUID();
-      console.error("requireAuth:error", { requestId, phase });
+      const failure = err && typeof err === "object" ? err as Record<string, unknown> : null;
+      console.error("requireAuth:error", {
+        requestId,
+        phase,
+        method: req.method,
+        path: req.nextUrl.pathname,
+        name: err instanceof Error ? err.name : undefined,
+        code: typeof failure?.code === "string" ? failure.code : undefined,
+        hint: typeof failure?.hint === "string" ? failure.hint : undefined,
+      });
       return NextResponse.json(
         { error: "Internal server error", requestId },
         { status: 500, headers: { "Cache-Control": "no-store" } }
