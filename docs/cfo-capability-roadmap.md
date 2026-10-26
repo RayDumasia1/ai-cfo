@@ -76,6 +76,8 @@ Tier names describe increasing depth. Final commercial packaging remains a prici
 
 Starter should provide a trustworthy answer and a useful next step. Upgrades should add automation, predictive depth, retained models, comparisons, collaboration and expert access rather than withholding the meaning of the customer's own data.
 
+Plan changes reuse the same account-scoped financial record. A customer upgrading from Starter to Core or higher receives immediate Ask CFO and AI Insight value from valid monthly history without re-uploading it or connecting an accounting provider. An upgrade-readiness/context service identifies which guidance the existing evidence supports and requests only the additional dates, commitments or schedules needed for a specific forward-looking question. QuickBooks improves automation and timeliness; it is not a prerequisite for guidance.
+
 ## Treatment of the proposed high-impact modules
 
 ### Contract risk analysis

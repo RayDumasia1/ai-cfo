@@ -118,6 +118,33 @@ The system must not call an unmatched value a performance variance until the use
 
 ## Input paths
 
+### Upgrade readiness and existing history
+
+A plan upgrade changes feature access; it does not create a new financial dataset. A Starter customer with valid contract-v2 history must be able to use Core Ask CFO and receive initial AI Insights immediately after the subscription change becomes authoritative. The customer is not required to upload the same history again, connect QuickBooks or complete a second financial onboarding flow.
+
+An account-scoped readiness/context service assembles the strongest evidence already available:
+
+- financial months, contract version and usable consecutive history;
+- latest available cash, reserve and normalized operating metrics;
+- currency, accounting basis, source, completeness and freshness;
+- gaps, confirmed zeroes, partial periods and reconciliation state;
+- optional liquidity details, alerts and open actions;
+- forecast existence, coverage, source version and unresolved items.
+
+The service returns capability-specific readiness rather than one global ready/not-ready flag. Monthly history can support historical cash-health questions even when a 13-week forecast is unavailable. A forecast question that requires invoice dates, bill dates, payroll or taxes returns a targeted request for only those inputs. Missing QuickBooks access is never itself a reason to block guidance.
+
+Supported context levels are:
+
+| Available evidence | Supported guidance |
+| --- | --- |
+| Valid monthly history | Historical cash health, trends, anomalies, buffer/runway and bounded monthly scenarios |
+| Monthly history plus optional liquidity detail | Near-term receivable, payable, reserve and available-credit context |
+| Weekly forecast inputs | Forward-looking 13-week liquidity questions and reserve-risk analysis |
+| Provider-normalized item data | More current item-level timing, monitoring and reconciliation |
+| Published forecast cases | Case comparison, assumption sensitivity and actual-versus-plan guidance |
+
+Every Ask CFO answer and AI Insight records the context level, source periods, data version, freshness and material missing inputs used. An unsupported question produces an explanation and focused enrichment step instead of a guessed answer.
+
 ### Manual/Core path
 
 The owner enters or reviews:
@@ -177,6 +204,8 @@ Approve the direct-cash method, tier boundaries, weekly categories, record lifec
 
 Implement a pure calculation library for weekly roll-forward, reserve thresholds, cases, coverage, freshness and variance classification. Use independently prepared fixtures and property tests. No UI or database dependency.
 
+Define the read-only readiness/context result consumed by future Ask CFO and AI Insights. Its initial implementation may derive monthly-history capability without forecast tables so upgraded customers receive immediate value while later forecast increments add weekly capability.
+
 ### FORECAST-01C — account-scoped storage
 
 Add forecasts, immutable versions, cash items, schedules, assumptions and source lineage with least-privilege policies and atomic publish/version operations. Include rollback and two-session concurrency verification.
@@ -200,4 +229,8 @@ Before FORECAST-01C, approve:
 - which forecast records an advisor may edit versus comment on after ORG-01/ADV-01;
 - launch wording and disclosures through LEGAL-01;
 - replacement of current “12-month cash flow forecast” marketing copy with the approved 13-week capability and any later long-range planning label.
+
+## Upgrade acceptance requirement
+
+A Starter customer with valid version-2 financial history who upgrades to Core or higher can use Ask CFO and receive supported AI Insights as soon as the subscription update is effective. Existing monthly records, settings, alerts and actions are reused. The absence of QuickBooks or weekly forecast inputs limits only the affected questions. The product asks for specific missing data when the customer requests unsupported forward-looking analysis and never requires a duplicate historical upload.
 
