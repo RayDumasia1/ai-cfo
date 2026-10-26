@@ -588,8 +588,10 @@ describe("subscription webhook identity", () => {
       { id: "sub_current", customer: "cus_existing", status: "active", items: { data: [{ price: { id: "price_starter" } }] } },
       { id: "sub_duplicate", customer: "cus_existing", status: "active", items: { data: [{ price: { id: "price_core" } }] } },
     );
-    await deliver("customer.subscription.updated", subscriptions[1]);
+    const response = await deliver("customer.subscription.updated", subscriptions[1]);
+    expect(response.status).toBe(500);
     expect(current).toMatchObject({ stripe_subscription_id: "sub_current", plan: "starter", feature_tier: "starter" });
+    expect(db.tables.stripe_webhook_events[0]).toMatchObject({ status: "failed", attempts: 1 });
   });
 
   it("does not roll back committed billing state when email delivery fails", async () => {

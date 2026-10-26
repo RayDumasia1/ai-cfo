@@ -328,6 +328,9 @@ async function handleSubscriptionUpdated(
         linkedSubscription: linkedId ?? null,
         lookupError,
       });
+      if (!["canceled", "incomplete_expired"].includes(sub.status)) {
+        throw new Error("Active Stripe subscription could not be linked to a billing account");
+      }
       return;
     }
   }
