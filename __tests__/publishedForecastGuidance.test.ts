@@ -22,6 +22,10 @@ describe("published weekly-plan guidance",()=>{
   expect(guidance.severity).toBe("warning");
   expect(guidance.headline).toContain("reserve");
   expect(guidance.drivers.map(item=>item.id)).toEqual(["vendor","payroll"]);
+  expect(guidance.reserveGap).toBe(10000);
+  expect(guidance.needsInputReview).toBe(false);
+  expect(guidance.nextSteps[0]).toContain("Test ways");
+  expect(guidance.explanation).toContain("$10,000 below");
   expect(guidance.nextReviewDate).toBe("2026-11-02");
  });
  it("escalates negative cash without overstating confidence",()=>{
@@ -29,13 +33,22 @@ describe("published weekly-plan guidance",()=>{
   forecast.freshness.startingCash="stale";
   const guidance=buildPublishedForecastGuidance({result:forecast,items,minimumReserve:25000,evaluationDate:"2026-10-26",reportingCurrency:"USD"});
   expect(guidance.severity).toBe("critical");
-  expect(guidance.confidenceNote).toContain("1 unresolved item");
-  expect(guidance.confidenceNote).toContain("2 low-confidence items");
-  expect(guidance.confidenceNote).toContain("starting cash balance");
+  expect(guidance.confidenceNote).toContain("1 cash item needs an amount or date");
+  expect(guidance.confidenceNote).toContain("2 uncertain cash items");
+  expect(guidance.confidenceNote).toContain("starting cash balance needs updating");
+  expect(guidance.needsInputReview).toBe(true);
+  expect(guidance.nextSteps).toEqual([
+   "Update your starting cash balance.",
+   "Complete 1 cash item missing an amount or date.",
+   "Review 2 uncertain cash items.",
+   "Publish the updated plan and recheck your cash outlook.",
+  ]);
  });
  it("reports a plan above reserve as positive",()=>{
   const guidance=buildPublishedForecastGuidance({result:result({lowestProjectedCash:30000,firstReserveBreachWeek:null,endingCash:32000}),items,minimumReserve:25000,evaluationDate:"2026-10-26",reportingCurrency:"USD"});
   expect(guidance.severity).toBe("positive");
   expect(guidance.headline).toContain("stays above");
+  expect(guidance.reserveGap).toBeNull();
+  expect(guidance.nextSteps[0]).toContain("Keep the planned dates");
  });
 });
