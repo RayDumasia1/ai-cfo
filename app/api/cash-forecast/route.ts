@@ -30,14 +30,25 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
   const body=await req.json().catch(()=>null) as Record<string,unknown>|null;
   if(!body||typeof body.action!=="string") return NextResponse.json({error:"Invalid request"},{status:400});
   const admin=createServiceClient();
-  if(body.action==="begin"||body.action==="revise") {
+  if(body.action==="begin"||body.action==="revise"||body.action==="update_start") {
     const asOf=String(body.asOfDate??""),start=String(body.startDate??"");
     const cash=typeof body.startingCash==="number"?body.startingCash:Number.NaN;
     const reserve=typeof body.minimumReserve==="number"?body.minimumReserve:Number.NaN;
     if(!/^\d{4}-\d{2}-\d{2}$/.test(asOf)||!/^\d{4}-\d{2}-\d{2}$/.test(start)||start<asOf||!Number.isFinite(cash)||cash<0||!Number.isFinite(reserve)||reserve<0)
       return NextResponse.json({error:"Enter valid starting cash, reserve, and dates."},{status:400});
     let result;
-    if(body.action==="revise") {
+    if(body.action==="update_start") {
+      const versionId=String(body.versionId??""), expectedUpdatedAt=String(body.expectedUpdatedAt??"");
+      if(!/^[0-9a-f-]{36}$/i.test(versionId)||!expectedUpdatedAt)
+        return NextResponse.json({error:"Reload the draft and try again."},{status:409});
+      const {data,error}=await admin.from("cash_forecast_versions").update({
+        as_of_date:asOf,start_date:start,starting_included_cash:cash,minimum_reserve:reserve,
+        updated_at:new Date().toISOString(),
+      }).eq("id",versionId).eq("user_id",userId).eq("status","draft").eq("updated_at",expectedUpdatedAt).select("id").maybeSingle();
+      if(error)throw error;
+      if(!data)return NextResponse.json({error:"This draft changed. Reload it before updating the starting point."},{status:409});
+      return NextResponse.json(await load(userId,admin));
+    } else if(body.action==="revise") {
       result=(await admin.rpc("begin_core_forecast_revision",{p_user_id:userId,p_published_version_id:String(body.versionId),p_as_of_date:asOf,p_start_date:start,p_starting_included_cash:cash,p_minimum_reserve:reserve}));
     } else {
       const {data:profile,error}=await admin.from("business_profiles").select("id,data_version").eq("user_id",userId).single(); if(error)throw error;
@@ -46,6 +57,18 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     if(result.error)throw result.error; return NextResponse.json(await load(userId,admin));
   }
   const state=await load(userId,admin); if(!state.version||state.version.status!=="draft")return NextResponse.json({error:"Start or update a draft first."},{status:409});
+  if(body.action==="discard") {
+    const versionId=String(body.versionId??""), expectedUpdatedAt=String(body.expectedUpdatedAt??"");
+    if(versionId!==state.version.id||expectedUpdatedAt!==state.version.updated_at)
+      return NextResponse.json({error:"This draft changed. Reload it before discarding it."},{status:409});
+    const {count,error:linkError}=await admin.from("actions").select("id",{count:"exact",head:true}).eq("user_id",userId).eq("linked_forecast_version_id",versionId);
+    if(linkError)throw linkError;
+    if((count??0)>0)return NextResponse.json({error:"This draft is linked to an action. Remove that action before discarding the draft."},{status:409});
+    const {data,error}=await admin.from("cash_forecast_versions").delete().eq("id",versionId).eq("user_id",userId).eq("status","draft").eq("updated_at",expectedUpdatedAt).select("id").maybeSingle();
+    if(error)throw error;
+    if(!data)return NextResponse.json({error:"This draft changed. Reload it before discarding it."},{status:409});
+    return NextResponse.json(await load(userId,admin));
+  }
   if(body.action==="save_item") {
     const parsed=parseForecastItem(body.item); if(!parsed.ok)return NextResponse.json({error:parsed.error},{status:400});
     const i=parsed.value; const row={version_id:state.version.id,user_id:userId,item_key:i.id??crypto.randomUUID(),description:i.description,amount:i.amount,direction:i.direction,category:i.category,expected_date:i.expectedDate,status:i.status,confidence:i.confidence,amount_is_estimated:i.amountIsEstimate,date_is_estimated:i.dateIsEstimate,zero_confirmed:i.amount===0,source_type:"manual",source_updated_at:todayIso(),created_by:userId,updated_by:userId};

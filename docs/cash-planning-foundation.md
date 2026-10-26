@@ -40,7 +40,7 @@ Technical terms may appear in methodology, professional views, exports or contex
 
 ## Next increments
 
-1. Guided weekly-plan setup using owner questions and common payment groups.
+1. Guided weekly-plan setup using owner questions and common payment groups. **Implemented in CASHPLAN-03:** the Core workflow now presents a progressive three-step accordion. Saving the starting point collapses Step 1 and focuses expected cash; the owner explicitly chooses **Review plan** after adding all intended items, which collapses Step 2 and opens projections, warnings, exact weekly values and publishing in Step 3. Completed steps remain editable without losing the draft. A returned saved draft is explicit and can be updated or discarded. Discarding removes only the draft and its items; immutable published plans and imported financial data remain. The workflow asks whether cash is coming in or going out before showing the relevant categories and explains confidence in plain language. The normalized categories, server validation, storage and calculation engine are unchanged.
 2. Decision templates for late customer payments, hiring, spending reductions, equipment, financing and taxes.
 3. Decision-focused results led by timing, lowest cash, reserve risk and suggested actions.
 4. Visible sources, assumptions, freshness, missing inputs and confidence.

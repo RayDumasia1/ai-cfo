@@ -17,6 +17,25 @@ export const FORECAST_CATEGORIES: Array<{ value: ForecastCategory; label: string
   { value: "other_cash_out", label: "Other cash out", direction: "outflow" },
 ];
 
+export const FORECAST_DIRECTION_LABELS: Record<ForecastDirection,{ title:string; description:string }> = {
+  inflow: { title:"Cash expected in", description:"Customer payments, financing, asset sales, or other cash you expect to receive." },
+  outflow: { title:"Cash expected out", description:"Payroll, bills, taxes, debt payments, purchases, or other cash you expect to pay." },
+};
+
+export function forecastCategoriesFor(direction: ForecastDirection) {
+  return FORECAST_CATEGORIES.filter(category=>category.direction===direction);
+}
+
+export function forecastSetupProgress(input:{ hasVersion:boolean; itemCount:number; valid:boolean; warningCount:number }) {
+  if (!input.hasVersion) return { step:1, label:"Confirm your starting cash", readyToPublish:false } as const;
+  if (input.itemCount===0) return { step:2, label:"Add the cash you expect", readyToPublish:false } as const;
+  return {
+    step:3,
+    label:input.valid&&input.warningCount===0?"Review and publish":"Review items that need attention",
+    readyToPublish:input.valid,
+  } as const;
+}
+
 export function parseForecastItem(body: unknown): { ok: true; value: Omit<ForecastCashItem,"id"|"sourceType"|"sourceUpdatedAt"> & { id?: string } } | { ok: false; error: string } {
   if (!body || typeof body !== "object" || Array.isArray(body)) return { ok:false,error:"Invalid cash item" };
   const v=body as Record<string,unknown>;
