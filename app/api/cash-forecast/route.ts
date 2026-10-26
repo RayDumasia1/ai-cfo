@@ -9,15 +9,20 @@ export const dynamic="force-dynamic";
 
 async function load(userId:string, admin:ReturnType<typeof createServiceClient>) {
   const {data:forecast,error:fError}=await admin.from("cash_forecasts").select("*").eq("user_id",userId).is("archived_at",null).maybeSingle();
-  if(fError) throw fError;
+  if(fError) { console.error("cashForecast:load:error",{stage:"forecast",code:fError.code}); throw fError; }
   if(!forecast) return {forecast:null,version:null,items:[]};
   const {data:versions,error:vError}=await admin.from("cash_forecast_versions").select("*").eq("forecast_id",forecast.id).eq("user_id",userId).in("status",["draft","published"]).order("version_number",{ascending:false});
-  if(vError) throw vError;
+  if(vError) { console.error("cashForecast:load:error",{stage:"versions",code:vError.code}); throw vError; }
   const version=versions?.find(v=>v.status==="draft")??versions?.find(v=>v.status==="published")??null;
   if(!version) return {forecast,version:null,items:[]};
   const {data:items,error:iError}=await admin.from("cash_forecast_items").select("*").eq("version_id",version.id).eq("user_id",userId).order("expected_date");
-  if(iError) throw iError;
+  if(iError) { console.error("cashForecast:load:error",{stage:"items",code:iError.code}); throw iError; }
   return {forecast,version,items:items??[]};
+}
+
+async function loadAfterMutation(userId:string, admin:ReturnType<typeof createServiceClient>) {
+  try { return await load(userId,admin); }
+  catch { console.error("cashForecast:load:retry",{stage:"post_mutation"}); return await load(userId,admin); }
 }
 
 export const GET=requireAuth(async(_req,{userId,email,supabase})=>{
@@ -47,7 +52,7 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
       }).eq("id",versionId).eq("user_id",userId).eq("status","draft").eq("updated_at",expectedUpdatedAt).select("id").maybeSingle();
       if(error)throw error;
       if(!data)return NextResponse.json({error:"This draft changed. Reload it before updating the starting point."},{status:409});
-      return NextResponse.json(await load(userId,admin));
+      return NextResponse.json(await loadAfterMutation(userId,admin));
     } else if(body.action==="revise") {
       result=(await admin.rpc("begin_core_forecast_revision",{p_user_id:userId,p_published_version_id:String(body.versionId),p_as_of_date:asOf,p_start_date:start,p_starting_included_cash:cash,p_minimum_reserve:reserve}));
     } else {
@@ -56,12 +61,12 @@ export const POST=requireAuth(async(req:NextRequest,{userId,email,supabase})=>{
     }
     if(result.error) {
       if(body.action==="revise"&&result.error.code==="23505")
-        return NextResponse.json(await load(userId,admin));
+        return NextResponse.json(await loadAfterMutation(userId,admin));
       if(body.action==="revise"&&result.error.code==="55000")
         return NextResponse.json({error:"A weekly plan update is already in progress. Reload to continue it."},{status:409});
       throw result.error;
     }
-    return NextResponse.json(await load(userId,admin));
+    return NextResponse.json(await loadAfterMutation(userId,admin));
   }
   const state=await load(userId,admin); if(!state.version||state.version.status!=="draft")return NextResponse.json({error:"Start or update a draft first."},{status:409});
   if(body.action==="discard") {

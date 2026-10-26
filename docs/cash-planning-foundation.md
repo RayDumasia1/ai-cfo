@@ -62,5 +62,7 @@ The owner-facing flow has one transition for each decision. Publishing moves foc
 
 Starting a revision is idempotent for the same published version. The client rejects a second in-flight mutation immediately, and the database serializes revision creation on the published version and returns its existing child draft on a retry. This preserves the one-active-draft invariant without turning a double click or network retry into a server error.
 
+Revision creation and response loading are separate database operations. If the revision commits but the immediate state reload fails transiently, the API retries the read once and logs the failing stage and database code without financial values. If the response still fails, the client performs a read-only recovery request and continues with the committed draft rather than reporting that the entire revision failed.
+
 The weekly graph, exact-value table, cash-item evidence and immutable version remain available for a finance professional or an owner who wants detail. Owner guidance and professional evidence are two presentations of the same deterministic result, not separate calculations. Future Ask CFO and AI Insights may explain a published version only when they cite that version, its assumptions and its limitations.
 
