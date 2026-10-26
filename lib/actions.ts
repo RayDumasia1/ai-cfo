@@ -190,6 +190,7 @@ export function getActionLimitState(
 type ValidationResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -274,6 +275,14 @@ export function validateActionCreate(
   if (!dueDate.ok) return dueDate;
   const linkedAlert = optionalText(body.linked_alert_code, "linked_alert_code", 64);
   if (!linkedAlert.ok) return linkedAlert;
+  const linkedVersion = optionalText(body.linked_forecast_version_id, "linked_forecast_version_id", 36);
+  if (!linkedVersion.ok || (linkedVersion.value !== null && !UUID_RE.test(linkedVersion.value)))
+    return { ok: false, error: "linked_forecast_version_id must be a UUID" };
+  const linkedItem = optionalText(body.linked_forecast_item_id, "linked_forecast_item_id", 36);
+  if (!linkedItem.ok || (linkedItem.value !== null && !UUID_RE.test(linkedItem.value)))
+    return { ok: false, error: "linked_forecast_item_id must be a UUID" };
+  if (linkedItem.value !== null && linkedVersion.value === null)
+    return { ok: false, error: "linked_forecast_item_id requires linked_forecast_version_id" };
   const actualImpact = optionalNumber(body.actual_impact, "actual_impact");
   if (!actualImpact.ok) return actualImpact;
   const actualNotes = optionalText(body.actual_impact_notes, "actual_impact_notes", ACTION_TEXT_MAX);
@@ -291,6 +300,8 @@ export function validateActionCreate(
       status: status.value ?? "not_started",
       due_date: dueDate.value,
       linked_alert_code: linkedAlert.value,
+      linked_forecast_version_id: linkedVersion.value,
+      linked_forecast_item_id: linkedItem.value,
       actual_impact: actualImpact.value,
       actual_impact_notes: actualNotes.value,
     },

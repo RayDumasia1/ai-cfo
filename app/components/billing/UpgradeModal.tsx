@@ -46,7 +46,7 @@ const featureNames: Record<string, string> = {
   ask_cfo: "Ask your CFO",
   ai_insights: "AI Insights",
   quickbooks_sync: "QuickBooks Sync",
-  forecasting: "Cash Flow Forecasting",
+  forecasting: "13-Week Cash Forecast",
   weekly_summary: "Weekly CFO Email",
   cfo_call: "CFO Call",
   team_seats: "Team Seats",

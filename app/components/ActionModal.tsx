@@ -150,8 +150,10 @@ export default function ActionModal({
         payload.actual_impact = actualImpactNum;
         payload.actual_impact_notes = actualNotes.trim() || null;
       }
-    } else if (prefill?.linked_alert_code) {
-      payload.linked_alert_code = prefill.linked_alert_code;
+    } else {
+      if (prefill?.linked_alert_code) payload.linked_alert_code = prefill.linked_alert_code;
+      if (prefill?.linked_forecast_version_id) payload.linked_forecast_version_id = prefill.linked_forecast_version_id;
+      if (prefill?.linked_forecast_item_id) payload.linked_forecast_item_id = prefill.linked_forecast_item_id;
     }
 
     setSaving(true);

@@ -1,6 +1,6 @@
 # FORECAST-01 — rolling 13-week cash forecast
 
-**Status:** FORECAST-01A approved; FORECAST-01B deterministic engine validated in preview and promoted; FORECAST-01C storage implemented locally 25 October 2026
+**Status:** FORECAST-01A through FORECAST-01C promoted; FORECAST-01D Core manual workflow implemented locally 25 October 2026
 **Audience:** Small and medium business owners, professional CFO/CPA users and Elidan advisors  
 **Depends on:** [CFO capability roadmap](cfo-capability-roadmap.md), [financial data contract v2](financial-data-contract-v2.md), [normalized cash engine](fin-03-normalized-engine.md)
 
@@ -253,6 +253,14 @@ Lifecycle decisions for this increment:
 
 Build the accessible 13-week page, manual item workflow, base forecast, exact-value table, review queue and forecast-to-action handoff. Add a dedicated forecast spreadsheet only if manual testing proves it reduces owner effort.
 
+Implementation adds `/dashboard/forecast` and corrects the existing entitlement from the obsolete Growth-only 12-month placeholder to the approved Core 13-week base forecast. Starter sees an explanatory upgrade view. Core and higher tiers can establish actual available cash and reserve, enter dated cash items using owner-friendly categories and confidence, inspect a weekly cash curve and exact-value table, review unresolved/stale items, publish an immutable version and begin a rolling update from that version.
+
+The browser may calculate a live preview, but publication always reloads account-owned records and recalculates with the deterministic engine on the server. Published totals are never accepted from the browser. Core permits one draft and one published base version at a time. Rolling an update copies the prior Core items atomically and changes completed or cancelled items to excluded so they cannot silently affect the next horizon.
+
+Forecast-created actions retain the immutable forecast version and optional item through account-matching composite foreign keys. The initial reserve-risk handoff creates an editable Action Tracker draft tied to the version that produced the finding.
+
+Initial freshness policy is three days for starting cash and seven days for manual item evidence. These durations are application policy constants rather than database constraints and can be revised without rewriting historical versions. A dedicated forecast workbook remains deferred until observation of the manual workflow shows that it would materially reduce owner effort.
+
 ### FORECAST-01E — Growth cases and variance
 
 Add retained downside/upside cases, version comparison, weekly actual matching and variance explanations. QuickBooks ingestion remains INT-01 and publishes through the same normalized records.
@@ -261,7 +269,7 @@ Add retained downside/upside cases, version comparison, weekly actual matching a
 
 Remaining release decisions before the affected UI or professional workflows:
 
-- the exact freshness thresholds for starting cash, invoices, bills and manually entered items;
+- provider-specific freshness thresholds for invoices and bills beyond the initial manual policy;
 - which forecast records an advisor may edit versus comment on after ORG-01/ADV-01;
 - launch wording and disclosures through LEGAL-01;
 - replacement of current “12-month cash flow forecast” marketing copy with the approved 13-week capability and any later long-range planning label.

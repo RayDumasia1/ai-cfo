@@ -43,9 +43,10 @@ import type {
 
 /** Returns null if no profile exists yet for this user. */
 export async function getBusinessProfile(
-  userId: string
+  userId: string,
+  client: SupabaseClient = supabase
 ): Promise<BusinessProfile | null> {
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from("business_profiles")
     .select("*")
     .eq("user_id", userId)
@@ -416,6 +417,20 @@ export async function getCurrentCashPosition(
     previousCash: areConsecutiveFinancialMonths(data[0].month_date, data[1]?.month_date)
       ? data[1]?.closing_cash ?? null : null,
   };
+}
+
+/** Latest account-scoped available cash evidence for a forward cash forecast. */
+export async function getLatestForecastCash(
+  userId: string,
+  client: SupabaseClient = supabase
+): Promise<{ cash: number | null; asOfDate: string } | null> {
+  const { data, error } = await client.from("financial_months")
+    .select("closing_included_cash,closing_cash,period_cutoff_date,month_date")
+    .eq("user_id", userId).order("month_date", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return { cash: data.closing_included_cash ?? data.closing_cash ?? null,
+    asOfDate: data.period_cutoff_date ?? data.month_date };
 }
 
 // ─── Dismissed Alerts ─────────────────────────────────────────────────────────

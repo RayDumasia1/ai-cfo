@@ -23,7 +23,7 @@ const FEATURE_TIERS: Record<Feature, FeatureTier> = {
   weekly_summary:         'starter',   // moved from 'core' — all tiers receive weekly CFO email
   quickbooks_sync:        'core',
   bank_sync:              'advisory',  // Phase 4 — deferred
-  forecasting:            'growth',
+  forecasting:            'core',
   scenario_comparison:    'growth',
   action_prefill:         'core',      // V2 smart pre-fill from insights
   action_recommendations: 'growth',    // V2 AI engine: recommended actions, batch, impact tracking, WYSD widget
@@ -111,9 +111,9 @@ export const UPGRADE_MESSAGES: Record<
     upgrade_to: 'core',
   },
   forecasting: {
-    title: '12-month cash flow forecast',
-    message: 'See where your cash is heading — upgrade to Growth from $199/month',
-    upgrade_to: 'growth',
+    title: '13-week cash forecast',
+    message: 'Plan upcoming cash receipts and payments — upgrade to Core from $99/month',
+    upgrade_to: 'core',
   },
   scenario_comparison: {
     title: 'Scenario comparison',

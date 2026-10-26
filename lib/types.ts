@@ -313,6 +313,8 @@ export type Action = {
   due_date: string | null;
   /** Alert code that triggered this action (e.g. "RUNWAY_DANGER"). Null if user-created. */
   linked_alert_code: string | null;
+  linked_forecast_version_id: string | null;
+  linked_forecast_item_id: string | null;
   actual_impact: number | null;
   actual_impact_notes: string | null;
   completed_at: string | null;

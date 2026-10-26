@@ -51,6 +51,7 @@ const COMING_SOON_TIERS: ComingSoonTier[] = [
       { label: "QuickBooks & accounting sync" },
       { label: "Ask your CFO (AI Q&A)" },
       { label: "AI-powered insights" },
+      { label: "Manual 13-week cash forecast" },
       { label: "Smart action pre-fill" },
       { label: "Everything in Starter" },
     ],
@@ -61,7 +62,7 @@ const COMING_SOON_TIERS: ComingSoonTier[] = [
     price: 199,
     features: [
       { label: "AI recommendations engine" },
-      { label: "12-month cash flow forecast" },
+      { label: "Forecast cases, comparison & variance" },
       { label: "Unlimited AI usage" },
       { label: "Scenario comparison" },
       { label: "Everything in Core" },

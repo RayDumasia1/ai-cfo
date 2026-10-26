@@ -40,6 +40,7 @@ const navItems: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
   { label: "Financial data", href: "/dashboard/financial-data", icon: Database },
   { label: "Scenarios",       href: "/dashboard/scenarios", icon: ChartLine },
+  { label: "Cash forecast",   href: "/dashboard/forecast", icon: ChartLine },
   { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
   { label: "Reports",         href: "/reports",            icon: FileText },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },

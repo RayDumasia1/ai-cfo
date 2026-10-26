@@ -85,6 +85,8 @@ describe('validateActionCreate', () => {
         status: 'not_started',
         due_date: null,
         linked_alert_code: null,
+        linked_forecast_version_id: null,
+        linked_forecast_item_id: null,
         actual_impact: null,
         actual_impact_notes: null,
       },
@@ -110,6 +112,15 @@ describe('validateActionCreate', () => {
   it('rejects bad due_date', () =>
     expect(validateActionCreate({ name: 'x', goal_type: 'risk_mitigation', due_date: '11/03/2026' }).ok).toBe(false))
   it('rejects non-object body', () => expect(validateActionCreate(null).ok).toBe(false))
+  it('accepts traceable forecast linkage', () => {
+    const r = validateActionCreate({ name: 'Address reserve risk', goal_type: 'risk_mitigation',
+      linked_forecast_version_id: '11111111-1111-4111-8111-111111111111' })
+    expect(r.ok && r.value.linked_forecast_version_id).toBe('11111111-1111-4111-8111-111111111111')
+  })
+  it('requires a forecast version when an item is linked', () => {
+    expect(validateActionCreate({ name: 'Collect invoice', goal_type: 'revenue_increase',
+      linked_forecast_item_id: '22222222-2222-4222-8222-222222222222' }).ok).toBe(false)
+  })
 })
 
 describe('validateActionUpdate', () => {
@@ -145,6 +156,8 @@ const makeAction = (id: string, overrides: Partial<Action> = {}): Action => ({
   status: 'not_started',
   due_date: null,
   linked_alert_code: null,
+  linked_forecast_version_id: null,
+  linked_forecast_item_id: null,
   actual_impact: null,
   actual_impact_notes: null,
   completed_at: null,
