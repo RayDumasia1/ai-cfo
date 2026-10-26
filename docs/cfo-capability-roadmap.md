@@ -8,6 +8,8 @@
 
 Elidan should help an owner understand the financial condition of the business, identify risks and opportunities, compare practical choices and turn decisions into accountable actions. It should perform the repeatable analytical and monitoring work of a strong CFO while making the reasoning understandable to an owner without financial training. Human CFO support adds judgment, challenge, relationship management and accountability where software alone is insufficient.
 
+Owner-friendly guidance is the default presentation, not a simplified calculation. Finance professionals use the same underlying records, formulas, evidence and versions with access to exact tables and methodology. Elidan should progressively disclose that detail so an owner can act without mastering accounting terminology while a CFO or CPA can still verify, challenge and extend the work.
+
 Elidan must not create confidence unsupported by the available data. Every conclusion identifies its source period, accounting basis, material assumptions, completeness and freshness. Missing, zero, estimated and provider-confirmed values remain distinct. Tiering controls breadth, automation, collaboration and service; it does not make lower-tier calculations less accurate or hide a material safety warning.
 
 ## Capability layers

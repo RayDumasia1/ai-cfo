@@ -46,3 +46,9 @@ Technical terms may appear in methodology, professional views, exports or contex
 4. Visible sources, assumptions, freshness, missing inputs and confidence.
 5. A handoff from a weekly-plan risk to a prefilled decision test without duplicating saved records.
 
+## Published-plan guidance
+
+CASHPLAN-04 makes publication useful to an owner beyond preserving an immutable calculation. A published plan leads with a plain-language cash outlook, the projected low point, the largest planned cash-out items scheduled through that point, material confidence limitations and a seven-day review date. It offers direct paths to create an action, test a decision and begin the next weekly update. Driver wording remains evidence-bounded: the application identifies the largest planned payments before the low point and does not claim they caused a result without further analysis.
+
+The weekly graph, exact-value table, cash-item evidence and immutable version remain available for a finance professional or an owner who wants detail. Owner guidance and professional evidence are two presentations of the same deterministic result, not separate calculations. Future Ask CFO and AI Insights may explain a published version only when they cite that version, its assumptions and its limitations.
+
