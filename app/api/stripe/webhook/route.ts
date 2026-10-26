@@ -1,4 +1,4 @@
-import { stripe, PLAN_TO_TIER } from "@/lib/stripe";
+import { stripe, PLAN_TO_TIER, STRIPE_PRICES } from "@/lib/stripe";
 import { createServiceClient } from "@/utils/supabase/service";
 import { upsertNewFoundingMember } from "@/lib/foundingMembers";
 import { getSubscriptionStatus } from "@/lib/subscriptionStatus";
@@ -267,17 +267,69 @@ async function handleSubscriptionUpdated(
   });
 
   // Customer IDs are shared across successive subscriptions. Match both IDs.
-  const { data: existing, error: lookupError } = await supabase
+  const { data: matchedSubscription, error: lookupError } = await supabase
     .from("subscriptions")
-    .select("user_id, plan, status, founding_member_number, stripe_price_id")
+    .select("user_id, plan, status, founding_member_number, stripe_price_id, stripe_customer_id, stripe_subscription_id")
     .eq("stripe_customer_id", sub.customer as string)
     .eq("stripe_subscription_id", sub.id)
     .maybeSingle();
+  let existing = matchedSubscription;
 
   if (lookupError) throw lookupError;
   if (!existing) {
-    console.error("webhook:subscriptionUpdated:lookup:notFound", { customer: sub.customer, lookupError });
-    return;
+    // A customer can retain a live Stripe subscription after a delayed or
+    // missed checkout webhook leaves our local subscription ID stale. Recover
+    // only when this is the customer's sole row and the formerly linked Stripe
+    // subscription is confirmed terminal. This prevents an older or duplicate
+    // active subscription event from replacing the current entitlement.
+    const { data: customerRow, error: customerLookupError } = await supabase
+      .from("subscriptions")
+      .select("user_id, plan, status, founding_member_number, stripe_price_id, stripe_customer_id, stripe_subscription_id")
+      .eq("stripe_customer_id", sub.customer as string)
+      .maybeSingle();
+    if (customerLookupError) throw customerLookupError;
+
+    const linkedId = customerRow?.stripe_subscription_id as string | null | undefined;
+    let linkedIsTerminal = !linkedId;
+    if (linkedId && linkedId !== sub.id) {
+      try {
+        const linked = await stripe.subscriptions.retrieve(linkedId);
+        linkedIsTerminal = ["canceled", "incomplete_expired"].includes(linked.status);
+      } catch (error) {
+        if ((error as { code?: string }).code !== "resource_missing") throw error;
+        linkedIsTerminal = true;
+      }
+    }
+
+    if (customerRow && linkedId !== sub.id && linkedIsTerminal &&
+        !["canceled", "incomplete_expired"].includes(sub.status)) {
+      const relink = supabase.from("subscriptions")
+        .update({ stripe_subscription_id: sub.id })
+        .eq("user_id", customerRow.user_id)
+        .eq("stripe_customer_id", sub.customer as string);
+      if (linkedId) relink.eq("stripe_subscription_id", linkedId);
+      else relink.is("stripe_subscription_id", null);
+      const { data: recovered, error: recoveryError } = await relink
+        .select("user_id, plan, status, founding_member_number, stripe_price_id, stripe_customer_id, stripe_subscription_id")
+        .maybeSingle();
+      if (recoveryError) throw recoveryError;
+      existing = recovered;
+      console.log("webhook:subscriptionUpdated:lookup:recovered", {
+        userId: customerRow.user_id,
+        previousSubscription: linkedId ?? null,
+        subscription: sub.id,
+      });
+    }
+
+    if (!existing) {
+      console.error("webhook:subscriptionUpdated:lookup:notFound", {
+        customer: sub.customer,
+        subscription: sub.id,
+        linkedSubscription: linkedId ?? null,
+        lookupError,
+      });
+      return;
+    }
   }
 
   const userId = existing.user_id;
@@ -360,7 +412,13 @@ async function handleSubscriptionUpdated(
   }
 
   // Case 3 — Normal update (plan change, renewal, billing period refresh)
-  const planKey = sub.metadata?.plan_key ?? existing.plan;
+  // Portal price changes do not rewrite custom subscription metadata. The
+  // current Stripe price is authoritative for standard plan changes.
+  const currentPriceId = sub.items.data[0]?.price.id;
+  const pricePlan = Object.entries(STRIPE_PRICES).find(
+    ([key, configuredPrice]) => key !== "cfo_call" && configuredPrice === currentPriceId
+  )?.[0];
+  const planKey = pricePlan ?? sub.metadata?.plan_key ?? existing.plan;
   const featureTier = PLAN_TO_TIER[planKey] ?? "starter";
 
   const { error: updateError } = await supabase

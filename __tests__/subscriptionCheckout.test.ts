@@ -554,6 +554,44 @@ describe("subscription webhook identity", () => {
     expect(current).toMatchObject({ status: "active", plan: "core", feature_tier: "core", stripe_price_id: "price_core" });
   });
 
+  it("uses the portal-selected price when subscription metadata still names the previous plan", async () => {
+    const current = seedSubscription({ plan: "starter", feature_tier: "starter", stripe_price_id: "price_starter" });
+    subscriptions.push({
+      id: "sub_current", customer: "cus_existing", status: "active",
+      metadata: { plan_key: "starter" },
+      items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+    });
+    await deliver("customer.subscription.updated", subscriptions[0]);
+    expect(current).toMatchObject({ plan: "core", feature_tier: "core", stripe_price_id: "price_core" });
+  });
+
+  it("repairs a stale local subscription link before applying a portal upgrade", async () => {
+    const current = seedSubscription({
+      plan: "starter", feature_tier: "starter", stripe_subscription_id: "sub_ended", stripe_price_id: "price_starter",
+    });
+    subscriptions.push(
+      { id: "sub_ended", customer: "cus_existing", status: "canceled", items: { data: [] } },
+      {
+        id: "sub_replacement", customer: "cus_existing", status: "active", metadata: { plan_key: "starter" },
+        items: { data: [{ price: { id: "price_core" }, current_period_start: 1792584000, current_period_end: 1795262400 }] },
+      },
+    );
+    await deliver("customer.subscription.updated", subscriptions[1]);
+    expect(current).toMatchObject({
+      stripe_subscription_id: "sub_replacement", plan: "core", feature_tier: "core", stripe_price_id: "price_core",
+    });
+  });
+
+  it("does not replace a different active subscription link", async () => {
+    const current = seedSubscription({ plan: "starter", feature_tier: "starter" });
+    subscriptions.push(
+      { id: "sub_current", customer: "cus_existing", status: "active", items: { data: [{ price: { id: "price_starter" } }] } },
+      { id: "sub_duplicate", customer: "cus_existing", status: "active", items: { data: [{ price: { id: "price_core" } }] } },
+    );
+    await deliver("customer.subscription.updated", subscriptions[1]);
+    expect(current).toMatchObject({ stripe_subscription_id: "sub_current", plan: "starter", feature_tier: "starter" });
+  });
+
   it("does not roll back committed billing state when email delivery fails", async () => {
     const current = seedSubscription();
     subscriptions.push({ id: "sub_current", customer: "cus_existing", status: "past_due", items: { data: [] } });
