@@ -181,6 +181,113 @@ export type FinancialMonthInsert =
 export type ExpenseCategoryInsert = Omit<ExpenseCategory, "id" | "created_at">;
 export type DataImportInsert      = Omit<DataImport,      "id" | "created_at">;
 
+// ─── 13-week cash forecasts ─────────────────────────────────────────────────
+
+export type CashForecastCase = "base" | "downside" | "upside";
+export type CashForecastVersionStatus = "draft" | "published" | "superseded" | "archived";
+export type CashForecastDirection = "inflow" | "outflow";
+export type CashForecastCategory =
+  | "customer_receipt" | "operating_vendor_payment" | "payroll" | "tax"
+  | "debt_principal" | "debt_interest" | "owner_distribution" | "asset_purchase"
+  | "asset_proceeds" | "new_debt" | "owner_equity_funding" | "other_cash_in" | "other_cash_out";
+export type CashForecastItemStatus = "expected" | "confirmed" | "paid" | "received" | "cancelled" | "excluded";
+export type CashForecastConfidence = "confirmed" | "high" | "medium" | "low" | "unknown";
+export type CashForecastSource = "manual" | "spreadsheet" | "quickbooks" | "banking" | "other_provider" | "system";
+
+export type CashForecast = {
+  id: string;
+  user_id: string;
+  business_id: string;
+  name: string;
+  reporting_currency: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CashForecastVersion = {
+  id: string;
+  forecast_id: string;
+  user_id: string;
+  version_number: number;
+  case_type: CashForecastCase;
+  status: CashForecastVersionStatus;
+  parent_version_id: string | null;
+  as_of_date: string;
+  start_date: string;
+  starting_included_cash: number;
+  starting_unavailable_cash: number;
+  minimum_reserve: number;
+  source_data_version: string | null;
+  formula_policy_version: string;
+  source_snapshot: Record<string, unknown>;
+  calculation_result: Record<string, unknown> | null;
+  created_by: string;
+  published_by: string | null;
+  published_at: string | null;
+  superseded_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CashForecastItem = {
+  id: string;
+  version_id: string;
+  user_id: string;
+  schedule_id: string | null;
+  item_key: string;
+  description: string;
+  counterparty: string | null;
+  amount: number | null;
+  direction: CashForecastDirection;
+  category: CashForecastCategory;
+  expected_date: string | null;
+  status: CashForecastItemStatus;
+  confidence: CashForecastConfidence;
+  amount_is_estimated: boolean;
+  date_is_estimated: boolean;
+  zero_confirmed: boolean;
+  source_type: CashForecastSource;
+  source_reference: string | null;
+  source_updated_at: string | null;
+  evidence: Record<string, unknown>;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CashForecastSchedule = {
+  id: string;
+  version_id: string;
+  user_id: string;
+  name: string;
+  cadence: "weekly" | "biweekly" | "semimonthly" | "monthly" | "quarterly" | "custom";
+  direction: CashForecastDirection;
+  category: CashForecastCategory;
+  amount: number | null;
+  starts_on: string;
+  ends_on: string | null;
+  recurrence_rule: string | null;
+  source_type: CashForecastSource;
+  source_reference: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CashForecastAssumption = {
+  id: string;
+  version_id: string;
+  user_id: string;
+  name: string;
+  operation: "amount_multiplier" | "date_shift_days" | "exclude";
+  numeric_value: number | null;
+  rationale: string;
+  created_by: string;
+  created_at: string;
+};
+
 // ─── Action Tracker ───────────────────────────────────────────────────────────
 
 export type ActionGoalType =

@@ -1,6 +1,6 @@
 # FORECAST-01 — rolling 13-week cash forecast
 
-**Status:** FORECAST-01A approved; FORECAST-01B deterministic engine implemented locally 25 October 2026
+**Status:** FORECAST-01A approved; FORECAST-01B deterministic engine validated in preview and promoted; FORECAST-01C storage implemented locally 25 October 2026
 **Audience:** Small and medium business owners, professional CFO/CPA users and Elidan advisors  
 **Depends on:** [CFO capability roadmap](cfo-capability-roadmap.md), [financial data contract v2](financial-data-contract-v2.md), [normalized cash engine](fin-03-normalized-engine.md)
 
@@ -236,6 +236,19 @@ The engine accepts freshness thresholds as policy inputs rather than embedding s
 
 Add forecasts, immutable versions, cash items, schedules, assumptions and source lineage with least-privilege policies and atomic publish/version operations. Include rollback and two-session concurrency verification.
 
+Implementation adds account-owned forecast aggregates plus version, schedule, item, assumption and assumption-to-item records. Composite foreign keys prevent children or evidence from crossing account/version boundaries. Authenticated clients can read only their own rows; all writes and both lifecycle operations are service-only.
+
+`begin_cash_forecast_draft` locks the account's business profile before finding or creating its one active forecast and assigning the next version number. `publish_cash_forecast_version` locks the forecast and draft, rejects an outdated draft token or unresolved active item, supersedes the prior published version for the same case and publishes the deterministic result in one transaction. Published and superseded versions and children cannot be edited or directly deleted.
+
+Lifecycle decisions for this increment:
+
+- minimum reserve is stored on every version; Settings supplies a suggested starting value that the user can review;
+- plan downgrade does not delete forecasts or version history; entitlement controls whether the workflow is editable;
+- **Clear Financial Data** continues to clear imported historical actuals only. It does not silently delete forecasts; a source-version mismatch makes affected forecast context stale until reviewed;
+- forecast records can be archived during the account's lifetime and are hard-deleted only through account deletion, which cascades through the complete forecast record graph;
+- exact freshness durations remain configurable policy inputs and do not live in storage constraints;
+- advisor edit/comment permissions remain blocked on ORG-01/ADV-01 rather than being inferred from account ownership.
+
 ### FORECAST-01D — Core manual workflow
 
 Build the accessible 13-week page, manual item workflow, base forecast, exact-value table, review queue and forecast-to-action handoff. Add a dedicated forecast spreadsheet only if manual testing proves it reduces owner effort.
@@ -246,11 +259,9 @@ Add retained downside/upside cases, version comparison, weekly actual matching a
 
 ## Open release decisions
 
-Before FORECAST-01C, approve:
+Remaining release decisions before the affected UI or professional workflows:
 
 - the exact freshness thresholds for starting cash, invoices, bills and manually entered items;
-- whether minimum reserve defaults from Settings or is version-specific with a Settings suggestion;
-- forecast retention after plan downgrade, Clear Data and account deletion;
 - which forecast records an advisor may edit versus comment on after ORG-01/ADV-01;
 - launch wording and disclosures through LEGAL-01;
 - replacement of current “12-month cash flow forecast” marketing copy with the approved 13-week capability and any later long-range planning label.
