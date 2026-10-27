@@ -265,6 +265,8 @@ Initial freshness policy is three days for starting cash and seven days for manu
 
 Add retained downside/upside cases, version comparison, weekly actual matching and variance explanations. QuickBooks ingestion remains INT-01 and publishes through the same normalized records.
 
+[FORECAST-01E1](forecast-01e-actual-versus-plan.md) defines actual cash events, many-to-many allocations, immutable weekly reviews, exact variance versus materiality, source boundaries and tier allocation before schema work. The existing one-to-one classifier remains an engine primitive rather than the durable matching model.
+
 ## Open release decisions
 
 Remaining release decisions before the affected UI or professional workflows:
