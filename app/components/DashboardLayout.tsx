@@ -40,7 +40,7 @@ const navItems: { label: string; href: string; icon: LucideIcon; childPaths?: st
   { label: "Dashboard",       href: "/dashboard",          icon: LayoutDashboard },
   { label: "Financial data", href: "/dashboard/financial-data", icon: Database },
   { label: "Cash planning",   href: "/dashboard/cash-planning", icon: ChartLine,
-    childPaths: ["/dashboard/scenarios", "/dashboard/forecast", "/dashboard/forecast-review"] },
+    childPaths: ["/dashboard/scenarios", "/dashboard/forecast", "/dashboard/forecast-review", "/dashboard/forecast-cases"] },
   { label: "Actions",         href: "/dashboard/actions",  icon: ListChecks },
   { label: "Reports",         href: "/reports",            icon: FileText },
   { label: "Book a CFO Call", href: "/dashboard/cfo-call", icon: CalendarDays },

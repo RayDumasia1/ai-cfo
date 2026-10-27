@@ -41,6 +41,58 @@ import type {
 import type {ForecastDecisionContext} from "./cashPlanDecision";
 import type { ForecastReviewCommand, ForecastReviewEvidence } from "./forecastReviewStorage";
 import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type ReviewQueueItem } from "./forecastReviewWorkflow";
+import type { CaseBase, CaseCalculation, ForecastCasesState, SavedForecastCase, parseCaseSubmission } from "./forecastCases";
+
+export async function getForecastCases(userId:string,baseVersionId:string|null,client:SupabaseClient):Promise<ForecastCasesState>{
+  const {data:forecast,error:fError}=await client.from("cash_forecasts").select("id,reporting_currency")
+    .eq("user_id",userId).is("archived_at",null).maybeSingle();if(fError)throw fError;
+  if(!forecast)return {base:null,currentBaseId:null,bases:[],cases:[]};
+  const {data:versions,error:vError}=await client.from("cash_forecast_versions")
+    .select("id,version_number,status,start_date,as_of_date,starting_included_cash,minimum_reserve,formula_policy_version")
+    .eq("user_id",userId).eq("forecast_id",forecast.id).eq("case_type","base").in("status",["published","superseded"])
+    .order("version_number",{ascending:false}).limit(25);if(vError)throw vError;
+  const current=versions?.find(v=>v.status==="published")??null;
+  const selected=baseVersionId?versions?.find(v=>v.id===baseVersionId):current;
+  if(baseVersionId&&!selected)throw Object.assign(new Error("Base not found"),{code:"P0002"});
+  const bases=(versions??[]).map(v=>({id:v.id,versionNumber:v.version_number,startDate:v.start_date,status:v.status}));
+  if(!selected)return {base:null,currentBaseId:current?.id??null,bases,cases:[]};
+  const items:CaseBase["items"]=[];
+  for(let offset=0;;offset+=1000){
+    const page=await client.from("cash_forecast_items").select("id,description,amount,direction,category,expected_date,status,confidence,source_type,source_updated_at,amount_is_estimated,date_is_estimated")
+      .eq("user_id",userId).eq("version_id",selected.id).order("id").range(offset,offset+999);
+    if(page.error)throw page.error;
+    if(items.length+(page.data?.length??0)>2000)throw Object.assign(new Error("Base exceeds the 2,000-item case limit"),{code:"54000"});
+    items.push(...(page.data??[]).map(i=>({id:i.id,description:i.description,amount:i.amount===null?null:Number(i.amount),direction:i.direction,
+      category:i.category,expectedDate:i.expected_date,status:i.status,confidence:i.confidence,sourceType:i.source_type,
+      sourceUpdatedAt:i.source_updated_at?.slice(0,10)??null,amountIsEstimate:i.amount_is_estimated,dateIsEstimate:i.date_is_estimated})));
+    if(!page.data||page.data.length<1000)break;
+  }
+  const base:CaseBase={id:selected.id,forecastId:forecast.id,versionNumber:selected.version_number,status:selected.status,
+    startDate:selected.start_date,asOfDate:selected.as_of_date,startingCash:Number(selected.starting_included_cash),minimumReserve:Number(selected.minimum_reserve),
+    currency:forecast.reporting_currency,formulaPolicyVersion:selected.formula_policy_version,
+    items:items.sort((a,b)=>(a.expectedDate??"9999-12-31").localeCompare(b.expectedDate??"9999-12-31"))};
+  const {data:cases,error:cError}=await client.from("cash_forecast_versions")
+    .select("id,version_number,case_type,case_name,status,created_at,case_request_payload")
+    .eq("user_id",userId).eq("parent_version_id",base.id).in("case_type",["downside","upside"]).in("status",["published","superseded"])
+    .order("version_number",{ascending:false}).limit(50);if(cError)throw cError;
+  return {base,currentBaseId:current?.id??null,bases,cases:(cases??[]).filter(c=>c.case_request_payload).map(c=>({
+    id:c.id,versionNumber:c.version_number,caseType:c.case_type,name:c.case_name,status:c.status,createdAt:c.created_at,
+    assumptions:c.case_request_payload.assumptions,calculation:{baseResult:c.case_request_payload.baseResult,
+      caseResult:c.case_request_payload.caseResult,evaluationDate:c.case_request_payload.evaluationDate},
+  } as SavedForecastCase))};
+}
+export async function getForecastCaseReplay(userId:string,requestKey:string,client:SupabaseClient){
+  const {data,error}=await client.from("cash_forecast_versions").select("case_request_payload")
+    .eq("user_id",userId).eq("case_request_key",requestKey).maybeSingle();if(error)throw error;
+  return data?.case_request_payload??null;
+}
+export async function saveForecastCase(userId:string,input:ReturnType<typeof parseCaseSubmission>,calculation:CaseCalculation,client:SupabaseClient){
+  const {data,error}=await client.rpc("save_cash_forecast_case",{p_user_id:userId,p_base_version_id:input.baseVersionId,p_case_type:input.caseType,
+    p_name:input.name,p_request_key:input.requestKey,p_assumptions:input.assumptions,p_case_result:calculation.caseResult,
+    p_base_result:calculation.baseResult,p_evaluation_date:calculation.evaluationDate});if(error)throw error;
+  if(!data||typeof data.version_id!=="string"||!Number.isInteger(data.version_number)||typeof data.replayed!=="boolean")throw new Error("Invalid saved case result");
+  return data as {version_id:string;version_number:number;replayed:boolean};
+}
 
 export async function getForecastReviewQueue(userId: string, evaluationDate: string, client: SupabaseClient):Promise<{
   weeks:ReviewQueueItem[];hasPublishedPlan:boolean;firstReviewDate?:string;
@@ -541,7 +593,7 @@ export async function getLatestForecastCash(
 /** Account-owned immutable weekly plan context for a temporary decision test. */
 export async function getPublishedForecastDecisionContext(userId:string,versionId:string,client:SupabaseClient=supabase):Promise<ForecastDecisionContext|null>{
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(versionId))return null;
-  const {data:version,error:versionError}=await client.from("cash_forecast_versions").select("id,forecast_id,as_of_date,start_date,starting_included_cash,minimum_reserve").eq("id",versionId).eq("user_id",userId).eq("status","published").maybeSingle();
+  const {data:version,error:versionError}=await client.from("cash_forecast_versions").select("id,forecast_id,as_of_date,start_date,starting_included_cash,minimum_reserve").eq("id",versionId).eq("user_id",userId).eq("case_type","base").eq("status","published").maybeSingle();
   if(versionError)throw versionError;if(!version)return null;
   const [{data:forecast,error:forecastError},{data:items,error:itemError}]=await Promise.all([
     client.from("cash_forecasts").select("reporting_currency").eq("id",version.forecast_id).eq("user_id",userId).maybeSingle(),

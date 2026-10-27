@@ -11,7 +11,7 @@ async function load(userId:string, admin:ReturnType<typeof createServiceClient>)
   const {data:forecast,error:fError}=await admin.from("cash_forecasts").select("*").eq("user_id",userId).is("archived_at",null).maybeSingle();
   if(fError) { console.error("cashForecast:load:error",{stage:"forecast",code:fError.code}); throw fError; }
   if(!forecast) return {forecast:null,version:null,items:[]};
-  const {data:versions,error:vError}=await admin.from("cash_forecast_versions").select("*").eq("forecast_id",forecast.id).eq("user_id",userId).in("status",["draft","published"]).order("version_number",{ascending:false});
+  const {data:versions,error:vError}=await admin.from("cash_forecast_versions").select("*").eq("forecast_id",forecast.id).eq("user_id",userId).eq("case_type","base").in("status",["draft","published"]).order("version_number",{ascending:false});
   if(vError) { console.error("cashForecast:load:error",{stage:"versions",code:vError.code}); throw vError; }
   const version=versions?.find(v=>v.status==="draft")??versions?.find(v=>v.status==="published")??null;
   if(!version) return {forecast,version:null,items:[]};

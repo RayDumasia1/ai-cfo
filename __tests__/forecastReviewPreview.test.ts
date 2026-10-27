@@ -4,7 +4,7 @@ import { beforeAll,describe,expect,it,vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 vi.mock("server-only",()=>({}));
 vi.mock("../lib/supabase",()=>({supabase:{}}));
-import { getForecastReviewEvidence,getForecastReviewQueue,getOwnerForecastReview } from "../lib/db";
+import { getForecastCases,getForecastReviewEvidence,getForecastReviewQueue,getOwnerForecastReview } from "../lib/db";
 let client:SupabaseClient,owner:string,other:string,version:string;
 describe.skipIf(process.env.RUN_PREVIEW_REVIEW!=="1")("Supabase preview weekly review reads",()=>{
   beforeAll(async()=>{
@@ -26,6 +26,12 @@ describe.skipIf(process.env.RUN_PREVIEW_REVIEW!=="1")("Supabase preview weekly r
   });
   it("cannot read another account's forecast evidence through the service RPC",async()=>{
     await expect(getForecastReviewEvidence(other,version,"2026-10-05",client)).rejects.toMatchObject({code:"P0002"});
+  });
+  it("loads the E5 case adapter against the real preview schema",async()=>{
+    const state=await getForecastCases(owner,null,client);
+    expect(state.base?.status).toBe("published");expect(state.currentBaseId).toBe(state.base?.id);
+    expect(Array.isArray(state.cases)).toBe(true);
+    expect(state.bases.every(b=>b.status==="published"||b.status==="superseded")).toBe(true);
   });
   it("loads a reviewable week's DTO when preview has a closed week",async context=>{
     const queue=await getForecastReviewQueue(owner,new Date().toISOString().slice(0,10),client);

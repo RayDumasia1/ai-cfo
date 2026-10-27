@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarRange, ClipboardCheck, FlaskConical } from "lucide-react";
+import { ArrowRight, CalendarRange, ClipboardCheck, FlaskConical, GitCompare } from "lucide-react";
 import { redirect } from "next/navigation";
 import { hasVerifiedEmail } from "@/lib/authPolicy";
 import { CASH_PLANNING_COPY } from "@/lib/cashPlanning";
@@ -17,6 +17,7 @@ export default async function CashPlanningPage() {
   const subscription = await getSubscription(user.id, supabase);
   const canUseWeeklyPlan = hasFeature(subscription.feature_tier, "forecasting", user.email ?? "");
   const canReviewWeek = hasFeature(subscription.feature_tier, "forecast_variance", user.email ?? "");
+  const canCompareCases = hasFeature(subscription.feature_tier, "scenario_comparison", user.email ?? "");
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
@@ -26,7 +27,7 @@ export default async function CashPlanningPage() {
         <p className="mt-1 text-sm text-dim">{CASH_PLANNING_COPY.areaDescription}</p>
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-5 md:grid-cols-2">
         <PlanningCard
           href="/dashboard/forecast-review"
           icon={ClipboardCheck}
@@ -44,6 +45,15 @@ export default async function CashPlanningPage() {
           detail="Add expected customer payments, payroll, bills, taxes, and other known cash activity."
           badge={canUseWeeklyPlan ? "Available on your plan" : "Core feature"}
           action={canUseWeeklyPlan ? "Open weekly cash plan" : "Learn about the weekly plan"}
+        />
+        <PlanningCard
+          href="/dashboard/forecast-cases"
+          icon={GitCompare}
+          title="Compare cash-plan cases"
+          description="See how downside and upside assumptions change your weekly cash."
+          detail="Keep saved cases tied to the same base plan and compare cash timing and reserve risk."
+          badge={canCompareCases ? "Available on your plan" : "Growth feature"}
+          action={canCompareCases ? "Compare saved cases" : "Learn about saved cases"}
         />
         <PlanningCard
           href="/dashboard/scenarios"
