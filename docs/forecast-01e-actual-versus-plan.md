@@ -1,6 +1,6 @@
 # FORECAST-01E actual-versus-plan architecture
 
-**Status:** FORECAST-01E1 architecture approved 26 October 2026
+**Status:** FORECAST-01E1 architecture approved; FORECAST-01E2 deterministic engine implemented 26 October 2026
 
 **Depends on:** [13-week cash forecast](forecast-01-13-week-cash-forecast.md), immutable published forecast versions, normalized cash categories and source lineage
 
@@ -80,7 +80,7 @@ The pure engine consumes an immutable published plan plus validated allocations.
 - actual cash that was not planned; and
 - unresolved differences that cannot yet be described as performance.
 
-Classification remains exact and deterministic. Materiality is a separate versioned policy used to prioritize owner guidance; it must not change the underlying variance. Thresholds may consider absolute value, percentage of the item, percentage of available cash and effect on the protected reserve.
+Classification remains exact and deterministic. Materiality is a separate versioned policy used to prioritize owner guidance; it must not change the underlying variance. Thresholds may consider absolute value, percentage of the item, timing days, percentage of available cash and effect on the protected reserve.
 
 For an outflow, a positive amount difference means more cash left than planned. Owner-facing language must translate the sign rather than expose accounting sign conventions. Funding, asset activity, debt principal, taxes and owner distributions remain separate from operating performance.
 
@@ -130,3 +130,21 @@ INT-01 will define detailed provider precedence. This architecture establishes t
 5. **FORECAST-01E5 — cases:** add retained downside/upside assumptions and comparison against the shared base version.
 
 This sequence does not add QuickBooks or banking ingestion. Those providers publish into the same actual-event boundary during INT-01.
+
+## FORECAST-01E2 implementation
+
+`lib/forecastVariance.ts` is the framework-independent actual-versus-plan engine. It accepts one closed forecast week, immutable planned items, provider-neutral actual events, explicit allocations, optional opening/closing balances and a versioned materiality policy. It performs no database, provider or UI work.
+
+The engine:
+
+- supports multiple actual events for one planned item and one actual event allocated across multiple planned items;
+- rejects duplicate identifiers, unknown references, cross-currency matches, opposite cash directions and over-allocation;
+- keeps unmatched amounts and explicit unresolved allocations out of performance conclusions;
+- distinguishes on-plan, amount, timing, combined, unplanned, cancelled, missed and unresolved results;
+- translates each resolved difference into its cash impact while retaining the exact amount and timing variance;
+- reconciles opening cash plus all actual inflows and outflows to closing cash without inserting a balancing event;
+- reports complete, partial or unknown evidence coverage;
+- keeps exact classification separate from versioned amount, percentage and timing materiality thresholds; and
+- identifies whether observed closing cash is below the protected reserve.
+
+Fixtures cover partial receipts, batched withdrawals, unplanned/cancelled/missed activity, unreconciled cash, invalid allocations, timing materiality and deterministic allocation partitions. Storage, automatic matching suggestions, owner guidance and source ingestion remain later increments.
