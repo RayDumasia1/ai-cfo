@@ -62,6 +62,7 @@ const FEATURE_ICONS: Record<Feature, React.ElementType> = {
   weekly_summary: Mail,
   quickbooks_sync: RefreshCw,
   forecasting: TrendingUp,
+  forecast_variance: GitCompare,
   scenario_comparison: GitCompare,
   action_prefill: Zap,
   action_recommendations: Zap,

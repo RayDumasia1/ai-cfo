@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { hasFeature, isSuperuser, TIER_RANK } from '../lib/featureGates'
 
 describe('hasFeature', () => {
+  it('keeps weekly review history on Growth and Advisory', () => {
+    expect(hasFeature('starter','forecast_variance')).toBe(false)
+    expect(hasFeature('core','forecast_variance')).toBe(false)
+    expect(hasFeature('suspended','forecast_variance')).toBe(false)
+    expect(hasFeature('growth','forecast_variance')).toBe(true)
+    expect(hasFeature('advisory','forecast_variance')).toBe(true)
+  })
   describe('starter tier', () => {
     it('ask_cfo → false', () => expect(hasFeature('starter', 'ask_cfo')).toBe(false))
     it('ai_insights → false', () => expect(hasFeature('starter', 'ai_insights')).toBe(false))

@@ -5,6 +5,7 @@ export type Feature =
   | 'quickbooks_sync'
   | 'bank_sync'
   | 'forecasting'
+  | 'forecast_variance'
   | 'scenario_comparison'
   | 'action_prefill'
   | 'action_recommendations'
@@ -24,6 +25,7 @@ const FEATURE_TIERS: Record<Feature, FeatureTier> = {
   quickbooks_sync:        'core',
   bank_sync:              'advisory',  // Phase 4 — deferred
   forecasting:            'core',
+  forecast_variance:      'growth',
   scenario_comparison:    'growth',
   action_prefill:         'core',      // V2 smart pre-fill from insights
   action_recommendations: 'growth',    // V2 AI engine: recommended actions, batch, impact tracking, WYSD widget
@@ -114,6 +116,11 @@ export const UPGRADE_MESSAGES: Record<
     title: 'Weekly cash plan',
     message: 'Plan expected cash in and cash out for the next 13 weeks — upgrade to Core from $99/month',
     upgrade_to: 'core',
+  },
+  forecast_variance: {
+    title: 'Review actual cash against your plan',
+    message: 'Retain weekly cash reviews and compare actual results with your plan on Growth',
+    upgrade_to: 'growth',
   },
   scenario_comparison: {
     title: 'Compare cash plans',

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarRange, FlaskConical } from "lucide-react";
+import { ArrowRight, CalendarRange, ClipboardCheck, FlaskConical } from "lucide-react";
 import { redirect } from "next/navigation";
 import { hasVerifiedEmail } from "@/lib/authPolicy";
 import { CASH_PLANNING_COPY } from "@/lib/cashPlanning";
@@ -16,6 +16,7 @@ export default async function CashPlanningPage() {
 
   const subscription = await getSubscription(user.id, supabase);
   const canUseWeeklyPlan = hasFeature(subscription.feature_tier, "forecasting", user.email ?? "");
+  const canReviewWeek = hasFeature(subscription.feature_tier, "forecast_variance", user.email ?? "");
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8">
@@ -25,7 +26,16 @@ export default async function CashPlanningPage() {
         <p className="mt-1 text-sm text-dim">{CASH_PLANNING_COPY.areaDescription}</p>
       </header>
 
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-3">
+        <PlanningCard
+          href="/dashboard/forecast-review"
+          icon={ClipboardCheck}
+          title="Review a completed week"
+          description="See how actual cash compared with your published plan."
+          detail="Record cash movements, explain differences and use the review to update your next plan."
+          badge={canReviewWeek ? "Available on your plan" : "Growth feature"}
+          action={canReviewWeek ? "Open weekly reviews" : "Learn about weekly reviews"}
+        />
         <PlanningCard
           href="/dashboard/forecast"
           icon={CalendarRange}

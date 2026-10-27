@@ -40,6 +40,77 @@ import type {
 } from "./types";
 import type {ForecastDecisionContext} from "./cashPlanDecision";
 import type { ForecastReviewCommand, ForecastReviewEvidence } from "./forecastReviewStorage";
+import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type ReviewQueueItem } from "./forecastReviewWorkflow";
+
+export async function getForecastReviewQueue(userId: string, evaluationDate: string, client: SupabaseClient):Promise<{
+  weeks:ReviewQueueItem[];hasPublishedPlan:boolean;firstReviewDate?:string;
+}> {
+  const { data: forecast, error: forecastError } = await client.from("cash_forecasts").select("id")
+    .eq("user_id",userId).is("archived_at",null).maybeSingle();
+  if (forecastError) throw forecastError;
+  if (!forecast) return { weeks:[] as ReviewQueueItem[],hasPublishedPlan:false };
+  const { data: versions, error } = await client.from("cash_forecast_versions").select("id,version_number,start_date")
+    .eq("user_id",userId).eq("forecast_id",forecast.id).eq("case_type","base")
+    .in("status",["published","superseded"]).order("version_number",{ ascending:false }).limit(25);
+  if (error) throw error;
+  if (!versions?.length) return { weeks:[] as ReviewQueueItem[],hasPublishedPlan:false };
+  const reviews: Array<{ id:string;version_id:string;week_start:string;revision:number;coverage:ReviewQueueItem["coverage"] }> = [];
+  for (let offset=0; ; offset+=1000) {
+    const page = await client.from("cash_forecast_reviews").select("id,version_id,week_start,revision,coverage")
+      .eq("user_id",userId).in("version_id",versions.map(v=>v.id)).order("id").range(offset,offset+999);
+    if (page.error) throw page.error;
+    reviews.push(...(page.data??[]));
+    if (!page.data || page.data.length<1000) break;
+  }
+  const firstStart=versions.map(v=>v.start_date).sort()[0];
+  const firstReviewDate=new Date(Date.parse(`${firstStart}T00:00:00Z`)+7*86400000).toISOString().slice(0,10);
+  return { weeks:buildReviewQueue(versions,reviews,evaluationDate),hasPublishedPlan:true,firstReviewDate };
+}
+
+export async function getOwnerForecastReview(userId:string,versionId:string,weekStart:string,client:SupabaseClient,reviewId?:string):Promise<OwnerReviewState> {
+  const evidence = await getForecastReviewEvidence(userId,versionId,weekStart,client);
+  let query=client.from("cash_forecast_reviews")
+    .select("id,revision,created_at,calculation_result,request_payload,source_snapshot")
+    .eq("user_id",userId).eq("version_id",versionId).eq("week_start",weekStart).order("revision",{ascending:false}).limit(1);
+  if(reviewId)query=query.eq("id",reviewId);
+  const { data: latest, error } = await query.maybeSingle();
+  if (error) throw error;
+  const history=await client.from("cash_forecast_reviews").select("id,revision,coverage,created_at")
+    .eq("user_id",userId).eq("version_id",versionId).eq("week_start",weekStart).order("revision",{ascending:false}).limit(50);
+  if(history.error)throw history.error;
+  const ids = (events: Array<{id:string}>) => events.map(e=>e.id).sort().join(",");
+  return { evidence:ownerReviewEvidence(evidence),history:history.data??[], latest:latest ? {
+    id:latest.id,revision:latest.revision,createdAt:latest.created_at,
+    evidenceChanged:ids(evidence.actual_events)!==ids(latest.source_snapshot.actual_events??[]),
+    evidence:ownerReviewEvidence(latest.source_snapshot),policy:latest.request_payload.policy,activityConfirmed:latest.request_payload.policy.ownerActivityConfirmed===true,
+    openingCash:latest.request_payload.opening,closingCash:latest.request_payload.closing,
+    allocations:latest.request_payload.allocations,result:latest.calculation_result,
+  } : null };
+}
+
+export async function getForecastReviewReplay(userId:string,requestKey:string,client:SupabaseClient) {
+  const { data,error }=await client.from("cash_forecast_reviews").select("request_payload")
+    .eq("user_id",userId).eq("request_key",requestKey).maybeSingle();
+  if(error)throw error;
+  return data?.request_payload??null;
+}
+
+export async function recordManualForecastActual(userId:string,businessId:string,event:Record<string,unknown>,expectedHead:string|null,client:SupabaseClient) {
+  const { data,error }=await client.rpc("record_cash_actual_event",{
+    p_user_id:userId,p_business_id:businessId,p_event:event,p_expected_head:expectedHead,
+  });
+  if(error)throw error;
+  if(!data || typeof data.event_id!=="string")throw new Error("Invalid recorded cash event result");
+  return data as {event_id:string;revision:number;replayed:boolean};
+}
+
+export async function getForecastReviewHandoff(userId:string,reviewId:string,client:SupabaseClient) {
+  const {data,error}=await client.from("cash_forecast_reviews").select("id,week_start,coverage,calculation_result")
+    .eq("user_id",userId).eq("id",reviewId).maybeSingle();
+  if(error)throw error;
+  return data ? {id:data.id,weekStart:data.week_start,coverage:data.coverage,
+    closingCash:data.calculation_result.reconciliation?.actualClosingCash as number|null} : null;
+}
 
 /** Internal server adapters. Pass a service client after authenticating the owner.
  * Growth authorization belongs in the E4 route; no public write route exists in E3.
