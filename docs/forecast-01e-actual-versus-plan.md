@@ -1,6 +1,6 @@
 # FORECAST-01E actual-versus-plan architecture
 
-**Status:** FORECAST-01E1 architecture approved; FORECAST-01E2 deterministic engine implemented 26 October 2026
+**Status:** FORECAST-01E1 architecture approved; FORECAST-01E2 deterministic engine implemented 26 October 2026; FORECAST-01E3 storage migration and rollback/two-session verification passed in preview 27 October 2026
 
 **Depends on:** [13-week cash forecast](forecast-01-13-week-cash-forecast.md), immutable published forecast versions, normalized cash categories and source lineage
 
@@ -148,3 +148,36 @@ The engine:
 - identifies whether observed closing cash is below the protected reserve.
 
 Fixtures cover partial receipts, batched withdrawals, unplanned/cancelled/missed activity, unreconciled cash, invalid allocations, timing materiality and deterministic allocation partitions. Storage, automatic matching suggestions, owner guidance and source ingestion remain later increments.
+
+## FORECAST-01E3 implementation
+
+`2026-10-27-forecast-variance-storage.sql` adds three account-scoped, owner-readable tables: immutable `cash_actual_events`, immutable `cash_forecast_reviews`, and each review revision's immutable `cash_forecast_review_allocations`. Existing monthly history and published forecast evidence are unchanged. Service-role callers can read these tables; only the three service-only RPCs can insert records. Anonymous access and authenticated writes/RPC execution are denied. The functions use fixed empty search paths and run as the migration owner; browser inputs must never be passed through an unauthenticated service route.
+
+- `record_cash_actual_event` records source identity, currency, direction/category, amount, cash date, provider timestamps, batch, fingerprint, lineage and manual-entry status. An identical latest event replays without a write. Corrections require the expected current event ID and append a superseding revision; currency and business cannot change. The previous evidence remains available to old reviews.
+- `cash_forecast_review_evidence` returns the active source revisions and immutable plan items for one closed, aligned week in the forecast's 13-week horizon. Its change token includes the review head. Reviews accept a superseded published plan as historical evidence.
+- `prepareForecastReview` calls the E2 deterministic engine on that snapshot. `saveForecastReview` passes the prepared command through the explicit service-client adapter in `lib/db.ts`. Retrying an uncertain response reuses the exact prepared command and request key. Changed evidence requires recalculation with a new key.
+- `save_cash_forecast_review` locks the owning business first, the published version second, then actual events in stable ID order. Ingestion takes the same business lock. Under those locks it verifies the change token, reference scope, directions, allocation totals, allocation precision and complete-review reconciliation/coverage. A stale source or review head fails with `40001`; reusing a key with a different payload fails. A review and all allocations commit together or roll back together.
+- Every revision retains its predecessor, full source snapshot, observed balances, formula/matching/materiality versions, rationale, creator, creation time and exact engine output. The SQL boundary independently prohibits false complete coverage; the trusted server is responsible for calculating the detailed result with the versioned engine. Direct table writes are unavailable to service and browser roles.
+
+The E2 engine currently compares planned and actual dates within the same reviewed week. Cross-week settlement allocation, automated provider matching, source freshness policy, public ingestion and the Growth review UI are not implemented here. Revision totals are checked within the replacement weekly snapshot; historical allocations remain evidence and are not counted again against the new revision.
+
+### Validation and preview execution
+
+The test suite boots a local PostgreSQL WASM runtime, applies the existing forecast migration, its permission repair and the new migration, then exercises the real PL/pgSQL functions with the real TypeScript engine. It covers revisions, exact retry, source correction, stale saves, over-allocation, wrong direction/account, premature close, false completeness, owner RLS, role privileges, immutable history and late-failure rollback. This is database execution, not a SQL text snapshot; it does not replace remote contention tests.
+
+For remote preview validation, add these Git-ignored `.env.local` values:
+
+```dotenv
+PREVIEW_DATABASE_URL="<preview session-pooler PostgreSQL URI>"
+PREVIEW_PROJECT_REF="<confirmed preview project reference>"
+PREVIEW_TEST_ACCOUNT_A="<dedicated existing preview Auth UUID with a business and published plan>"
+PREVIEW_TEST_ACCOUNT_B="<second dedicated existing preview Auth UUID>"
+```
+
+Run `node scripts/validate-forecast-preview.mjs --apply` to apply the migration if absent, execute `verify-forecast-variance-storage.sql` with rollback-only fixtures and test both writer operations against a held business lock from a second independent connection. Omit `--apply` to revalidate an installed migration. Credentials are never printed. The verifier does not mutate an existing plan; it uses an archived fixture forecast that rolls back. All contention probes roll back. The migration is additive and runs once; it is not a repeatable schema repair.
+
+The code and migration remain on `preview`; production promotion is a separate release step.
+
+On 27 October 2026 the migration was applied to the confirmed preview project. The rollback verifier passed storage, event replay, immutable source history, stale-head rejection, allocation limits, late-failure rollback, owner RLS and unrelated-account preservation. Two independent PostgreSQL sessions confirmed that both ingestion and review saves wait on the business lock held by a real ingestion operation; timed-out probes and the ingested fixture left no event after rollback. Local validation passed 1,186 tests across 65 files, TypeScript, targeted lint and the production build. No production database changes were made. This validates the storage increment; the E4 owner workflow remains unimplemented.
+
+Release rollback means restoring the prior application and, if needed, revoking service-role execution on the three new RPCs. Keep the additive tables and retained evidence intact. Do not drop populated history as an application rollback.

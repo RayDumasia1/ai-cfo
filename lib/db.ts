@@ -39,6 +39,39 @@ import type {
   UserAlertPreferences,
 } from "./types";
 import type {ForecastDecisionContext} from "./cashPlanDecision";
+import type { ForecastReviewCommand, ForecastReviewEvidence } from "./forecastReviewStorage";
+
+/** Internal server adapters. Pass a service client after authenticating the owner.
+ * Growth authorization belongs in the E4 route; no public write route exists in E3.
+ */
+export async function getForecastReviewEvidence(userId: string, versionId: string, weekStart: string,
+  client: SupabaseClient): Promise<ForecastReviewEvidence> {
+  const { data, error } = await client.rpc("cash_forecast_review_evidence", {
+    p_user_id: userId, p_version_id: versionId, p_week_start: weekStart,
+  });
+  if (error) throw error;
+  if (!data || data.version_id !== versionId || data.week_start !== weekStart
+    || typeof data.evidence_token !== "string" || !Array.isArray(data.planned_items)
+    || !Array.isArray(data.actual_events)) throw new Error("Invalid forecast review evidence");
+  return data as ForecastReviewEvidence;
+}
+
+export async function saveForecastReview(command: ForecastReviewCommand, client: SupabaseClient): Promise<{
+  review_id: string; revision: number; coverage: "complete" | "partial" | "unknown"; replayed: boolean;
+}> {
+  const { data, error } = await client.rpc("save_cash_forecast_review", {
+    p_user_id: command.userId, p_version_id: command.versionId, p_week_start: command.weekStart,
+    p_request_key: command.requestKey, p_evidence_token: command.evidenceToken,
+    p_allocations: command.allocations, p_policy: command.policy, p_opening_cash: command.openingCash,
+    p_closing_cash: command.closingCash, p_result: command.result,
+  });
+  if (error) throw error;
+  if (!data || typeof data.review_id !== "string" || !Number.isInteger(data.revision) || data.revision < 1
+    || !["complete", "partial", "unknown"].includes(data.coverage) || typeof data.replayed !== "boolean") {
+    throw new Error("Invalid forecast review save result");
+  }
+  return data;
+}
 
 // ─── Business Profile ─────────────────────────────────────────────────────────
 
