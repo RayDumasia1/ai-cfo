@@ -1,6 +1,6 @@
 # ORG-01B — shadow organizations: design and requirements
 
-28 October 2026. **Design complete for implementation; no migration or runtime change is included in this increment.** Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record.
+28 October 2026. **Implemented and database-validated in preview; hosted owner smoke acceptance pending.** This document retains the design requirements; [implementation evidence and rollout](org-01b-preview-validation.md) records what was delivered and the remaining acceptance. Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record. No production execution occurred.
 
 ## Intended result
 
@@ -41,7 +41,7 @@ The final executable migration must repeat this catalog preflight: another envir
 
 ## Record design
 
-Proposed tables live in `public` with RLS and no `anon`/`authenticated` grants or policies. Internal routines live in a non-exposed `organization_private` schema. All timestamps use the database clock. The fields below are requirements for implementation, not an already installed schema.
+The implemented tables live in `public` with RLS and no `anon`/`authenticated` grants or policies. Internal routines live in a non-exposed `organization_private` schema. All timestamps use the database clock. The field contracts below are installed in preview; production installation is a separate release action.
 
 ### `organizations`
 
@@ -96,7 +96,7 @@ At commit, each live mapping must match the persisted profile owner, one active 
 | `operation_id`, `policy_version` | Winning operation correlation and fixed `org-shadow-1` policy. |
 | `actor_kind`, `actor_reference` | `system` with a nullable reference in B. A hook/backfill is not a customer-approved invitation or ownership transfer. Do not invent human attribution from the subject's UUID. |
 | `subject_user_reference`, `business_profile_reference`, `membership_reference` | Minimal immutable UUID provenance. Historical principal references do not carry Auth deletion FKs. |
-| `origin`, `resulting_access_revision`, `occurred_at` | Fixed trusted origin (`profile_insert` or `service_ensure`), committed revision and database time. |
+| `origin`, `resulting_access_revision`, `occurred_at` | Fixed trusted creation origin (`profile_insert` or `service_ensure`) or explicit `profile_detach`, committed revision and database time. |
 
 One event of each type per organization: `UNIQUE(organization_id,event_type)`. A batch/run operation ID may cover several organizations; it is not the ownership/idempotency key. No raw Auth metadata, email, financial snapshot, token or provider response is stored. Replays append no duplicate event. Reject updates/deletes through ordinary service/application paths. The new records remain internal; retention/purge after this migration phase requires a separate explicit policy, not an unreviewed destructive rollback.
 
@@ -191,7 +191,7 @@ Strict atomicity introduces a new internal failure dependency on profile creatio
 
 ## Acceptance and operational evidence
 
-These are requirements for the later implementation, not tests already run for a new schema.
+These are the implementation acceptance requirements. [Validation evidence](org-01b-preview-validation.md) distinguishes the completed local/preview checks from pending hosted owner acceptance.
 
 | ID | Test | Required evidence |
 | --- | --- | --- |
@@ -228,8 +228,8 @@ Before collaboration, rollback means preserving the four internal tables/history
 
 ## Decisions deferred beyond B
 
-Seats/pricing, practice packaging, advisor engagement fulfillment, shared quota enforcement, billing/Founding transfer rules, organization-level export entitlements, professional notes, domain RLS conversion and shared-data deletion are later work. This design needs none of those commercial decisions to create safe internal identity. The next step after this specification is implementing and validating this bounded B design in preview; it is not enabling team access.
+Seats/pricing, practice packaging, advisor engagement fulfillment, shared quota enforcement, billing/Founding transfer rules, organization-level export entitlements, professional notes, domain RLS conversion and shared-data deletion remain later work. B needed none of those commercial decisions to create internal identity. After B owner smoke acceptance and its separate production release decision, ORG-01C can introduce an owner-only resolver/read conversion; team access remains disabled.
 
 ## Design validation
 
-The design was checked against repository profile-creation call sites and read-only preview metadata for profile columns, RLS, triggers and active profile-creating functions. Documentation validation passed 40 local relative links, balanced code fences and 16 uniquely identified acceptance groups; `git diff --check` passed. The existing application suite passed 1,345 tests across 82 local files with `npm test -- --maxWorkers=2`; four remote-only probes remain skipped. No B schema, hook, backfill or acceptance implementation exists from this design task, so these checks do not certify the proposed database behavior. No database write or production operation was performed.
+At the initial design-only stage, repository and read-only preview metadata checks passed, 40 relative links resolved, and the then-current 1,345-test suite passed; no database writes occurred in that stage. The subsequent [implementation record](org-01b-preview-validation.md) supersedes that design-only status: the new migration/backfill and database checks completed in preview, the full suite passed 1,369 tests, and no production operation occurred.
