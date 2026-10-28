@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/apiAuth";
 import { checkFeatureGate } from "@/lib/apiGate";
 
 export const POST = requireAuth(
-  async (req: NextRequest, { userId, email, supabase }) => {
+  async (_req: NextRequest, { userId, email, supabase }) => {
     const gate = await checkFeatureGate(
       userId,
       email,
@@ -16,8 +16,9 @@ export const POST = requireAuth(
       {
         error:
           "QuickBooks sync is coming soon. This endpoint is not yet implemented.",
+        code: "FEATURE_NOT_IMPLEMENTED",
       },
-      { status: 501 }
+      { status: 501, headers: { "Cache-Control": "no-store" } }
     );
   }
 );

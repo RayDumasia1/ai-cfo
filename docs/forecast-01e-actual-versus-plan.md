@@ -1,6 +1,6 @@
 # FORECAST-01E actual-versus-plan architecture
 
-**Status:** FORECAST-01E1–E5 implemented; E3/E5 storage passed preview migration and contention verification; E4 entry/navigation accepted, full completed-week owner test due 2 November 2026; E5 automated validation passed, owner case-comparison acceptance pending
+**Status:** FORECAST-01E1–E5 implemented; E3/E5 storage passed preview verification; E5 owner acceptance passed 28 October 2026; E4 entry/navigation accepted and full completed-week owner test due 2 November 2026
 
 **Depends on:** [13-week cash forecast](forecast-01-13-week-cash-forecast.md), immutable published forecast versions, normalized cash categories and source lineage
 
@@ -206,6 +206,8 @@ For read-only adapter verification, run `$env:RUN_PREVIEW_REVIEW='1'; npx vitest
 On 27 October the owner confirmed Growth access, the correct no-completed-week state and navigation across Cash Planning without errors. The first review date shown is 2 November 2026. Full manual entry, matching, partial/reconciled save, history and next-plan-handoff acceptance remains due on that date. This does not mark the unavailable completed-week flow as owner-validated.
 
 ## FORECAST-01E5 retained cases
+
+On 28 October 2026 the owner confirmed that the E5 hosted checks passed: creating explicit downside/upside assumptions, calculating weekly comparisons against the same base, saving/refreshing/reopening retained cases, and confirming the Core base stayed unchanged. E5 owner acceptance is complete for those tested paths. E4's completed-week owner acceptance remains separately scheduled for 2 November.
 
 `/dashboard/forecast-cases` adds Growth/Advisory saved downside/upside cases under Cash Planning and links from the weekly plan. Both the page and `/api/forecast-cases` require verified, paid, account-scoped `scenario_comparison` access. Tier availability and Stripe billing are unchanged. The user chooses a published base, names a case, selects source items, and records named/rationalized amount changes, whole-day shifts or exclusions. No financial assumptions are guessed or automatically applied to the base.
 
