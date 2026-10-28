@@ -1,6 +1,6 @@
 # ORG-01B — implementation, preview evidence and rollout
 
-28 October 2026. **Preview accepted by the owner on 28 October 2026.** The four internal tables and provisioning hooks are installed; both existing preview profiles have complete shadow mappings. The owner confirmed successful ORG-01B preview validation after the requested hosted smoke checks. No production database operation was performed. [Design/requirements](org-01b-shadow-organizations-design.md), [parent architecture](org-01-organization-architecture.md).
+28 October 2026. **Preview accepted by the owner on 28 October 2026.** The four internal tables and provisioning hooks are installed; both existing preview profiles have complete shadow mappings. The owner confirmed successful ORG-01B preview validation after the requested hosted smoke checks. The owner subsequently reported successful production backfill on 28 October 2026: two profiles, two active organizations, zero archived, zero unmapped and zero conflicts. No independent production connection/catalog or runtime check was performed. [Design/requirements](org-01b-shadow-organizations-design.md), [parent architecture](org-01-organization-architecture.md).
 
 ## Delivered behavior
 
@@ -69,9 +69,16 @@ The owner confirmed successful preview validation on 28 October 2026. This recor
 
 Automatic SQL/API-domain evidence above is distinct from this user-reported navigation acceptance. The November 2 completed-week review acceptance remains its separate scheduled task.
 
-## Production execution — authorized, awaiting SQL Editor results
+## Production execution — owner-reported completion
 
-The owner authorized production migration/backfill on 28 October 2026 and chose to run the SQL in Supabase's production SQL Editor because no production connection is configured locally. This records authorization and the handoff; production execution/success has **not** yet been confirmed.
+The owner ran the operational backfill in Supabase's production SQL Editor and returned the following result on 28 October 2026. The operational file requires the installed expansion and checks its required hooks/privileges before committing. This records user-supplied execution evidence; the agent did not connect to production or independently inspect its catalog/runtime. Application promotion to main is not established by this database result.
+
+```text
+status,profiles,active_organizations,archived_organizations,unmapped_profiles,conflicting_mappings
+COMPLETE,2,2,0,0,0
+```
+
+The production database migration/backfill is recorded as complete by owner report. The procedure below is retained for reference, not a request to rerun an installed migration.
 
 The preview operator and verifier intentionally refuse a different project. Do not repoint their environment guard to production. Production needs the reviewed [new expansion migration](migrations/2026-10-28-organization-shadow-storage.sql), followed by an explicitly authorized operational backfill; no preview verifier runs there. Its catalog preflight rejects unexpected ownership constraints, RLS or profile/Auth triggers rather than overwriting them.
 

@@ -1,6 +1,6 @@
 # ORG-01B — shadow organizations: design and requirements
 
-28 October 2026. **Implemented and preview-accepted by the owner on 28 October 2026.** This document retains the design requirements; [implementation evidence and rollout](org-01b-preview-validation.md) records what was delivered, owner acceptance and the pending production release. Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record. No production execution occurred.
+28 October 2026. **Implemented and preview-accepted by the owner on 28 October 2026.** This document retains the design requirements; [implementation evidence and rollout](org-01b-preview-validation.md) records what was delivered, owner acceptance and the pending production release. Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record. The owner subsequently reported production backfill `COMPLETE` on 28 October 2026 (two profiles/two active organizations, zero archived/unmapped/conflicts); this is not an independent production catalog/runtime check.
 
 ## Intended result
 
@@ -41,7 +41,7 @@ The final executable migration must repeat this catalog preflight: another envir
 
 ## Record design
 
-The implemented tables live in `public` with RLS and no `anon`/`authenticated` grants or policies. Internal routines live in a non-exposed `organization_private` schema. All timestamps use the database clock. The field contracts below are installed in preview; production installation is a separate release action.
+The implemented tables live in `public` with RLS and no `anon`/`authenticated` grants or policies. Internal routines live in a non-exposed `organization_private` schema. All timestamps use the database clock. The field contracts below are installed in preview; production installation/backfill was subsequently reported complete by the owner; independent production runtime acceptance is separate.
 
 ### `organizations`
 
@@ -232,4 +232,4 @@ Seats/pricing, practice packaging, advisor engagement fulfillment, shared quota 
 
 ## Design validation
 
-At the initial design-only stage, repository and read-only preview metadata checks passed, 40 relative links resolved, and the then-current 1,345-test suite passed; no database writes occurred in that stage. The subsequent [implementation record](org-01b-preview-validation.md) supersedes that design-only status: the new migration/backfill and database checks completed in preview, the full suite passed 1,369 tests, and no production operation occurred.
+At the initial design-only stage, repository and read-only preview metadata checks passed, 40 relative links resolved, and the then-current 1,345-test suite passed; no database writes occurred in that stage. The subsequent [implementation record](org-01b-preview-validation.md) supersedes that design-only status: preview implementation passed 1,369 tests, the production operational-file follow-on passed 1,372 tests, and the owner then supplied a production `COMPLETE` result. Production execution evidence is user-reported; no independent production connection/catalog/runtime check was made.
