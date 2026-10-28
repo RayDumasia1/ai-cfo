@@ -2,6 +2,8 @@
 
 28 October 2026. Implemented with local and Supabase preview database validation complete. Live sandbox acceptance requires an Intuit developer app and sandbox company; the owner does not yet have these set up.
 
+**Parked by owner, 28 October 2026:** prioritize platform items before further QuickBooks integration work. Preserve the completed implementation and preview migration. Intuit setup, live sandbox acceptance and later integration increments are deferred until explicitly resumed. The setup and acceptance instructions below are retained for that future resumption; they are not current action items. No rollback or production promotion is requested.
+
 ## Outcome and boundaries
 
 Settings → Connections exposes sandbox authorization, connection metadata, an explicit token refresh check and disconnect. Connected means an authorized company, **not** imported financial data. The existing financial-sync endpoint still returns 501. This increment writes no financial months, actual cash events, forecasts, usage or Stripe billing records.
