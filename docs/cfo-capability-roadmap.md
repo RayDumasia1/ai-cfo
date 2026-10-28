@@ -96,6 +96,8 @@ This is a strong Growth capability after cost allocation and project/customer ma
 
 ## Recommended implementation sequence
 
+**28 October platform-priority decision:** QuickBooks integration is parked after its A/B foundation. The active next foundation is [ORG-01](org-01-organization-architecture.md), beginning with the ownership/access contract and service-only legacy mapping before collaboration. The sequence below is the longer-term capability roadmap; it does not override the active platform-first order in [the backlog](backlog.md). Existing completed forecasting/case work is retained rather than reimplemented.
+
 1. Finish current chart transparency and zero-collections anomaly guidance.
 2. Specify and build the [rolling 13-week forecast](forecast-01-13-week-cash-forecast.md), including commitments, AR/AP timing, assumptions, freshness and actual-versus-plan variance.
 3. Add saved, versioned scenarios and forecast-to-action tracking.
