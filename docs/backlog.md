@@ -10,6 +10,8 @@ Older platform release statuses below still need reconciliation against shipped 
 
 The owner selected **ORG-01** next. [ORG-01A](org-01-organization-architecture.md) records the architecture contract. [ORG-01B](org-01b-shadow-organizations-design.md) is implemented and database-validated in preview: four internal tables, atomic fixed-owner provisioning, exact replay, backfill/reconciliation and archive/tombstone handling. [The implementation record](org-01b-preview-validation.md) covers 1,369 passing tests, real PostgreSQL concurrency/privilege checks, owner-confirmed hosted preview acceptance on 28 October 2026 and the pending production migration/backfill plan. Shared access and billing behavior remain unchanged.
 
+Production release handoff: the owner authorized ORG-01B migration/backfill and chose Supabase's production SQL Editor. The reviewed expansion and a separate bounded operational backfill are prepared; the latter passed exact-file preview/replay and 103-profile multi-batch tests. The current regression suite passes 1,372 tests. Production execution/results remain unconfirmed; no preview fixture verifier is part of the production procedure.
+
 ## Release status
 
 | Release | Status and validation |

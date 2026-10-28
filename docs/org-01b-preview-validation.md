@@ -69,11 +69,17 @@ The owner confirmed successful preview validation on 28 October 2026. This recor
 
 Automatic SQL/API-domain evidence above is distinct from this user-reported navigation acceptance. The November 2 completed-week review acceptance remains its separate scheduled task.
 
-## Production plan — prepared, not executed
+## Production execution — authorized, awaiting SQL Editor results
+
+The owner authorized production migration/backfill on 28 October 2026 and chose to run the SQL in Supabase's production SQL Editor because no production connection is configured locally. This records authorization and the handoff; production execution/success has **not** yet been confirmed.
 
 The preview operator and verifier intentionally refuse a different project. Do not repoint their environment guard to production. Production needs the reviewed [new expansion migration](migrations/2026-10-28-organization-shadow-storage.sql), followed by an explicitly authorized operational backfill; no preview verifier runs there. Its catalog preflight rejects unexpected ownership constraints, RLS or profile/Auth triggers rather than overwriting them.
 
-After authorized production installation, the following is a **bounded operational backfill batch**, not a fixture/verifier. Run as the controlled database operator; repeat until no unmapped profiles remain. It creates only shadow metadata for existing profiles and never creates subscriptions or financial rows. Preserve the same strict error/repair policy; a conflicting mapping is not permission to rewrite ownership.
+Run the [reviewed expansion](migrations/2026-10-28-organization-shadow-storage.sql) first, then the [operational SQL Editor backfill](migrations/2026-10-28-organization-shadow-backfill.sql). The operational file checks installed hooks/privileges, provisions at most 100 profiles per run, commits, and returns aggregate counts with `COMPLETE`, `RUN_NEXT_BATCH` or `REVIEW_REQUIRED`. Repeat only the operational file for further batches; an empty repeat is safe. Its exact no-op execution passed in preview without changing existing public-table row values. The production handoff requests the migration result and final aggregate row, not credentials or customer identifiers.
+
+Handoff validation: the [exact operational-file tests](../__tests__/organizationOperationalBackfill.test.ts) passed a 103-profile backfill (100 then three), unchanged replay/legacy-row comparison, refusal before expansion, and privilege/hook drift failures. The full suite then passed 1,372 tests across 85 local files, with four remote-only probes skipped; TypeScript and targeted lint passed. These are preparation/preview results, not production execution evidence.
+
+For reference, the core of that **bounded operational backfill batch** is shown below; use the linked complete file for its preflight and summary. It is not a fixture/verifier. It creates only shadow metadata for existing profiles and never creates subscriptions or financial rows. Preserve the same strict error/repair policy; a conflicting mapping is not permission to rewrite ownership.
 
 ```sql
 BEGIN ISOLATION LEVEL READ COMMITTED;
