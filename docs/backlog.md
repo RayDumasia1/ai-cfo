@@ -8,6 +8,8 @@ Owner decision, 28 October 2026: park the QuickBooks integration (INT-01) and pr
 
 Older platform release statuses below still need reconciliation against shipped commits; that bookkeeping does not replace the owner's explicit ORG-01 priority. Already delivered work is not a new implementation task. The completed-week cash review acceptance scheduled for 2 November remains outstanding independently of the integration pause.
 
+Action Tracker follow-up: the owner will supply new requirements for how actions are presented/shared within the dashboard and sorted. Track these under ACTION-01 below; this placeholder does not change current ordering or interrupt the ORG-01 sequence. The next organization increment remains ORG-01C, the owner-only resolver/read conversion.
+
 The owner selected **ORG-01** next. [ORG-01A](org-01-organization-architecture.md) records the architecture contract. [ORG-01B](org-01b-shadow-organizations-design.md) is implemented and database-validated in preview: four internal tables, atomic fixed-owner provisioning, exact replay, backfill/reconciliation and archive/tombstone handling. [The implementation record](org-01b-preview-validation.md) covers 1,369 passing tests, real PostgreSQL concurrency/privilege checks, owner-confirmed hosted preview acceptance on 28 October 2026 and owner-reported production backfill completion. Shared access and billing behavior remain unchanged.
 
 Production release handoff: the owner authorized ORG-01B migration/backfill and chose Supabase's production SQL Editor. The reviewed expansion and a separate bounded operational backfill are prepared; the latter passed exact-file preview/replay and 103-profile multi-batch tests. The current regression suite passes 1,372 tests. The owner returned `COMPLETE,2,2,0,0,0` from production on 28 October 2026: two profiles and active organizations, no archived/unmapped/conflicting records. This is user-supplied operational evidence, not an independent production catalog/runtime check. Application promotion to main remains unconfirmed; no preview fixture verifier is part of the production procedure.
@@ -83,6 +85,14 @@ FIN-01 and FIN-02 are complete in production. DATA-01 is complete in production 
 | 26 — ORG-02 | Lower · Planned; full spec in project docs | Guided Tier Selector — a short onboarding quiz (max 4 questions) presented at `/welcome` plan selection that directs new customers to the right starting tier based on their situation and goals, not feature tables. Outcome-oriented plain-language questions; deterministic tier mapping (no AI); graceful Growth/Advisory redirect to waitlist with Core as interim recommendation; Founding Member offer surfaced on recommendation screen when spots remain (live DB count at render time). Waitlist capture requires a `tier_waitlist` DB migration when implemented. Full question set, tier mapping table, recommendation screen copy, FM integration rules and implementation notes are in `claude/elidan-onboarding-tier-selector-v1_0.md` in the project docs. Implement before Growth/Advisory tier launch; does not affect current Stripe checkout flow. |
 
 For every increment: record the trigger and expected behavior, update architecture documentation, run meaningful checks, validate preview, apply required production migrations (never verification scripts), promote the tested commit and update this queue. Reorder if the audit verifies a higher-risk defect. Do not implement unrelated queue items together.
+
+### ACTION-01 — dashboard action presentation and ordering
+
+**Status:** Backlog placeholder requested 28 October 2026; awaiting the owner's new requirements. Deferred behind the current ORG-01 development sequence.
+
+Capture the forthcoming rules for how actions are presented/shared within the dashboard and how the list is prioritized or sorted. Clarify whether “shared” concerns dashboard placement/visibility, organization/team access, or both when those requirements arrive; this entry does not assume a new permission model, ranking formula, manual priority field or tier allocation. Record the affected dashboard/full-list views, tie-breaking rules and acceptance examples before implementation.
+
+Current behavior remains the baseline: [active ordering](../lib/actionList.ts) is overdue by oldest due date (ties newest-created first), then due-today/future actions newest-created first, then undated actions newest-created first. The full Actions page places completed items last, ordered by completion time. [Ordering tests](../__tests__/actions.test.ts) preserve that behavior until a separate reviewed change replaces it. This placeholder does not authorize implementing unprovided requirements or delay ORG-01C.
 
 ## Completed review and financial data work
 
