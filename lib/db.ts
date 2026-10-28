@@ -42,6 +42,26 @@ import type {ForecastDecisionContext} from "./cashPlanDecision";
 import type { ForecastReviewCommand, ForecastReviewEvidence } from "./forecastReviewStorage";
 import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type ReviewQueueItem } from "./forecastReviewWorkflow";
 import type { CaseBase, CaseCalculation, ForecastCasesState, SavedForecastCase, parseCaseSubmission } from "./forecastCases";
+import type { TokenEnvelope } from "./quickbooks";
+
+/** Server-only caller: never serialize this record (it may carry encrypted credentials).
+ * Actor comes from requireAuth; business ID from the account-owned profile lookup.
+ */
+export interface QuickBooksConnectionRecord {
+  id: string; businessId: string; generation: string; environment: "sandbox";
+  realmId: string | null; companyName: string | null;
+  status: "disconnected" | "authorizing" | "exchanging" | "verifying" | "connected" | "refreshing" | "reconnect_required" | "revoke_pending" | "revoking";
+  operationId: string | null; credentialRevision: number;
+  connectedAt: string | null; disconnectedAt: string | null;
+  envelope?: TokenEnvelope | null; credentialGeneration?: string; accessExpiresAt?: string; refreshExpiresAt?: string;
+}
+export async function quickBooksLifecycle(actorId: string, businessId: string, action: string, input: Record<string, unknown>, client: SupabaseClient): Promise<QuickBooksConnectionRecord | null> {
+  const { data, error } = await client.rpc("quickbooks_lifecycle", { p_actor: actorId, p_business: businessId, p_action: action, p_input: input });
+  if (error) throw Object.assign(new Error("Connection storage failed"), { code: error.code });
+  if (data === null) return null;
+  if (!data || typeof data.id !== "string" || typeof data.businessId !== "string" || typeof data.generation !== "string" || typeof data.status !== "string") throw new Error("Invalid connection state");
+  return data as QuickBooksConnectionRecord;
+}
 
 export async function getForecastCases(userId:string,baseVersionId:string|null,client:SupabaseClient):Promise<ForecastCasesState>{
   const {data:forecast,error:fError}=await client.from("cash_forecasts").select("id,reporting_currency")

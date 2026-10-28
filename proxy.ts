@@ -33,7 +33,12 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES = [
 ];
 // Joining a coming-soon list does not require purchasing a current plan.
 // Keep this exact so unrelated endpoints retain their subscription guard.
-const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set(["/api/notify-me"]);
+const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set([
+  "/api/notify-me",
+  // The route applies paid Core checks to connect/refresh; revoking an existing
+  // grant must remain possible after cancellation or a plan downgrade.
+  "/api/integrations/quickbooks/connection",
+]);
 
 export async function proxy(request: NextRequest) {
   if (PUBLIC_PATHS.some((path) => request.nextUrl.pathname.startsWith(path)) ||
@@ -73,7 +78,8 @@ export async function proxy(request: NextRequest) {
       return finishResponse(NextResponse.redirect(new URL("/dashboard", request.url)));
     }
 
-    const isAllowed = ALLOWED_WITHOUT_SUBSCRIPTION_PATHS.has(pathname) || ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
+    const connectionSettings = pathname === "/dashboard/settings" && request.nextUrl.searchParams.get("tab") === "connections";
+    const isAllowed = connectionSettings || ALLOWED_WITHOUT_SUBSCRIPTION_PATHS.has(pathname) || ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
       pathname.startsWith(prefix)
     );
     if (!isAllowed && !(await hasPaidSubscription(user.id, supabase))) {

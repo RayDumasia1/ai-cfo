@@ -15,11 +15,12 @@ import FoundingMemberCTA from "@/app/components/billing/FoundingMemberCTA";
 import FoundingMemberReturnCard from "@/app/components/billing/FoundingMemberReturnCard";
 import { getReturningFoundingMember } from "@/lib/foundingMemberState";
 import { thresholdEditorKey } from "@/lib/thresholdSettings";
+import QuickBooksConnectionCard from "@/app/components/settings/QuickBooksConnectionCard";
 
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; quickbooks?: string }>;
 }) {
   const params = await searchParams;
   const tab = params.tab ?? "general";
@@ -75,9 +76,12 @@ export default async function SettingsPage({
         <Link href="?tab=account" style={tabLinkStyle(tab === "account")}>
           Account
         </Link>
+        <Link href="?tab=connections" style={tabLinkStyle(tab === "connections")}>
+          Connections
+        </Link>
       </div>
 
-      {tab === "billing" && billing ? (
+      {tab === "connections" ? <QuickBooksConnectionCard outcome={params.quickbooks} /> : tab === "billing" && billing ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Top row — Current Plan + Usage side by side */}
           {(billing.feature_tier === "core" ||

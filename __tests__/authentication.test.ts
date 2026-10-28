@@ -152,6 +152,16 @@ describe("verified-email API authorization", () => {
 });
 
 describe("proxy email-verification and billing boundaries", () => {
+  it.each(["/api/integrations/quickbooks/connection", "/dashboard/settings?tab=connections"])("keeps connection revocation reachable without a paid subscription: %s", async path => {
+    vi.mocked(hasPaidSubscription).mockResolvedValue(false);
+    expect((await proxy(request(path))).headers.get("x-middleware-next")).toBe("1");
+    expect(hasPaidSubscription).not.toHaveBeenCalled();
+    session({ ...user(), email_confirmed_at: undefined });
+    const blocked = await proxy(request(path)); expect(blocked.status).toBe(path.startsWith("/api") ? 403 : 307);
+  });
+  it.each(["/api/integrations/quickbooks/connection/other", "/api/integrations/quickbooks", "/api/integrations/quickbooks/callback"])("retains the subscription gate outside the exact lifecycle route: %s", async path => {
+    vi.mocked(hasPaidSubscription).mockResolvedValue(false); expect((await proxy(request(path))).status).toBe(402);
+  });
   it.each(["/api/import", "/api/data", "/api/actions", "/api/stripe/checkout", "/api/stripe/portal", "/api/auth/password", "/api/notify-me", "/api/alerts/dismiss", "/api/ask-cfo", "/api/insights", "/api/account"])("rejects unverified sessions on %s", async path => {
     session({ ...user(), email_confirmed_at: undefined });
     const response = await proxy(request(path));
