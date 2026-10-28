@@ -43,6 +43,23 @@ import type { ForecastReviewCommand, ForecastReviewEvidence } from "./forecastRe
 import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type ReviewQueueItem } from "./forecastReviewWorkflow";
 import type { CaseBase, CaseCalculation, ForecastCasesState, SavedForecastCase, parseCaseSubmission } from "./forecastCases";
 import type { TokenEnvelope } from "./quickbooks";
+import { OrganizationAccessError, validateOwnerMonthlyRead, validateOwnerOrganizations } from "./organizationAccess";
+
+function organizationReadFailure(code: string | undefined): never {
+  throw new OrganizationAccessError(code === "P0002" ? "not_found" : code === "42501" ? "unauthorized" : "unavailable");
+}
+/** Authenticated client only. SQL binds auth.uid(); an actor is never sent as an RPC argument. */
+export async function getOwnerOrganizationMonths(actorId: string, selected: string | null, limit: number | null, client: SupabaseClient) {
+  if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 240)) throw new OrganizationAccessError("invalid_selection");
+  const { data, error } = await client.rpc("read_owned_financial_months", { p_organization_id: selected, p_limit: limit });
+  if (error) organizationReadFailure(error.code);
+  return validateOwnerMonthlyRead(data, actorId, selected, limit);
+}
+export async function getOwnerOrganizations(client: SupabaseClient) {
+  const { data, error } = await client.rpc("list_owned_organizations");
+  if (error) organizationReadFailure(error.code);
+  return validateOwnerOrganizations(data);
+}
 
 /** Server-only caller: never serialize this record (it may carry encrypted credentials).
  * Actor comes from requireAuth; business ID from the account-owned profile lookup.

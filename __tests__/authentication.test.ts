@@ -152,6 +152,14 @@ describe("verified-email API authorization", () => {
 });
 
 describe("proxy email-verification and billing boundaries", () => {
+  it.each(["/api/organizations", "/dashboard/financial-data"])("delegates target entitlement to the converted owner resolver on %s", async path => {
+    vi.mocked(hasPaidSubscription).mockResolvedValue(false);
+    expect((await proxy(request(path))).headers.get("x-middleware-next")).toBe("1"); expect(hasPaidSubscription).not.toHaveBeenCalled();
+    session({ ...user(), email_confirmed_at: undefined }); expect((await proxy(request(path))).status).toBe(path.startsWith("/api") ? 403 : 307);
+  });
+  it.each(["/api/organizations/other", "/api/organizations-other"])("retains the subscription guard outside the exact discovery route: %s", async path => {
+    vi.mocked(hasPaidSubscription).mockResolvedValue(false); expect((await proxy(request(path))).status).toBe(402);
+  });
   it.each(["/api/integrations/quickbooks/connection", "/dashboard/settings?tab=connections"])("keeps connection revocation reachable without a paid subscription: %s", async path => {
     vi.mocked(hasPaidSubscription).mockResolvedValue(false);
     expect((await proxy(request(path))).headers.get("x-middleware-next")).toBe("1");

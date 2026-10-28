@@ -38,6 +38,10 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set([
   // The route applies paid Core checks to connect/refresh; revoking an existing
   // grant must remain possible after cancellation or a plan downgrade.
   "/api/integrations/quickbooks/connection",
+  // Verified owner discovery is control metadata; monthly reads check the
+  // selected workspace entitlement in SQL rather than the viewer's own plan.
+  "/api/organizations",
+  "/dashboard/financial-data",
 ]);
 
 export async function proxy(request: NextRequest) {
