@@ -57,3 +57,7 @@ Live sandbox checks still required:
 - Provider failure/timeout should show a recoverable attention/revocation state; a second account must not see or operate the first business's connection.
 
 Provider endpoint, authorization scope, refresh-token rotation and absolute-expiry header behavior were checked against [Intuit's OAuth client source](https://github.com/intuit/oauth-jsclient/blob/master/src/OAuthClient.js) and [token handling guide](https://github.com/intuit/oauth-jsclient#refresh-access_token). CompanyInfo is realm-scoped per [Intuit's API example](https://intuitdeveloper.github.io/hack/), while its `Id` is an entity identifier per [Intuit's CompanyInfo SDK reference](https://static.developer.intuit.com/sdkdocs/qbv3doc/ippdotnetdevkitv3/html/75d7858e-4449-a7c0-c8a7-32d6ca525b16.htm).
+
+## Platform release handoff, 28 October 2026
+
+The owner confirmed successful production execution of the connection lifecycle storage migration as a prerequisite for promoting the accepted platform preview branch to main. This is owner-reported SQL evidence; no independent production catalog/runtime check was performed. Intuit setup, live sandbox acceptance, retrieval and sync remain parked. Shipping the preserved Settings connection code and its supporting schema does not establish a working provider integration.
