@@ -1,6 +1,6 @@
 # ORG-01B — implementation, preview evidence and rollout
 
-28 October 2026. **Implemented and database-validated in preview.** The four internal tables and provisioning hooks are installed; both existing preview profiles have complete shadow mappings. Hosted owner smoke checks remain pending. No production database operation was performed. [Design/requirements](org-01b-shadow-organizations-design.md), [parent architecture](org-01-organization-architecture.md).
+28 October 2026. **Preview accepted by the owner on 28 October 2026.** The four internal tables and provisioning hooks are installed; both existing preview profiles have complete shadow mappings. The owner confirmed successful ORG-01B preview validation after the requested hosted smoke checks. No production database operation was performed. [Design/requirements](org-01b-shadow-organizations-design.md), [parent architecture](org-01-organization-architecture.md).
 
 ## Delivered behavior
 
@@ -61,13 +61,13 @@ The preview inventory found **nine legacy actions with null `business_id`** and 
 
 ## Hosted owner smoke acceptance
 
-There is no new customer UI in B. On preview, confirm these existing flows before considering production promotion:
+The owner confirmed successful preview validation on 28 October 2026. This records user-reported acceptance, not an independent browser replay. The requested smoke checks covered these existing flows:
 
 1. Reload Dashboard, Settings, Financial Data and Cash Planning; existing records and published plans/cases still load.
 2. Save a business name or normal setting and confirm it persists after reload.
 3. Open the normal spreadsheet review flow and confirm its review/results and existing data remain intact. There is no need to replace a real dataset solely to test B.
 
-Automatic SQL/API-domain evidence above is distinct from these user-navigation checks. The November 2 completed-week review acceptance remains its separate scheduled task.
+Automatic SQL/API-domain evidence above is distinct from this user-reported navigation acceptance. The November 2 completed-week review acceptance remains its separate scheduled task.
 
 ## Production plan — prepared, not executed
 

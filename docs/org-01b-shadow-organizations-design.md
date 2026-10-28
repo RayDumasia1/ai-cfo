@@ -1,6 +1,6 @@
 # ORG-01B — shadow organizations: design and requirements
 
-28 October 2026. **Implemented and database-validated in preview; hosted owner smoke acceptance pending.** This document retains the design requirements; [implementation evidence and rollout](org-01b-preview-validation.md) records what was delivered and the remaining acceptance. Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record. No production execution occurred.
+28 October 2026. **Implemented and preview-accepted by the owner on 28 October 2026.** This document retains the design requirements; [implementation evidence and rollout](org-01b-preview-validation.md) records what was delivered, owner acceptance and the pending production release. Parent contract: [ORG-01A](org-01-organization-architecture.md). “Shadow” means internal metadata that does not authorize customer access or replace the existing account-owned record. No production execution occurred.
 
 ## Intended result
 
@@ -191,7 +191,7 @@ Strict atomicity introduces a new internal failure dependency on profile creatio
 
 ## Acceptance and operational evidence
 
-These are the implementation acceptance requirements. [Validation evidence](org-01b-preview-validation.md) distinguishes the completed local/preview checks from pending hosted owner acceptance.
+These are the implementation acceptance requirements. [Validation evidence](org-01b-preview-validation.md) distinguishes the completed local/database checks from owner-reported hosted preview acceptance.
 
 | ID | Test | Required evidence |
 | --- | --- | --- |
