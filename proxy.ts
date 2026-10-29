@@ -42,6 +42,11 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set([
   // selected workspace entitlement in SQL rather than the viewer's own plan.
   "/api/organizations",
   "/dashboard/financial-data",
+  // D3 transaction functions check the selected owner's current entitlement.
+  "/api/import",
+  "/api/import/review",
+  "/api/import/confirm",
+  "/api/data",
 ]);
 
 export async function proxy(request: NextRequest) {

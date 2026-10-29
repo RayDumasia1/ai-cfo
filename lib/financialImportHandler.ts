@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import { createServiceClient } from "@/utils/supabase/service";
 import { parseExcelBuffer } from "@/lib/excelParser";
 import { buildImportReview } from "@/lib/financialImportReview";
-import { importFileHash, issueImportReviewToken, verifyImportReviewToken } from "@/lib/financialImportReviewToken";
+import { importFileHash, issueImportReviewToken, verifyScopedImportReviewToken } from "@/lib/financialImportReviewToken";
+import { monthlySelection, monthlyErrorResponse } from "@/lib/monthlyAuthority";
 import {
   WORKBOOK_BUSINESS_FIELDS, WORKBOOK_BUSINESS_WARNING,
   WORKBOOK_THRESHOLD_FIELDS, WORKBOOK_THRESHOLD_WARNING,
@@ -19,9 +19,8 @@ import {
   validateFinancialFileMetadata,
 } from "@/lib/financialUploadLimits";
 import {
-  hasPaidSubscription,
-  getFinancialImportReviewState,
-  isV2FinancialImportUnchanged,
+  authorizeOwnedMonthly,
+  prepareOwnedFinancialImport,
   commitReviewedFinancialImport,
   logDataImport,
 } from "@/lib/db";
@@ -58,12 +57,8 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (!hasVerifiedEmail(user)) return emailVerificationRequired();
-    if (!(await hasPaidSubscription(user.id, supabase))) {
-      return NextResponse.json(
-        { error: "An active subscription is required" },
-        { status: 402, headers: { "Cache-Control": "no-store" } }
-      );
-    }
+    const selected=monthlySelection(request.nextUrl.searchParams);
+    await authorizeOwnedMonthly(user.id,selected,supabase);
 
     if (operation === "legacy") {
       return NextResponse.json({ error: "Review this upload before importing. Refresh the page to continue.",
@@ -124,12 +119,14 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
       }
       throw error;
     }
-    const identity = { userId: user.id, mode, filename: file.name, fileHash: importFileHash(buffer) };
+    const identity = { userId: user.id, mode, filename: file.name, fileHash: importFileHash(buffer),organizationId:selected };
     let expectedState: string | null = null;
+    let reviewedOrganization: string|null=selected;
     if (operation === "confirm") {
       const tokens = formData.getAll("reviewToken");
       if (tokens.length === 1 && typeof tokens[0] === "string") {
-        expectedState = verifyImportReviewToken(tokens[0], identity);
+        const claims=verifyScopedImportReviewToken(tokens[0], identity);
+        expectedState=claims?.stateVersion??null;reviewedOrganization=claims?.organizationId??null;
       }
       if (!expectedState) {
         return NextResponse.json({ error: "This review expired or no longer matches the file. Select the file and review it again.",
@@ -204,11 +201,9 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     }
 
     if (operation === "review") {
-      const service = createServiceClient();
-      const state = await getFinancialImportReviewState(user.id, service);
-      const unchanged = parsed.contractVersion === 2 && await isV2FinancialImportUnchanged(user.id, parsed.months, parsed.profile, mode, service);
-      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), state, parsed.warnings, parsed.notices, unchanged);
-      const reviewToken = issueImportReviewToken(identity, state.state_version);
+      const prepared=await prepareOwnedFinancialImport(user.id,parsed.months,parsed.profile,mode,supabase,selected);
+      const review = buildImportReview(file.name, mode, parsed.months.map(month => month.month_date), prepared.reviewState, parsed.warnings, parsed.notices, prepared.unchanged);
+      const reviewToken = issueImportReviewToken({...identity,organizationId:prepared.context.organizationId}, prepared.reviewState.state_version);
       return NextResponse.json({ success: true, review, reviewToken, requestId }, { headers: { "Cache-Control": "no-store" } });
     }
 
@@ -216,7 +211,7 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
     // together. Missing RPC/migration or any database error must fail closed.
     commitAttempted = true;
     const result = await commitReviewedFinancialImport(
-      user.id, parsed.months, parsed.profile, file.name, mode, expectedState!, createServiceClient()
+      user.id, parsed.months, parsed.profile, file.name, mode, expectedState!, supabase,reviewedOrganization,requestId
     );
     const months = parsed.months;
 
@@ -248,6 +243,8 @@ export async function handleFinancialImport(request: NextRequest, operation: "re
       requestId,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (err) {
+    const authorityFailure=monthlyErrorResponse(err);
+    if(authorityFailure){const {status,...body}=authorityFailure;return NextResponse.json({...body,requestId},{status,headers:{"Cache-Control":"no-store"}});}
     if (err && typeof err === "object" && "code" in err && err.code === "P0001" &&
       "message" in err && err.message === "import_review_stale") {
       return NextResponse.json({ error: "Your financial data changed since this review. Select the file and review it again.",

@@ -7,7 +7,8 @@ export async function monthlyOwnershipSetup(db: PGlite) {
   await db.exec(orgBootstrap);
   await db.exec(`ALTER TABLE auth.users ADD COLUMN email_confirmed_at timestamptz DEFAULT now();
     ALTER TABLE public.business_profiles ADD COLUMN industry text, ADD COLUMN accounting_system text, ADD COLUMN employee_count integer,
-      ADD COLUMN runway_warning_threshold numeric, ADD COLUMN runway_danger_threshold numeric, ADD COLUMN burn_rate_warning_pct numeric, ADD COLUMN invoice_overdue_days integer;
+      ADD COLUMN runway_warning_threshold numeric, ADD COLUMN runway_danger_threshold numeric, ADD COLUMN burn_rate_warning_pct numeric, ADD COLUMN invoice_overdue_days integer,
+      ADD COLUMN snooze_duration text DEFAULT '24h';
     CREATE TABLE public.subscriptions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
       plan text,feature_tier text,status text,stripe_subscription_id text);
     INSERT INTO public.subscriptions(user_id,plan,feature_tier,status) VALUES('${orgOwner}','core','core','active'),('${orgOther}','growth','growth','active');

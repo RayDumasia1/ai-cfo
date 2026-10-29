@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
+import { completeOwnedOnboarding } from "@/lib/db";
+import { monthlyErrorResponse } from "@/lib/monthlyAuthority";
 
 export const dynamic = "force-dynamic";
 
@@ -9,14 +11,12 @@ export const dynamic = "force-dynamic";
  * is kept, later calls are no-ops.
  */
 export const POST = requireAuth(async (_req: NextRequest, { userId, supabase }) => {
-  const { error } = await supabase
-    .from("business_profiles")
-    .update({ onboarding_completed_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .is("onboarding_completed_at", null);
-
-  if (error) {
-    console.error("onboarding:complete:error", { userId, message: error.message });
+  try {
+    await completeOwnedOnboarding(userId,supabase);
+  } catch(error) {
+    const mapped=monthlyErrorResponse(error);
+    if(mapped)return NextResponse.json({error:mapped.error,code:mapped.code},{status:mapped.status,headers:{"Cache-Control":"no-store"}});
+    console.error("onboarding:complete:error");
     return NextResponse.json({ error: "Failed to update onboarding status" }, { status: 500 });
   }
 

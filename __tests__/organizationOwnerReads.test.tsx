@@ -18,7 +18,7 @@ const owner = "10000000-0000-4000-8000-000000000001", other = "10000000-0000-400
 const org = "20000000-0000-4000-8000-000000000001", profile = "30000000-0000-4000-8000-000000000001";
 const ready = () => ({ state: "ready", context: { actorId: owner, organizationId: org, businessProfileId: profile, membershipId: "40000000-0000-4000-8000-000000000001",
   accessRevision: 1, membershipRevision: 1, dataVersion: "opaque-version", businessName: "Owner business", capability: "financial.months.read", policyVersion: "org-owner-read-1", entitlementTier: "core", entitlementSource: "legacy_subscription" },
-months: [{ id: "50000000-0000-4000-8000-000000000001", user_id: owner, business_id: profile, month_date: "2026-09-01", closing_cash: 0 }] });
+months: [{ id: "50000000-0000-4000-8000-000000000001", user_id: owner, business_id: profile, organization_id:org, month_date: "2026-09-01", closing_cash: 0 }] });
 const rpc = vi.fn(), from = vi.fn(), getUser = vi.fn(), query = { select: vi.fn(), eq: vi.fn(), in: vi.fn(), order: vi.fn(), limit: vi.fn(), maybeSingle: vi.fn() };
 const client = { rpc, from, auth: { getUser } };
 beforeEach(() => {
@@ -44,6 +44,7 @@ describe("owner read context and selector validation", () => {
       (r: ReturnType<typeof ready>) => { r.context.accessRevision = Number.MAX_SAFE_INTEGER + 1; },
       (r: ReturnType<typeof ready>) => { r.months[0].business_id = other; },
       (r: ReturnType<typeof ready>) => { r.months[0].user_id = other; },
+      (r: ReturnType<typeof ready>) => { r.months[0].organization_id = other; },
       (r: ReturnType<typeof ready>) => { r.months.push(r.months[0]); },
     ]) { const r = ready(); mutate(r); expect(() => validateOwnerMonthlyRead(r, owner, org, null)).toThrow("unavailable"); }
     const missing = { state: "profile_missing", context: null, months: [] };

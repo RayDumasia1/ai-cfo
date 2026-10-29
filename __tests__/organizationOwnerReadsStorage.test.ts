@@ -21,7 +21,7 @@ async function setup(engine: PGlite) {
     INSERT INTO public.subscriptions(user_id,plan,feature_tier,status,stripe_subscription_id) VALUES
       ('${orgOwner}','core','core','active',NULL),('${orgOther}','advisory','advisory','active',NULL);
     CREATE TABLE public.financial_months(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),user_id uuid NOT NULL REFERENCES auth.users(id),business_id uuid REFERENCES public.business_profiles(id),
-      month_date date NOT NULL,closing_cash numeric,notes text,UNIQUE(user_id,month_date));
+      month_date date NOT NULL,closing_cash numeric,notes text,organization_id uuid,UNIQUE(user_id,month_date));
     ALTER TABLE public.financial_months ENABLE ROW LEVEL SECURITY;
     CREATE POLICY "financial_months: own rows" ON public.financial_months TO authenticated USING(auth.uid()=user_id) WITH CHECK(auth.uid()=user_id);
     GRANT SELECT ON public.financial_months TO authenticated;
@@ -31,6 +31,7 @@ async function setup(engine: PGlite) {
   await engine.exec(orgMigration());
   await engine.query("SELECT public.ensure_legacy_organization($1,$2,$3)", [orgProfile, orgOwner, randomUUID()]);
   await engine.query("SELECT public.ensure_legacy_organization($1,$2,$3)", [orgOtherProfile, orgOther, randomUUID()]);
+  await engine.exec("UPDATE public.financial_months m SET organization_id=l.organization_id FROM public.legacy_account_organizations l WHERE m.business_id=l.current_business_profile_id AND m.user_id=l.legacy_user_id");
 }
 describe("ORG-01C original-owner monthly read boundary", () => {
   beforeAll(async () => {

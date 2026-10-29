@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { upsertBusinessProfile } from "@/lib/db";
 import { validateBusinessName } from "@/lib/businessName";
+import { monthlySelection,monthlyErrorResponse } from "@/lib/monthlyAuthority";
 
 export const dynamic = "force-dynamic";
 
@@ -47,14 +48,17 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
   }
 
   try {
-    const profile = await upsertBusinessProfile(userId, { business_name: parsed.value }, supabase);
+    const selected=monthlySelection(req.nextUrl.searchParams);
+    const profile = selected===null?await upsertBusinessProfile(userId, { business_name: parsed.value }, supabase):await upsertBusinessProfile(userId,{business_name:parsed.value},supabase,selected);
     if (!profile || profile.user_id !== userId || profile.business_name !== parsed.value) {
       throw new Error("Unconfirmed business name update");
     }
     return NextResponse.json({ success: true, business_name: profile.business_name }, {
       headers: { "Cache-Control": "no-store" },
     });
-  } catch {
+  } catch (error) {
+    const authority=monthlyErrorResponse(error);
+    if(authority){const{status,...body}=authority;return NextResponse.json(body,{status,headers:{"Cache-Control":"no-store"}});}
     return profileFailure("save", userId);
   }
 });

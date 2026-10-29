@@ -1,6 +1,6 @@
 # ORG-01D2 monthly and import ownership storage
 
-29 October 2026. Implemented and database-validated in preview. The owner confirmed successful preview validation on 29 October 2026. Production D2 SQL completed successfully by owner report on 29 October 2026; the production SQL prerequisite for main promotion is complete. [D conversion plan](org-01d-financial-ownership-conversion.md), [parent architecture](org-01-organization-architecture.md).
+29 October 2026. Shipped to production after preview acceptance. The owner confirmed successful preview validation on 29 October 2026. Production D2 SQL succeeded by owner report; D2 shipped to main at `ccb6e24` and production deployment `7414087417` independently succeeded. Authenticated production runtime acceptance remains separate. [D conversion plan](org-01d-financial-ownership-conversion.md), [parent architecture](org-01-organization-architecture.md).
 
 ## Storage contract
 
@@ -10,9 +10,11 @@ The [one-time migration](migrations/2026-10-29-organization-monthly-ownership.sq
 
 Financial rows reference this immutable scope rather than taking foreign-key locks on B's mutable detachment row. Scope identity survives profile/Auth deletion. The existing profile foreign keys retain their `ON DELETE SET NULL` behavior: monthly/category legacy business links can detach when the profile is actually deleted while their persisted organization remains unchanged. Ordinary callers cannot null a live link or reassign its business, organization or legacy owner. Header-only import/revision ownership references the organization/legacy-owner pair; monthly/category rows additionally reference the organization/profile/owner tuple.
 
-No actor is inferred from legacy ownership, no timestamps are fabricated and no financial calculation changes. Current RLS policies and existing grants remain in place. C owner monthly reads still return the same data, with the additive organization column. D3 must independently authorize and serialize writes; D2 automatic stamping does not close service-role or audit-insert authorization paths, or enable teams/advisors.
+No actor is inferred from legacy ownership, no timestamps are fabricated and no financial calculation changes. At the D2 release, RLS policies and existing grants remained in place; D3 separately replaces the monthly write boundary. C owner monthly reads still return the same data, with the additive organization column. D3 must independently authorize and serialize writes; D2 automatic stamping does not close service-role or audit-insert authorization paths, or enable teams/advisors.
 
 ## Compatibility and edge behavior
+
+This section describes D2 at release. [D3](org-01d3-monthly-write-authority.md) supersedes its service execution and write-permission baseline. Use the D3 preview verifier after that cutover; the D2 driver intentionally rejects D3 installations.
 
 Existing service import/review/no-op/Clear Data RPCs and compatibility aliases are unchanged. They continue to use their legacy lock order. The database stamps the verified scope on new rows when callers omit the new column. A supplied foreign organization, missing/foreign live business, or ownership reassignment fails closed. Initial imports and authenticated profile INSERT RETURNING provision both B and D2 identity atomically.
 
@@ -46,4 +48,4 @@ The owner confirmed completion of the reviewed production migration on 29 Octobe
 
 After preview acceptance, run only the reviewed D2 migration through the agreed production Supabase SQL Editor procedure, then report success before promotion. B/C storage/hooks, current reviewed-import/Clear Data functions and complete unambiguous ownership are prerequisites. The migration aborts on preexisting scope columns, partial/replayed installation, unexpected target triggers, unmapped historical owners or null/foreign monthly/category business links. Do not repair those records automatically; inspect and review the exception first. Locks and statement timeouts bound the install; any failure rolls back the whole expansion and restores trigger state.
 
-There is no production backfill script separate from this atomic, checked expansion. Never run preview drivers/verifiers in production. Production catalog/runtime acceptance remains separate from owner-reported SQL completion. Existing application code is compatible with the additive schema; application rollback should retain the ownership columns, scope identities, FKs and guards rather than drop evidence or reverse the backfill. D2 grants no collaboration or new service authority. The next increment is D3 monthly/import write authorization and lifecycle coordination.
+There is no production backfill script separate from this atomic, checked expansion. Never run preview drivers/verifiers in production. Production catalog/runtime acceptance remains separate from owner-reported SQL completion. Existing application code is compatible with the additive schema; application rollback should retain the ownership columns, scope identities, FKs and guards rather than drop evidence or reverse the backfill. D2 grants no collaboration or new service authority. The [D3 implementation and handoff](org-01d3-monthly-write-authority.md) tracks the monthly/import write-authority cutover separately.

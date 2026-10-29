@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { upsertBusinessProfile } from "@/lib/db";
 import { percentageToDecimal } from "@/lib/calculations";
+import { monthlySelection,monthlyErrorResponse } from "@/lib/monthlyAuthority";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
 
   const requestId = crypto.randomUUID();
   try {
+    const selected=monthlySelection(req.nextUrl.searchParams);
     const saved = await upsertBusinessProfile(
       userId,
       {
@@ -63,7 +65,7 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
         // UI collects % (e.g. 10), store as decimal (0.10)
         burn_rate_warning_pct: storedBurnPct,
       },
-      supabase
+      supabase,...(selected===null?[]:[selected])
     );
     if (!saved || saved.user_id !== userId || saved.runway_warning_threshold !== warn ||
         saved.runway_danger_threshold !== danger || saved.min_cash_reserve !== reserve ||
@@ -72,11 +74,13 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
     }
 
     return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    const authority=monthlyErrorResponse(error);
+    if(authority){const{status,...body}=authority;return NextResponse.json({...body,requestId},{status,headers:{"Cache-Control":"no-store"}});}
     console.error("settings:thresholds:save:error", { requestId, userId });
     return NextResponse.json(
       { error: "Failed to save thresholds.", requestId },
-      { status: 500 }
+      { status: 500,headers:{"Cache-Control":"no-store"} }
     );
   }
 });

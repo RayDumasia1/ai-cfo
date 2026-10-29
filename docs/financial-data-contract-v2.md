@@ -4,6 +4,8 @@
 **Date:** 24 October 2026  
 **Depends on:** [Financial metric contract v0.2](financial-metric-contract.md)
 
+Organization follow-on, 29 October 2026: [D2](org-01d2-monthly-ownership.md) adds persisted scope and [D3](org-01d3-monthly-write-authority.md) replaces monthly write authority, service privileges and review-token scope. The account/service descriptions below retain the DATA-01 release baseline; financial field meanings and calculations are unchanged.
+
 ## Purpose
 
 Contract v2 adds the classified monthly inputs needed for more accurate cash-health guidance while preserving every legacy import. It is additive: existing columns, account ownership, unique month identity, atomic import functions, revision history and Clear Data behavior remain in place.

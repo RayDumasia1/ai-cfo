@@ -12,14 +12,15 @@ vi.mock("../utils/supabase/service", () => ({ createServiceClient: vi.fn() }));
 vi.mock("../lib/excelParser", () => ({ parseExcelBuffer: vi.fn() }));
 vi.mock("../lib/db", async importOriginal => ({
   ...await importOriginal<typeof import("../lib/db")>(),
-  hasPaidSubscription: vi.fn(), logDataImport: vi.fn(),
+  hasPaidSubscription: vi.fn(), logDataImport: vi.fn(), authorizeOwnedMonthly:vi.fn(),
 }));
 
 import { createClient } from "../utils/supabase/server";
 import { createServiceClient } from "../utils/supabase/service";
 import { parseExcelBuffer } from "../lib/excelParser";
-import { hasPaidSubscription, logDataImport, replaceFinancialImport, importFinancialData } from "../lib/db";
+import { hasPaidSubscription, logDataImport, replaceFinancialImport, importFinancialData, authorizeOwnedMonthly } from "../lib/db";
 import { POST } from "../app/api/import/confirm/route";
+import { MonthlyAuthorityError } from "../lib/monthlyAuthority";
 import { POST as REVIEW } from "../app/api/import/review/route";
 import { POST as LEGACY } from "../app/api/import/route";
 import { POST as LEGACY_MODES } from "../app/api/import/modes/route";
@@ -32,6 +33,9 @@ import {
 } from "../lib/financialUploadLimits";
 
 const rpc = vi.fn();
+const ownedOrganization="20000000-0000-4000-8000-000000000001";
+const writeContext=()=>({actorId:user.id,organizationId:ownedOrganization,businessProfileId:"30000000-0000-4000-8000-000000000001",membershipId:"40000000-0000-4000-8000-000000000001",accessRevision:1,membershipRevision:1,dataVersion:null,businessName:null,policyVersion:"org-owner-write-1",capability:"financial.months.write",entitlementTier:"core",entitlementSource:"legacy_subscription"});
+const prepared=(months:string[]=[],unchanged=false)=>({context:writeContext(),reviewState:{state_version:reviewedState,months},unchanged});
 const getUser = vi.fn();
 const from = vi.fn(() => { throw new Error("Financial writes must use the transaction RPC"); });
 const service = { rpc, from } as unknown as SupabaseClient;
@@ -59,7 +63,7 @@ function request(file: File | string | null = new File([defaultWorkbook], "impor
   for (const mode of modes) body.append("mode", mode);
   const mode = modes[0] === "replace_all" ? "replace_all" : "update_months";
   body.append("reviewToken", issueImportReviewToken({ userId: user.id, mode,
-    filename: file instanceof File ? file.name : "import.xlsx", fileHash: reviewedFileHash }, reviewedState));
+    filename: file instanceof File ? file.name : "import.xlsx", organizationId:ownedOrganization,fileHash: reviewedFileHash }, reviewedState));
   return new NextRequest("https://app.example.invalid/api/import?user_id=another-account", { method: "POST", body });
 }
 
@@ -72,14 +76,16 @@ beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   parsed = { months: [month()], profile: { business_name: "Test business" }, warnings: ["A warning"], errors: [] };
   getUser.mockResolvedValue({ data: { user }, error: null });
-  vi.mocked(createClient).mockResolvedValue({ auth: { getUser }, from } as unknown as Awaited<ReturnType<typeof createClient>>);
+  vi.mocked(createClient).mockResolvedValue({ auth: { getUser }, from, rpc } as unknown as Awaited<ReturnType<typeof createClient>>);
   vi.mocked(createServiceClient).mockReturnValue(service);
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
+  vi.mocked(authorizeOwnedMonthly).mockResolvedValue();
   vi.mocked(parseExcelBuffer).mockImplementation(() => structuredClone(parsed));
   rpc.mockImplementation(async (name, args) => {
+    if(args.p_operation==="review")return{data:prepared(),error:null};
     const dates = args.p_months.map((m: { month_date: string }) => m.month_date).sort();
-    return { data: { unchanged: false, replaced: false, months_imported: args.p_months.length,
-      ...(name === "import_financial_data" || name === "import_reviewed_financial_data" ? { mode: args.p_mode, months_total: dates.length,
+    return { data: { actorId:user.id,organizationId:ownedOrganization, unchanged: false, replaced: false, months_imported: args.p_months.length,
+      ...(name === "import_financial_data" || name === "owned_monthly_operation" ? { mode: args.p_mode, months_total: dates.length,
         date_from: dates[0], date_to: dates.at(-1), current_cash: 90 } : {}) }, error: null };
   });
 });
@@ -90,7 +96,7 @@ describe("financial import authorization and validation", () => {
     if (condition === "missing") getUser.mockResolvedValue({ data: { user: null }, error: null });
     if (condition === "error") getUser.mockResolvedValue({ data: { user }, error: new Error("Invalid session") });
     if (condition === "unverified") getUser.mockResolvedValue({ data: { user: { ...user, email_confirmed_at: null } }, error: null });
-    if (condition === "unpaid") vi.mocked(hasPaidSubscription).mockResolvedValue(false);
+    if (condition === "unpaid") vi.mocked(authorizeOwnedMonthly).mockRejectedValue(new MonthlyAuthorityError("subscription_required"));
     const req = request();
     const readForm = vi.spyOn(req, "formData");
     const response = await POST(req);
@@ -272,15 +278,15 @@ describe("atomic import route and database adapter", () => {
 
   it.each([false, true])("returns the committed result for replaced=%s and uses only the signed-in account", async replaced => {
     parsed.months = [month("2026-09-01"), { ...month("2026-08-01"), closing_cash: 110 }];
-    rpc.mockResolvedValue({ data: { unchanged: false, replaced, months_imported: 2, mode: "update_months", months_total: 2,
+    rpc.mockResolvedValue({ data: { actorId:user.id,organizationId:ownedOrganization, unchanged: false, replaced, months_imported: 2, mode: "update_months", months_total: 2,
       date_from: "2026-08-01", date_to: "2026-09-01", current_cash: 90 }, error: null });
     const response = await POST(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ success: true, replaced, monthsImported: 2,
       warnings: ["A warning", "Workbook business details only fill empty fields during onboarding. Existing account details are preserved."],
       dateRange: { from: "2026-08-01", to: "2026-09-01" }, currentCash: 90 });
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("import_reviewed_financial_data", {
-      p_user_id: user.id, p_months: parsed.months, p_profile: parsed.profile, p_filename: "import.xlsx",
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation", {
+      p_operation:"confirm",p_organization_id:ownedOrganization,p_request_id:expect.any(String),p_months: parsed.months, p_profile: parsed.profile, p_filename: "import.xlsx",
       p_mode: "update_months",
       p_expected_state: reviewedState,
     });
@@ -290,7 +296,7 @@ describe("atomic import route and database adapter", () => {
   });
 
   it("returns an explicit no-op without claiming that any months were imported", async () => {
-    rpc.mockResolvedValue({ data: { unchanged: true, replaced: true, months_imported: 0,
+    rpc.mockResolvedValue({ data: { actorId:user.id,organizationId:ownedOrganization, unchanged: true, replaced: true, months_imported: 0,
       mode: "update_months", months_total: 12, date_from: "2025-10-01",
       date_to: "2026-09-01", current_cash: 4500 }, error: null });
     const response = await POST(request());
@@ -303,13 +309,13 @@ describe("atomic import route and database adapter", () => {
   it.each(["database unavailable", "RPC migration missing"])("fails without falling back to destructive writes: %s", async message => {
     rpc.mockResolvedValue({ data: null, error: { message, code: "test" } });
     const response = await POST(request());
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     const body = await response.json();
     expect(body).toMatchObject({ requestId: expect.any(String) });
     expect(JSON.stringify(body)).not.toContain(message);
     expect(body.detail).toBeUndefined();
     expect(from).not.toHaveBeenCalled();
-    expect(logDataImport).toHaveBeenCalledWith(user.id, expect.objectContaining({ status: "error", error_message: message }), expect.anything());
+    expect(logDataImport).not.toHaveBeenCalled();
   });
 
   it("retains a safe failure response if error auditing also fails", async () => {
@@ -335,7 +341,7 @@ describe("explicit import modes", () => {
     const response = await POST(request(undefined, [mode]));
     expect(response.status).toBe(200);
     expect((await response.json()).mode).toBe(mode);
-    expect(rpc).toHaveBeenCalledWith("import_reviewed_financial_data", expect.objectContaining({ p_mode: mode, p_user_id: user.id }));
+    expect(rpc).toHaveBeenCalledWith("owned_monthly_operation", expect.objectContaining({ p_mode: mode,p_operation:"confirm",p_organization_id:ownedOrganization }));
   });
 
   it.each([[""], ["merge"], ["REPLACE_ALL"], [" replace_all"], ["update_months", "replace_all"],
@@ -346,7 +352,7 @@ describe("explicit import modes", () => {
   });
 
   it("uses the resulting dataset summary when older months are uploaded", async () => {
-    rpc.mockResolvedValue({ data: { unchanged: false, replaced: true, months_imported: 1, mode: "update_months", months_total: 12,
+    rpc.mockResolvedValue({ data: { actorId:user.id,organizationId:ownedOrganization, unchanged: false, replaced: true, months_imported: 1, mode: "update_months", months_total: 12,
       date_from: "2026-01-01", date_to: "2026-12-01", current_cash: 4321 }, error: null });
     const response = await POST(request());
     expect(response.status).toBe(200);
@@ -367,8 +373,8 @@ describe("explicit import modes", () => {
 
   it("never falls back to full replacement if the new RPC is missing", async () => {
     rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "Missing migration" } });
-    expect((await POST(request())).status).toBe(500);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("import_reviewed_financial_data", expect.anything());
+    expect((await POST(request())).status).toBe(503);
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation", expect.anything());
     expect(from).not.toHaveBeenCalled();
   });
 });
@@ -376,39 +382,35 @@ describe("explicit import modes", () => {
 describe("read-only upload review and guarded confirmation", () => {
   it("surfaces a v2 semantic no-op during review without offering a confirmation write", async () => {
     parsed.contractVersion = 2;
-    rpc.mockImplementation(async name => name === "financial_import_review_state"
-      ? { data: { state_version: reviewedState, months: ["2026-09-01"] }, error: null }
-      : name === "financial_import_v2_is_unchanged" ? { data: true, error: null }
-      : { data: null, error: { message: "unexpected rpc" } });
+    rpc.mockResolvedValue({data:prepared(["2026-09-01"],true),error:null});
     const response = await REVIEW(request());
     expect(response.status).toBe(200);
     expect((await response.json()).review.unchanged).toBe(true);
-    expect(rpc).toHaveBeenCalledWith("financial_import_v2_is_unchanged", expect.objectContaining({p_user_id:user.id,p_mode:"update_months"}));
-    expect(rpc).not.toHaveBeenCalledWith("import_reviewed_financial_data", expect.anything());
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation",expect.objectContaining({p_operation:"review",p_mode:"update_months"}));
+    expect(rpc).not.toHaveBeenCalledWith("owned_monthly_operation",expect.objectContaining({p_operation:"confirm"}));
   });
   it("returns missing-month consequences in a read-only review without changing the commit contract", async () => {
     parsed.months = [month("2025-02-01"),month("2025-04-01")];
-    rpc.mockResolvedValue({ data: {state_version:reviewedState,months:["2025-03-01"]}, error:null });
+    rpc.mockResolvedValue({data:prepared(["2025-03-01"]),error:null});
     const response = await REVIEW(request());
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body.review.warnings).toContain("Missing from this file: March 2025. Your saved data for these months will be kept.");
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("financial_import_review_state",{p_user_id:user.id});
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation",expect.objectContaining({p_operation:"review",p_organization_id:null}));
     expect(from).not.toHaveBeenCalled();
     expect(logDataImport).not.toHaveBeenCalled();
   });
   it("prepares historical additions without financial writes, profiles, revisions or audit calls", async () => {
     parsed.months = [month("2024-01-01")];
-    rpc.mockResolvedValue({ data: { state_version: reviewedState,
-      months: Array.from({length:12},(_,i) => "2025-" + String(i+1).padStart(2,"0") + "-01") }, error: null });
+    rpc.mockResolvedValue({data:prepared(Array.from({length:12},(_,i)=>"2025-"+String(i+1).padStart(2,"0")+"-01")),error:null});
     const response = await REVIEW(request());
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
     expect(body.review).toMatchObject({ addedMonths: ["2024-01-01"], updatedMonths: [], removedMonths: [],
       olderMonths: ["2024-01-01"], resultingLatestMonth: "2025-12-01", outsideDashboardMonths: ["2024-01-01"] });
-    expect(verifyImportReviewToken(body.reviewToken,{ userId:user.id,mode:"update_months",filename:"import.xlsx",fileHash:reviewedFileHash })).toBe(reviewedState);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("financial_import_review_state",{p_user_id:user.id});
+    expect(verifyImportReviewToken(body.reviewToken,{ userId:user.id,mode:"update_months",filename:"import.xlsx",organizationId:ownedOrganization,fileHash:reviewedFileHash })).toBe(reviewedState);
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation",expect.objectContaining({p_operation:"review",p_organization_id:null}));
     expect(from).not.toHaveBeenCalled();
     expect(logDataImport).not.toHaveBeenCalled();
   });
@@ -428,11 +430,11 @@ describe("read-only upload review and guarded confirmation", () => {
     const form = await request().formData();
     if (kind === "missing") form.delete("reviewToken");
     if (kind === "tampered") form.set("reviewToken",String(form.get("reviewToken")) + "a");
-    if (kind === "account") form.set("reviewToken",issueImportReviewToken({userId:"other-user",mode:"update_months",filename:"import.xlsx",fileHash:reviewedFileHash},reviewedState));
+    if (kind === "account") form.set("reviewToken",issueImportReviewToken({userId:"other-user",mode:"update_months",filename:"import.xlsx",organizationId:ownedOrganization,fileHash:reviewedFileHash},reviewedState));
     if (kind === "mode") form.set("mode","replace_all");
     if (kind === "filename") form.set("file",new File([defaultWorkbook],"renamed.xlsx"));
     if (kind === "file") form.set("file",new File([workbookBytes("different workbook")],"import.xlsx"));
-    if (kind === "expired") form.set("reviewToken",issueImportReviewToken({userId:user.id,mode:"update_months",filename:"import.xlsx",fileHash:reviewedFileHash},reviewedState,Date.now()-3600000));
+    if (kind === "expired") form.set("reviewToken",issueImportReviewToken({userId:user.id,mode:"update_months",filename:"import.xlsx",organizationId:ownedOrganization,fileHash:reviewedFileHash},reviewedState,Date.now()-3600000));
     if (kind === "repeated") form.append("reviewToken",String(form.get("reviewToken")));
     const response = await POST(new NextRequest("https://app.example.invalid/api/import/confirm",{method:"POST",body:form}));
     expect(response.status).toBe(409);
@@ -453,17 +455,17 @@ describe("read-only upload review and guarded confirmation", () => {
   it("does not log an import audit if read-only review preparation fails", async () => {
     rpc.mockResolvedValue({data:null,error:{code:"test",message:"Private database detail"}});
     const response = await REVIEW(request());
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("Private database detail");
     expect(logDataImport).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("financial_import_review_state",{p_user_id:user.id});
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation",expect.objectContaining({p_operation:"review",p_organization_id:null}));
   });
 
   it.each([null,{}, {state_version:reviewedState,months:["bad"]},
     {state_version:reviewedState,months:["2025-01-01","2025-01-01"]}])("rejects malformed database review state: %j", async data => {
     rpc.mockResolvedValue({data,error:null});
-    expect((await REVIEW(request())).status).toBe(500);
+    expect((await REVIEW(request())).status).toBe(503);
     expect(logDataImport).not.toHaveBeenCalled();
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("financial_import_review_state",{p_user_id:user.id});
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_monthly_operation",expect.objectContaining({p_operation:"review",p_organization_id:null}));
   });
 });

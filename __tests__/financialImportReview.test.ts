@@ -6,7 +6,7 @@ import { importFileHash, issueImportReviewToken, verifyImportReviewToken, IMPORT
 const current = Array.from({length:12},(_,i) => "2025-" + String(i+1).padStart(2,"0") + "-01");
 const state = { state_version:"a".repeat(32), months:current };
 const hash = importFileHash(new TextEncoder().encode("synthetic workbook").buffer);
-const identity = { userId:"own-user",mode:"update_months" as const,filename:"import.xlsx",fileHash:hash };
+const identity = { organizationId:"10000000-0000-4000-8000-000000000001",userId:"own-user",mode:"update_months" as const,filename:"import.xlsx",fileHash:hash };
 const now = 1000000;
 beforeEach(() => vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY","synthetic-import-review-test-key"));
 afterEach(() => vi.unstubAllEnvs());
@@ -102,6 +102,11 @@ describe("missing calendar months in upload reviews", () => {
 });
 
 describe("account/file/mode-bound expiring review tokens", () => {
+  it("pins the resolved workspace and rejects a different explicit selection",()=>{
+    const token=issueImportReviewToken(identity,state.state_version,now);
+    expect(verifyImportReviewToken(token,{...identity,organizationId:"10000000-0000-4000-8000-000000000002"},now)).toBeNull();
+    expect(()=>issueImportReviewToken({...identity,organizationId:null},state.state_version,now)).toThrow("Verified workspace");
+  });
   it("retains the reviewed state and accepts a valid token until expiration", () => {
     const token = issueImportReviewToken(identity,state.state_version,now);
     expect(verifyImportReviewToken(token,identity,now)).toBe(state.state_version);

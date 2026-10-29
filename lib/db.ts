@@ -44,6 +44,7 @@ import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type Revi
 import type { CaseBase, CaseCalculation, ForecastCasesState, SavedForecastCase, parseCaseSubmission } from "./forecastCases";
 import type { TokenEnvelope } from "./quickbooks";
 import { OrganizationAccessError, validateOwnerMonthlyRead, validateOwnerOrganizations } from "./organizationAccess";
+import { MonthlyAuthorityError, monthlyFailure, validateOwnerWriteContext, assertMonthlyAcknowledgment } from "./monthlyAuthority";
 
 function organizationReadFailure(code: string | undefined): never {
   throw new OrganizationAccessError(code === "P0002" ? "not_found" : code === "42501" ? "unauthorized" : "unavailable");
@@ -59,6 +60,21 @@ export async function getOwnerOrganizations(client: SupabaseClient) {
   const { data, error } = await client.rpc("list_owned_organizations");
   if (error) organizationReadFailure(error.code);
   return validateOwnerOrganizations(data);
+}
+/** A read-only budget preflight; it never replaces the locked mutation check. */
+export async function authorizeOwnedMonthly(actorId:string,selected:string|null,client:SupabaseClient):Promise<void>{
+  const {data,error}=await client.rpc("owned_monthly_operation",{p_operation:"authorize",p_organization_id:selected});
+  if(error)monthlyFailure(error);
+  if(!data||data.authorized!==true||data.actorId!==actorId||(selected!==null&&data.organizationId!==selected))throw new MonthlyAuthorityError("unavailable");
+}
+export async function prepareOwnedFinancialImport(actorId:string,months:Omit<FinancialMonthInsert,"user_id"|"business_id">[],
+  profile:Partial<Omit<BusinessProfileInsert,"user_id">>,mode:FinancialImportMode,client:SupabaseClient,selected:string|null=null){
+  const {data,error}=await client.rpc("owned_monthly_operation",{p_operation:"review",p_organization_id:selected,p_months:months,p_profile:importedBusinessDetails(profile),p_mode:mode});
+  if(error)monthlyFailure(error);
+  const context=validateOwnerWriteContext(data?.context,actorId,selected);
+  if(typeof data?.unchanged!=="boolean"||!data.reviewState||typeof data.reviewState.state_version!=="string"||
+    !/^[a-f0-9]{32}$/.test(data.reviewState.state_version)||!isMonthList(data.reviewState.months))throw new MonthlyAuthorityError("unavailable");
+  return{context,reviewState:data.reviewState as ImportReviewState,unchanged:data.unchanged as boolean};
 }
 
 /** Server-only caller: never serialize this record (it may carry encrypted credentials).
@@ -258,15 +274,11 @@ export async function getBusinessProfile(
 export async function upsertBusinessProfile(
   userId: string,
   profile: Partial<Omit<BusinessProfileInsert, "user_id">>,
-  client: SupabaseClient = supabase
+  client: SupabaseClient = supabase,selected:string|null=null
 ): Promise<BusinessProfile> {
-  const { data, error } = await client
-    .from("business_profiles")
-    .upsert({ ...profile, user_id: userId }, { onConflict: "user_id" })
-    .select()
-    .single();
-
-  if (error) throw error;
+  const { data, error } = await client.rpc("update_owned_business_profile", { p_patch:profile,p_organization_id:selected });
+  if (error) monthlyFailure(error);
+  if (!data||data.user_id!==userId) throw new MonthlyAuthorityError("unavailable");
   return data;
 }
 
@@ -341,9 +353,9 @@ export async function upsertFinancialMonths(
 // ─── Atomic Financial Imports ─────────────────────────────────────────────────
 
 /**
- * Replaces an account's imported financial dataset in one database transaction.
- * The API must validate the Auth user and pass a service client; the RPC is not
- * executable by browser roles. Never fall back to separate deletes/inserts.
+ * Historical pre-D3 adapter retained for old contract tests. D3 revokes this RPC
+ * from every application role; production routes use authenticated monthly
+ * authority below. Never retry it or fall back to separate deletes/inserts.
  */
 export async function replaceFinancialImport(
   userId: string,
@@ -365,7 +377,7 @@ export async function replaceFinancialImport(
   return data;
 }
 
-/** Mode-aware import; never fall back to the legacy full-replacement RPC. */
+/** Historical pre-D3 adapter; application execution is revoked by D3. */
 export async function importFinancialData(
   userId: string,
   months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
@@ -410,25 +422,27 @@ export async function isV2FinancialImportUnchanged(
 export async function commitReviewedFinancialImport(
   userId: string, months: Omit<FinancialMonthInsert, "user_id" | "business_id">[],
   profile: Partial<Omit<BusinessProfileInsert, "user_id">>, filename: string,
-  mode: FinancialImportMode, expectedState: string, serviceClient: SupabaseClient
+  mode: FinancialImportMode, expectedState: string, client: SupabaseClient, organizationId:string|null=null, requestId?:string
 ): Promise<FinancialImportResult> {
-  const { data, error } = await serviceClient.rpc("import_reviewed_financial_data", {
-    p_user_id: userId, p_months: months, p_profile: importedBusinessDetails(profile),
-    p_filename: filename, p_mode: mode, p_expected_state: expectedState,
+  const { data, error } = await client.rpc("owned_monthly_operation", {
+    p_operation:"confirm",p_organization_id:organizationId,p_months: months, p_profile: importedBusinessDetails(profile),
+    p_filename: filename, p_mode: mode, p_expected_state: expectedState,p_request_id:requestId??crypto.randomUUID(),
   });
-  if (error) throw error;
+  if (error) monthlyFailure(error);
+  assertMonthlyAcknowledgment(data,userId,organizationId);
   if (!isFinancialImportResult(data, mode, months.length)) throw new Error("Invalid financial import result");
   return data;
 }
 
-/** Clears one account atomically; requires the API's explicitly supplied service client. */
+/** Authenticated cookie client only; SQL binds the actor and current target authority. */
 export async function clearFinancialData(
   userId: string,
-  serviceClient: SupabaseClient
+  client: SupabaseClient, organizationId:string|null=null, requestId?:string
 ): Promise<void> {
-  const { data, error } = await serviceClient.rpc("clear_financial_data_preserving_settings", { p_user_id: userId });
-  if (error) throw error;
-  if (!data || data.cleared !== true) throw new Error("Invalid clear-data result");
+  const { data, error } = await client.rpc("owned_monthly_operation", {p_operation:"clear",p_organization_id:organizationId,p_request_id:requestId??crypto.randomUUID()});
+  if (error) monthlyFailure(error);
+  assertMonthlyAcknowledgment(data,userId,organizationId);
+  if (!data || data.cleared !== true) throw new MonthlyAuthorityError("unavailable");
 }
 
 // ─── Expense Categories ───────────────────────────────────────────────────────
@@ -537,13 +551,9 @@ export async function logDataImport(
   importData: Omit<DataImportInsert, "user_id">,
   client: SupabaseClient = supabase
 ): Promise<DataImport> {
-  const { data, error } = await client
-    .from("data_imports")
-    .insert({ ...importData, user_id: userId })
-    .select()
-    .single();
-
-  if (error) throw error;
+  const { data, error } = await client.rpc("owned_monthly_operation", {p_operation:"audit_failure",p_filename:importData.filename});
+  if (error) monthlyFailure(error);
+  if(!data||data.user_id!==userId)throw new MonthlyAuthorityError("unavailable");
   return data;
 }
 
@@ -567,13 +577,9 @@ export async function getOrCreateBusinessProfile(
   if (fetchError) throw fetchError;
   if (existing) return existing;
 
-  const { data, error } = await client
-    .from("business_profiles")
-    .upsert({ user_id: userId }, { onConflict: "user_id" })
-    .select()
-    .single();
-
-  if (error) throw error;
+  const { data, error } = await client.rpc("ensure_owned_business_profile");
+  if (error) monthlyFailure(error);
+  if(!data||data.user_id!==userId)throw new MonthlyAuthorityError("unavailable");
   return data;
 }
 
@@ -730,14 +736,15 @@ export async function updateAlertPreferences(
   prefs: UserAlertPreferences,
   client: SupabaseClient = supabase
 ): Promise<void> {
-  const { error } = await client
-    .from("business_profiles")
-    .upsert(
-      { user_id: userId, snooze_duration: prefs.snooze_duration },
-      { onConflict: "user_id" }
-    );
+  const { data, error } = await client.rpc("update_owned_profile_preferences", {p_snooze_duration:prefs.snooze_duration});
+  if (error) monthlyFailure(error);
+  assertMonthlyAcknowledgment(data,userId,null);
+}
 
-  if (error) throw error;
+export async function completeOwnedOnboarding(userId:string,client:SupabaseClient):Promise<void>{
+  const {data,error}=await client.rpc("update_owned_profile_preferences",{p_complete_onboarding:true});
+  if(error)monthlyFailure(error);
+  assertMonthlyAcknowledgment(data,userId,null);
 }
 
 // ─── Subscriptions & Usage ────────────────────────────────────────────────────

@@ -39,6 +39,9 @@ const month = { month_date:'2098-10-01',data_contract_version:2,source_type:'spr
   owner_funding_received:0,other_cash_inflows:0,other_cash_outflows:0 };
 try {
   await db.connect(); stage='prerequisites';
+  if((await db.query("SELECT to_regprocedure('public.owned_monthly_operation(text,uuid,jsonb,jsonb,text,text,text,uuid)') IS NOT NULL AS installed")).rows[0].installed){
+    throw new Error('D3 installed: use scripts/validate-monthly-authority-preview.mjs; historical service permissions are intentionally revoked');
+  }
   const plan=await readOnlyPlan(db); assert.equal(plan.installed,true); assert.equal(plan.unmapped,0); assert.equal(plan.conflicting_mappings,0);
   const before=await stableFingerprint();
   const beforePolicy=(await db.query("SELECT tablename,policyname,roles,cmd,qual,with_check FROM pg_policies WHERE schemaname='public' AND tablename=ANY($1::text[]) ORDER BY tablename,policyname", [targets])).rows;

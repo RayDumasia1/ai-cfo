@@ -8,7 +8,7 @@ vi.mock("../utils/supabase/middleware", () => ({ createClient: vi.fn() }));
 vi.mock("../utils/supabase/service", () => ({ createServiceClient: vi.fn() }));
 vi.mock("../lib/db", () => ({
   hasPaidSubscription: vi.fn(), getSubscription: vi.fn(), getOrCreateBusinessProfile: vi.fn(),
-  upsertBusinessProfile: vi.fn(), logDataImport: vi.fn(),
+  upsertBusinessProfile: vi.fn(), logDataImport: vi.fn(), authorizeOwnedMonthly:vi.fn(),
 }));
 vi.mock("../lib/excelParser", () => ({ parseExcelBuffer: vi.fn() }));
 vi.mock("../lib/stripe", () => ({
@@ -18,7 +18,7 @@ vi.mock("../lib/stripe", () => ({
 import { createClient } from "../utils/supabase/server";
 import { createClient as createMiddlewareClient } from "../utils/supabase/middleware";
 import { createServiceClient } from "../utils/supabase/service";
-import { hasPaidSubscription, getSubscription } from "../lib/db";
+import { hasPaidSubscription, getSubscription,authorizeOwnedMonthly } from "../lib/db";
 import { stripe } from "../lib/stripe";
 import { parseExcelBuffer } from "../lib/excelParser";
 import { requireAuth } from "../lib/apiAuth";
@@ -61,6 +61,7 @@ beforeEach(() => {
   from.mockReturnValue(builder);
   vi.mocked(createServiceClient).mockReturnValue({ from } as unknown as ReturnType<typeof createServiceClient>);
   vi.mocked(hasPaidSubscription).mockResolvedValue(true);
+  vi.mocked(authorizeOwnedMonthly).mockResolvedValue();
   vi.mocked(getSubscription).mockResolvedValue({ plan: "core", status: "active" } as never);
   vi.mocked(stripe.billingPortal.sessions.create).mockResolvedValue({ url: "https://billing.example.invalid/own" } as never);
   vi.mocked(stripe.invoices.list).mockResolvedValue({ data: [] } as never);
@@ -220,9 +221,13 @@ describe("proxy email-verification and billing boundaries", () => {
     expect(hasPaidSubscription).not.toHaveBeenCalled();
   });
 
-  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions", "/api/import", "/api/data", "/api/alerts/dismiss", "/api/ask-cfo", "/api/insights", "/api/account"])("preserves the paid-subscription boundary on %s", async path => {
+  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions", "/api/import/other", "/api/data/other", "/api/alerts/dismiss", "/api/ask-cfo", "/api/insights", "/api/account"])("preserves the paid-subscription boundary on %s", async path => {
     vi.mocked(hasPaidSubscription).mockResolvedValue(false);
     expect((await proxy(request(path))).status).toBe(402);
+  });
+  it.each(["/api/import","/api/import/review","/api/import/confirm","/api/data"])("defers target entitlement to the D3 handler on exact path %s",async path=>{
+    vi.mocked(hasPaidSubscription).mockResolvedValue(false);
+    expect((await proxy(request(path))).headers.get("x-middleware-next")).toBe("1");expect(hasPaidSubscription).not.toHaveBeenCalled();
   });
 
   it("keeps paid verified dashboard access and no-store headers", async () => {

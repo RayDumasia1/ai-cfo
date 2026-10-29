@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/apiAuth";
 import { getAlertPreferences, updateAlertPreferences } from "@/lib/db";
 import { isSnoozeType } from "@/lib/alertPreferences";
+import { monthlyErrorResponse } from "@/lib/monthlyAuthority";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,9 @@ export const PATCH = requireAuth(async (req: NextRequest, { userId, supabase }) 
       supabase
     );
     return NextResponse.json({ success: true });
-  } catch {
+  } catch(error) {
+    const mapped=monthlyErrorResponse(error);
+    if(mapped)return NextResponse.json({error:mapped.error,code:mapped.code},{status:mapped.status,headers:{"Cache-Control":"no-store"}});
     console.error("settings:preferences:save:error", { userId, requestId });
     return NextResponse.json({ error: "Failed to save alert preferences.", requestId }, { status: 500 });
   }

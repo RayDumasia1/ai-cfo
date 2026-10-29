@@ -39,7 +39,7 @@ export function validateOwnerMonthlyRead(raw: unknown, actorId: string, selected
     raw.months.length > (limit ?? 240)) return invalid();
   const ids = new Set<string>(); let previous = "9999-99-99";
   for (const m of raw.months) {
-    if (!object(m) || !uuid(m.id) || ids.has(m.id) || m.user_id !== actorId || m.business_id !== c.businessProfileId ||
+    if (!object(m) || !uuid(m.id) || ids.has(m.id) || m.user_id !== actorId || m.business_id !== c.businessProfileId || m.organization_id !== c.organizationId ||
       typeof m.month_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.month_date) || m.month_date > previous) return invalid();
     ids.add(m.id); previous = m.month_date;
   }
