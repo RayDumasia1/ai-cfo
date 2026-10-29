@@ -1,6 +1,6 @@
 # ORG-01D2 monthly and import ownership storage
 
-29 October 2026. Implemented and database-validated in preview. Hosted owner smoke acceptance and production migration/promotion remain pending. [D conversion plan](org-01d-financial-ownership-conversion.md), [parent architecture](org-01-organization-architecture.md).
+29 October 2026. Implemented and database-validated in preview. The owner confirmed successful preview validation on 29 October 2026. Production D2 SQL completed successfully by owner report on 29 October 2026; the production SQL prerequisite for main promotion is complete. [D conversion plan](org-01d-financial-ownership-conversion.md), [parent architecture](org-01-organization-architecture.md).
 
 ## Storage contract
 
@@ -34,11 +34,15 @@ To rerun preview checks, use `node scripts/validate-monthly-ownership-preview.mj
 
 ## Owner preview acceptance
 
+The owner confirmed that the requested preview validation passed on 29 October 2026 for the D2 preview release at `4f3a23c`. The checklist below is retained for regression reference; optional destructive/manual changes are not inferred from that confirmation.
+
 1. Open **Financial data** with the paid preview account. Confirm monthly history, values, missing/zero indicators and import history look unchanged; return to Dashboard and Cash planning.
 2. Review the same known v2 workbook. An identical dataset should report no changes. If its contents differ from the current dataset, inspect the preview; do not expect a no-op merely because the filename matches.
 3. If you choose to confirm a small known change in the test account, verify only the selected months change, the expected history entry appears and the rest of the account stays intact. Restore the known dataset afterward if needed. Automated rollback fixtures already covered destructive replace-all and Clear Data; no manual clearing of your test history is required.
 
 ## Production handoff and rollback
+
+The owner confirmed completion of the reviewed production migration on 29 October 2026, after preview acceptance. This is owner-reported execution evidence; no independent production catalog or authenticated runtime check was performed. The production step below is retained as release history and must not be rerun after successful installation.
 
 After preview acceptance, run only the reviewed D2 migration through the agreed production Supabase SQL Editor procedure, then report success before promotion. B/C storage/hooks, current reviewed-import/Clear Data functions and complete unambiguous ownership are prerequisites. The migration aborts on preexisting scope columns, partial/replayed installation, unexpected target triggers, unmapped historical owners or null/foreign monthly/category business links. Do not repair those records automatically; inspect and review the exception first. Locks and statement timeouts bound the install; any failure rolls back the whole expansion and restores trigger state.
 
