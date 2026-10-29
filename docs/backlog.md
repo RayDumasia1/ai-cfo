@@ -10,6 +10,8 @@ ORG-01A architecture, ORG-01B shadow identities/backfill and ORG-01C owner-only 
 
 ACTION-01 below preserves the owner's upcoming dashboard action presentation/sharing/sorting requirements as a backlog placeholder. Current ordering remains unchanged. The Growth completed-week review acceptance scheduled for 2 November remains outstanding independently of platform work and the integration pause. Older unrelated release entries still need their own reconciliation; they do not override this active priority.
 
+D3 implementation `cfb98d0` is published to preview; Vercel preview deployment `7416206499` independently succeeded on 29 October 2026. The next gate is hosted owner acceptance using the [D3 checklist](org-01d3-monthly-write-authority.md#verification-and-preview-acceptance), then production SQL confirmation before promotion. D4 follows that release gate.
+
 ## Release status
 
 | Release | Status and validation |
