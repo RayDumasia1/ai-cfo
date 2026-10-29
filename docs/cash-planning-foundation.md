@@ -4,14 +4,58 @@ Approved 26 October 2026. This decision establishes the customer-facing architec
 
 ## Product structure
 
-`Cash planning` is the parent product area. It contains two distinct owner tasks:
+`Cash planning` is the parent product area. It began with weekly planning and temporary decision tests and now contains four owner tasks:
 
 | Owner task | Customer-facing name | Existing route and engine | Persistence | Tier |
 | --- | --- | --- | --- | --- |
 | See whether the business may have enough cash each week | Weekly cash plan | `/dashboard/forecast`; deterministic 13-week forecast | Draft and immutable published versions | Core and higher |
 | Explore the effect of a possible decision | Test a decision | `/dashboard/scenarios`; monthly scenario calculator | Temporary; only an optional action is saved | Starter and higher |
+| Compare actual cash with a finished plan week | Review a completed week | `/dashboard/forecast-review`; actual-versus-plan engine | Actual evidence, match decisions and immutable review history | Growth and higher |
+| Retain and compare named alternative assumptions | Compare cash-plan cases | `/dashboard/forecast-cases`; cases using the weekly forecast engine | Base-linked downside/upside versions and calculation snapshots | Growth and higher |
 
-The sidebar exposes one `Cash planning` destination. A landing page explains both choices before the owner enters either workflow. Existing child URLs remain stable for bookmarks, tests, action links and future API clients. Internal domain names such as forecast, scenario, variance and forecast version remain precise in code and storage.
+The sidebar exposes one `Cash planning` destination. The original two-task foundation now also includes Growth's completed-week reviews and retained cases, as detailed below. Existing child URLs remain stable for bookmarks, tests, action links and future API clients. Internal domain names such as forecast, scenario, variance and forecast version remain precise in code and storage.
+
+## Current tier allocation and documentation reference
+
+Reconciled against the implementation on 28 October 2026. This section is the current cash-planning allocation for the product playbook and subscription architecture; older references to Growth-only forecasting, a delivered 12-month forecast, or saved monthly scenarios do not describe the shipped cash-planning tools. The [CFO capability roadmap](cfo-capability-roadmap.md) also contains future product direction, which must remain distinct from implemented capability.
+
+| Element | Starter | Core and active Founding Member | Growth | Advisory |
+| --- | --- | --- | --- | --- |
+| Test a decision: monthly collections/spending and one-time cash events | Temporary test | Included | Included | Included |
+| Weekly cash plan: saved rolling 13-week base | Upgrade context | Included | Included | Included |
+| Published-plan outlook, evidence review, revision and republishing | — | Included | Included | Included |
+| Decision test from a published weekly base plan | Requires an existing owned base; see access note below | Included; temporary calculation | Included | Included |
+| Review a completed week: actual cash, matching, retained review history | — | Upgrade context | Included | Included |
+| Compare cash-plan cases: retained named downside/upside assumptions | — | Upgrade context | Included | Included |
+| Assigned human CFO review, commentary and sign-off | Not enabled | Not enabled | Future service option; no current sign-off workflow | Intended service layer; no current assigned-advisor/sign-off workflow |
+
+**Starter** provides a temporary monthly decision test against the customer's existing financial baseline. Recurring collections/spending adjustments and one-time receipts/payments are separate. The test is not a saved financial model; an optional linked action is saved independently under the account's action limits.
+
+**Core** adds the saved 13-week weekly plan: starting cash/date, protected reserve, expected receipts/payments and evidence/confidence. It supports a working draft, immutable published base versions, cash outlook, weekly detail, review/update revisions and decision tests anchored to an owned published base. One current base planning stream can retain multiple published versions; it is not limited to one historical version. Revising a base from current facts is Core; retaining actual-to-plan matching and variance reviews is Growth.
+
+**Growth** adds two separate durable workflows. Review a completed week records actual cash events/balances, match decisions, coverage and immutable review snapshots against the published plan. A full seven-day plan week must end before a review is available. Compare cash-plan cases retains named downside/upside assumptions and calculated results against the same published base; case history does not replace or mutate the Core base. These are saved weekly cases, not persistence of the Starter monthly calculator. See [FORECAST-01E](forecast-01e-actual-versus-plan.md).
+
+**Advisory** inherits the Growth planning software. The intended additional value is human judgment, assumption challenge and review; assigned advisor access, comments, sign-off and shared team workflows require later service/access increments. A feature-gate name or a pricing promise is not evidence that those workflows are delivered.
+
+**Founding Member** is a billing identity mapping to Core entitlement while paid and eligible. It therefore receives the weekly base plan, without automatically receiving Growth reviews/cases or Advisory services. This documentation update does not change Stripe prices, subscription rows or Founding cancellation rules.
+
+Commercial availability and feature authorization are separate. `GROWTH_AVAILABLE` and `ADVISORY_AVAILABLE` remain false in [launchConfig](../lib/launchConfig.ts); existing entitled accounts can use the implemented Growth/Advisory software. Neither those flags nor this allocation authorize opening sales. QuickBooks sync remains parked, and neither it nor a bank connection is required to build a manual weekly plan or enter weekly actuals. E5 owner case acceptance passed; the full E4 completed-week owner acceptance remains scheduled for 2 November 2026.
+
+## Implementation map
+
+| Owner workflow | Route | Engine and authorization | Durable evidence |
+| --- | --- | --- | --- |
+| Cash planning entry | `/dashboard/cash-planning` | Verified, paid session; capability-specific entry cards | No separate planning dataset |
+| Test a decision | `/dashboard/scenarios` | `lib/scenarioPlanning.ts` for monthly tests; `lib/cashPlanDecision.ts` for owned published-weekly tests | Temporary test; optional action only |
+| Weekly cash plan | `/dashboard/forecast`, `/api/cash-forecast` | `lib/cashForecast.ts`; Core `forecasting` | Forecast headers, schedules/items, draft and immutable published base versions |
+| Review a completed week | `/dashboard/forecast-review`, `/api/forecast-review` | `lib/forecastVariance.ts`; Growth `forecast_variance` | Actual events/balances, allocations, immutable weekly review snapshots |
+| Compare cash-plan cases | `/dashboard/forecast-cases`, `/api/forecast-cases` | `lib/forecastCases.ts` wraps the same weekly engine; Growth `scenario_comparison` | Base-linked case versions, named assumptions, lineage and retained calculation snapshots |
+
+Pages and APIs independently enforce the paid feature boundary; client cards are navigation, not authorization. Server operations derive the acting account from the authenticated session and check evidence ownership. Calculated values are deterministic; no AI explanation is needed to publish or review. Monthly history, weekly plan evidence, actual cash events, matches and cases remain distinct records. Missing evidence never becomes a confirmed zero, and material accuracy/source warnings are never tier-gated.
+
+Access note: creating, revising and publishing the weekly base requires Core `forecasting`. The existing `/dashboard/scenarios?forecast=<id>` loader checks a verified paid session and ownership of a published base, but does not independently recheck `forecasting`; an owner retaining a plan after a downgrade can therefore load that temporary read/test context. This is an implementation distinction from the Core plan-creation entitlement, not a promise of saved weekly planning on Starter. Any stricter post-downgrade context policy needs a separate implementation change.
+
+These planning paths remain account-scoped owner paths. ORG-01C converted monthly Financial Data reads only; it did not convert forecast writes, enable invited members, or give an advisor permission through their personal tier. [ORG-01](org-01-organization-architecture.md) defines the later organization/domain enforcement required before collaboration.
 
 ## Terminology contract
 
@@ -20,7 +64,7 @@ The sidebar exposes one `Cash planning` destination. A landing page explains bot
 | Forecast | Weekly cash plan |
 | 13-week forecast | Weekly cash plan for the next 13 weeks |
 | Scenario | Decision test |
-| Scenario comparison | Compare cash plans |
+| Scenario comparison | Compare cash-plan cases |
 | Baseline | Current plan or starting point |
 | Variance | What happened compared with the plan |
 | Inflow / outflow | Cash in / cash out |
@@ -35,7 +79,7 @@ Technical terms may appear in methodology, professional views, exports or contex
 - `/api/cash-forecast` remains the authoritative publication path; the browser never publishes calculated totals.
 - Scenario calculations remain temporary and never mutate imported financial data.
 - The parent area does not merge weekly forecast records with monthly scenario inputs.
-- Feature gates remain capability-based: Starter can test a decision; Core can maintain one weekly base plan; Growth later adds retained alternatives and plan-versus-actual comparison.
+- Feature gates remain capability-based: Starter can test a decision; Core can maintain the weekly base plan; Growth adds the implemented retained alternatives and plan-versus-actual comparison.
 - Existing forecast version and action linkage identifiers remain unchanged.
 
 ## Next increments

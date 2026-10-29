@@ -65,12 +65,12 @@ Complex financing, securities, tax, entity and legal decisions use an explicit h
 
 ## Proposed tier allocation
 
-Tier names describe increasing depth. Final commercial packaging remains a pricing decision.
+Tier names describe increasing depth. Final commercial packaging remains a pricing decision. For implemented cash planning, the [current allocation and implementation map](cash-planning-foundation.md#current-tier-allocation-and-documentation-reference) take precedence over older roadmap wording: saved/versioned 13-week base planning is Core; retained weekly cases and actual-versus-plan reviews are Growth. Other capabilities in this table remain product direction rather than delivery claims.
 
 | Capability | Starter | Core | Growth | Advisory / professional service |
 | --- | --- | --- | --- | --- |
 | Cash visibility | Accurate current cash health, trends, material alerts and simple actions | Automated accounting sync, richer data-quality monitoring and working-capital context | Multi-entity/consolidated views when the organization model exists | Human review, corrections and management discussion |
-| Planning | One unsaved baseline scenario | Saved scenarios and rolling forecast basics | Versioned 13-week forecast, base/downside/upside cases, budgets and variance analysis | CFO-built assumptions, challenge and monthly forecast review |
+| Planning | Temporary monthly decision test | Saved/versioned 13-week base plan, published-plan outlook, evidence review, revision and republishing, and temporary plan-linked decision tests | Retained downside/upside weekly cases and completed-week actual-versus-plan reviews; budgets remain future | Inherits Growth tools; human assumption challenge/review is the intended service layer, with assigned advisor/sign-off workflows still future |
 | Performance | Essential cash and spending signals | Core KPI definitions and basic customer/project inputs | Unit economics, margins, break-even, vendor and project performance | KPI design, interpretation and operating recommendations |
 | Capital | Education and readiness checklist | Debt/payment scenarios and financing data room checklist | Debt-versus-equity, dilution, cap-table and allocation models | Capital strategy, lender/investor preparation and term review with professional/legal coordination |
 | Contracts | Payment-term capture and cash-timing effects | Structured contract cash schedules | Financial-term extraction, concentration and margin risk | Human commercial review; legal provisions referred to counsel |
@@ -99,8 +99,8 @@ This is a strong Growth capability after cost allocation and project/customer ma
 **28 October platform-priority decision:** QuickBooks integration is parked after its A/B foundation. The active next foundation is [ORG-01](org-01-organization-architecture.md), beginning with the ownership/access contract and service-only legacy mapping before collaboration. The sequence below is the longer-term capability roadmap; it does not override the active platform-first order in [the backlog](backlog.md). Existing completed forecasting/case work is retained rather than reimplemented.
 
 1. Finish current chart transparency and zero-collections anomaly guidance.
-2. Specify and build the [rolling 13-week forecast](forecast-01-13-week-cash-forecast.md), including commitments, AR/AP timing, assumptions, freshness and actual-versus-plan variance.
-3. Add saved, versioned scenarios and forecast-to-action tracking.
+2. ~~Specify and build the~~ **[Shipped — FORECAST-01 through E5, confirmed in production 28 Oct 2026]** [Rolling 13-week forecast](forecast-01-13-week-cash-forecast.md), including commitments, AR/AP timing, assumptions, freshness and actual-versus-plan variance.
+3. **[Shipped — FORECAST-01E cases and CASHPLAN-01 through 05]** Retained, versioned weekly cash-plan cases and forecast-to-action tracking. Monthly decision tests remain temporary; only their optional linked actions are saved.
 4. Implement QuickBooks normalization into the shared model and reconciliation controls.
 5. Add dimensional profitability and unit-economics definitions before AI performance recommendations.
 6. Establish organization, professional-client and Elidan-advisor access before multi-client or human advisory workflows.

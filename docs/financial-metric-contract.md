@@ -53,7 +53,7 @@ A forward-looking view of whether available cash and realistically expected rece
 
 Expected receipts require due dates, aging and a collection assumption. Scheduled payments require due dates. Aggregate AR and AP alone do not establish timing and are never fully added to or subtracted from cash without those details.
 
-The target planning view is a rolling 13-week cash forecast. Until it exists, trailing measures disclose that they do not include all future payments.
+The rolling 13-week cash forecast is delivered as the Core **Weekly cash plan**, with retained cases and completed-week actual-versus-plan reviews on Growth. See [Cash planning foundation](cash-planning-foundation.md) for the current allocation and implementation map. Historical trailing measures remain distinct from the forward plan and must still disclose that they do not include all future payments; a saved plan covers only its recorded cash activity and evidence.
 
 ### Cash cushion
 
@@ -303,7 +303,7 @@ Implement cash health, normalized cash flow, cushion, conditional runway, projec
 
 ### Later features
 
-Rolling 13-week forecast; invoice/bill aging; intra-month liquidity; industry reserve benchmarks; stronger multi-year seasonality; and distinct profit-and-loss reporting and forecasting.
+Invoice/bill aging; intra-month liquidity; industry reserve benchmarks; stronger multi-year seasonality; and distinct profit-and-loss reporting and forecasting. (The rolling 13-week cash forecast was delivered through FORECAST-01 / E5, confirmed in production 28 October 2026, and is no longer a later feature.)
 
 ## Explicitly deferred decisions
 

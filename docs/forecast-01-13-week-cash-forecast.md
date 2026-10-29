@@ -1,6 +1,6 @@
 # FORECAST-01 — rolling 13-week cash forecast
 
-**Status:** FORECAST-01A through FORECAST-01C promoted; FORECAST-01D Core manual workflow implemented locally 25 October 2026
+**Status:** FORECAST-01A through FORECAST-01E shipped. E3 (variance storage) and E5 (retained cases storage) migrations confirmed in production 28 October 2026. E5 owner acceptance passed 28 October 2026. E4 completed-week owner acceptance due 2 November 2026.
 **Audience:** Small and medium business owners, professional CFO/CPA users and Elidan advisors  
 **Depends on:** [CFO capability roadmap](cfo-capability-roadmap.md), [financial data contract v2](financial-data-contract-v2.md), [normalized cash engine](fin-03-normalized-engine.md)
 
@@ -188,7 +188,7 @@ Banking connections can confirm balances and cash movements but do not by themse
 
 ## Owner experience
 
-The primary forecast page contains:
+The Weekly cash plan page contains:
 
 1. a compact status header with as-of date, starting available cash, coverage and freshness;
 2. a 13-week cash curve with the minimum reserve shown as a labelled threshold;
