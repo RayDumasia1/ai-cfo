@@ -13,9 +13,9 @@ The customer's business owns its financial record. A person signs in and acts on
 5. Default professional/advisor access is read-only, customer-scoped, time-bounded and revocable. Acting on a different client always requires another explicit authorization.
 6. Move existing accounts incrementally. Preserve IDs, financial values, source snapshots, published versions and existing billing links. Opening collaboration before converting its database authorization paths is prohibited.
 
-## Delivery status, 29 October 2026
+## Delivery status, 31 October 2026
 
-A–C shipped at main `87964d4`, production deployment `7399976891`. D2 shipped at `ccb6e24`, production deployment `7414087417`. Deployment success was independently verified; production SQL success was reported by the owner. [D3](org-01d3-monthly-write-authority.md) now implements original-owner monthly authority and affected profile dependencies, with database checks passed in preview and hosted owner acceptance pending; it is not yet released to production. The inventory below describes the initial A baseline. D4–D6 remain mandatory before collaboration.
+A–C shipped at main `87964d4`, production deployment `7399976891`. D2 shipped at `ccb6e24`, production deployment `7414087417`. Deployment success was independently verified; production SQL success was reported by the owner. [D3](org-01d3-monthly-write-authority.md) now implements original-owner monthly authority and affected profile dependencies, with database checks passed in preview and hosted owner acceptance pending; it is not yet released to production. [D4A](org-01d4-actions-and-budgets.md) now records the refreshed action/history/usage inventory and checked null-link repair requirements; D4 storage and authority are not installed. The owner authorized D4 development alongside D3 validation. The inventory below describes the initial A baseline. D4–D6 remain mandatory before collaboration.
 
 ## Current implementation and migration constraints
 

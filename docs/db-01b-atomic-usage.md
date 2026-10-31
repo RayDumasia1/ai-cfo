@@ -4,6 +4,8 @@ DB-01B prepares quota enforcement for future Ask CFO and AI Insights endpoints. 
 
 Preview validation completed on 25 October 2026. The sequential verifier passed, and two independent database sessions competing for the final hard-limit slot produced one committed count of 20 and one denial at 20. The verifier removed its temporary 2099 fixture.
 
+Organization follow-on, 31 October 2026: [D4A](org-01d4-actions-and-budgets.md) records the future organization-budget conversion, preserving periods/counts/warning state and closing the legacy service writer at D4C cutover. That conversion is not installed. Historical `actions_created` counters are distinct from current active-action capacity. This document retains the deployed DB-01B contract; AI endpoints remain unavailable without usage consumption.
+
 ## Contract
 
 `public.consume_usage(uuid,text,timestamptz,timestamptz,integer,boolean)` is service-role-only. Authenticated browser sessions cannot call it or the retired `increment_usage` function. A future API route must first authenticate the user, confirm email/subscription/feature access, derive the tier limit and overage policy on the server, and then use the service client with that validated user ID.
