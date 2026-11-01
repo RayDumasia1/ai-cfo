@@ -10,6 +10,10 @@ try{
   await db.connect();await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
   await db.query("SET LOCAL statement_timeout='15s'; SET LOCAL lock_timeout='3s'");
   stage='prerequisites';
+  if((await db.query("SELECT to_regclass('organization_private.action_scope_repairs') IS NOT NULL AS installed")).rows[0].installed){
+    console.error('D4B is installed: use scripts/validate-action-ownership-preview.mjs; this historical repair planner is for the D4A baseline.');
+    throw new Error('Use D4B verifier');
+  }
   const prerequisites=(await db.query(`SELECT current_setting('transaction_read_only')='on' AS read_only,
     to_regprocedure('public.owned_monthly_operation(text,uuid,jsonb,jsonb,text,text,text,uuid)') IS NOT NULL AS d3,
     to_regclass('organization_private.financial_scopes') IS NOT NULL AS d2`)).rows[0];
