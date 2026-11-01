@@ -14,6 +14,8 @@ D3 implementation `cfb98d0` is published to preview; Vercel preview deployment `
 
 ## Release status
 
+D4B implementation `391b39c` is published to preview; Vercel preview deployment `7467031144` independently succeeded on 31 October 2026. Its [owner acceptance checklist](org-01d4b-action-ownership-storage.md#owner-preview-acceptance) is the next D4B gate. D4C remains the next implementation increment; production dependencies remain separate from this preview success.
+
 | Release | Status and validation |
 | --- | --- |
 | ORG-01D4B action/history/usage ownership storage | [Implementation and handoff](org-01d4b-action-ownership-storage.md). Preview install added checked organization scope, composite ownership/parent keys, usage-period uniqueness and private immutable evidence for 12 repaired null business links. Original action/history fields and timestamps preserved; RLS/grants and legacy owner engines unchanged. Populated usage rehearsal, rolled-back live fixtures and real subscription-lock and action/profile-deletion contention passed. All 1,478 local tests passed. Hosted owner acceptance and production SQL remain pending; D4C authority is separate. |
