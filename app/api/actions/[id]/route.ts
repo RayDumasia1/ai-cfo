@@ -3,11 +3,11 @@ import { requireAuth } from "@/lib/apiAuth";
 import {
   deleteAction,
   getAction,
-  getActiveActionCount,
-  getSubscription,
   updateAction,
 } from "@/lib/db";
-import { getActionCapacityError, getActionLimitState, validateActionUpdate } from "@/lib/actions";
+import { getActionCapacityError, validateActionUpdate } from "@/lib/actions";
+
+import { operationalErrorResponse, operationalSelection } from "@/lib/operationalAuthority";
 
 export const dynamic = "force-dynamic";
 
@@ -29,48 +29,36 @@ export const PATCH = requireAuth<Ctx>(async (req: NextRequest, { userId, supabas
   }
 
   try {
-    const current = await getAction(userId, id, supabase);
+    const selected=operationalSelection(req.nextUrl.searchParams);
+    const current=selected===null?await getAction(userId,id,supabase):await getAction(userId,id,supabase,selected);
     if (!current) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Reopening a completed action takes an active slot — enforce the tier limit
-    const reopening =
-      current.status === "completed" &&
-      parsed.value.status !== undefined &&
-      parsed.value.status !== "completed";
-    if (reopening) {
-      const [subscription, activeCount] = await Promise.all([
-        getSubscription(userId, supabase),
-        getActiveActionCount(userId, supabase),
-      ]);
-      const { limit, atLimit } = getActionLimitState(subscription.feature_tier, activeCount);
-      if (atLimit) {
-        return NextResponse.json({ error: "limit_reached", limit }, { status: 403 });
-      }
-    }
-
-    // The database commits the update and any status history together.
-    const action = await updateAction(userId, id, parsed.value, {}, supabase);
-    return NextResponse.json(action);
+    const action=await updateAction(userId,id,parsed.value,selected===null?{}:{organizationId:selected},supabase);
+    return NextResponse.json(action,{headers:{"Cache-Control":"no-store"}});
   } catch (err) {
     const capacity = getActionCapacityError(err);
     if (capacity) return NextResponse.json({ error: "limit_reached", limit: capacity.limit }, { status: 403 });
+    const mapped=operationalErrorResponse(err);
+    if(mapped)return NextResponse.json({error:mapped.error,code:mapped.code},{status:mapped.status,headers:{"Cache-Control":"no-store"}});
     const requestId = crypto.randomUUID();
     console.error("actions:update:error", { requestId, userId });
     return NextResponse.json({ error: "Failed to update action.", requestId }, { status: 500 });
   }
 });
 
-export const DELETE = requireAuth<Ctx>(async (_req: NextRequest, { userId, supabase }, { params }) => {
+export const DELETE = requireAuth<Ctx>(async (req: NextRequest, { userId, supabase }, { params }) => {
   const { id } = await params;
 
   try {
-    await deleteAction(userId, id, supabase);
+    const selected=operationalSelection(req.nextUrl.searchParams);
+    if(selected===null)await deleteAction(userId,id,supabase);else await deleteAction(userId,id,supabase,selected);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("actions:delete:error", message);
+    const mapped=operationalErrorResponse(err);
+    if(mapped)return NextResponse.json({error:mapped.error,code:mapped.code},{status:mapped.status,headers:{"Cache-Control":"no-store"}});
+    console.error("actions:delete:error",{requestId:crypto.randomUUID()});
     return NextResponse.json({ error: "Failed to delete action." }, { status: 500 });
   }
 });

@@ -99,20 +99,17 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error,setError]=useState(false);
 
-  function fetchUsage(isRefresh = false) {
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    fetch("/api/usage")
-      .then((r) => r.json())
+  function fetchUsage() {
+    return fetch("/api/usage",{cache:"no-store"})
+      .then((r) => {if(!r.ok)throw new Error("Usage unavailable");return r.json();})
       .then((data) => {
-        setUsage(data.usage ?? []);
+        if(!Array.isArray(data.usage)||data.usage.some((v:UsageItem)=>!v||typeof v.metric!=="string"||!Number.isSafeInteger(v.count)||v.count<0||(v.limit!==null&&(!Number.isSafeInteger(v.limit)||v.limit<0))))throw new Error("Invalid usage");
+        setUsage(data.usage);
         setLastUpdated(new Date());
       })
-      .catch(() => {})
+      .catch(() => {setError(true);setUsage([]);setLastUpdated(null);})
       .finally(() => {
         setLoading(false);
         setRefreshing(false);
@@ -152,7 +149,7 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
           Usage this period
         </h2>
         <button
-          onClick={() => fetchUsage(true)}
+          onClick={() => {setRefreshing(true);setError(false);void fetchUsage();}}
           disabled={refreshing}
           style={{
             display: "inline-flex",
@@ -192,7 +189,7 @@ export default function UsageCard({ periodStart, periodEnd, tier }: UsageCardPro
           <SkeletonRow />
           <SkeletonRow />
         </>
-      ) : (
+      ) : error ? <p role="alert">Usage is temporarily unavailable. Select Refresh to try again.</p> : (
         <div style={{ marginTop: lastUpdated ? 0 : 16 }}>
           {usage.map((item, i) => (
             <div

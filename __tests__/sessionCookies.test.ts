@@ -93,7 +93,7 @@ describe("Proxy session cookie propagation", () => {
   it.each([403, 402])("retains session updates on a %s API response", async status => {
     if (status === 403) currentUser = { ...confirmedUser, email_confirmed_at: "" };
     else vi.mocked(hasPaidSubscription).mockResolvedValue(false);
-    const response = await proxy(request("/api/actions"));
+    const response = await proxy(request("/api/actions/other"));
     expect(response.status).toBe(status);
     expect(await response.json()).toHaveProperty("error");
     expect(response.cookies.get(cookieName)?.value).toBe("refreshed");

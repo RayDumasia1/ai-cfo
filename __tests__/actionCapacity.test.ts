@@ -69,7 +69,8 @@ describe("action API capacity conflicts after a stale preflight", () => {
     const response = operation === "create" ? await POST(request("POST"), {}) : await PATCH(request("PATCH"), ctx);
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "limit_reached", limit: 10 });
-    expect(getActiveActionCount).toHaveBeenCalledWith("own-user", client);
+    expect(getActiveActionCount).not.toHaveBeenCalled();
+    expect(getSubscription).not.toHaveBeenCalled();
     expect(console.error).not.toHaveBeenCalled();
   });
   it("handles competing creates when both preflights see the final free slot", async () => {
@@ -87,12 +88,12 @@ describe("action API capacity conflicts after a stale preflight", () => {
     expect((await PATCH(request("PATCH"), ctx)).status).toBe(403);
     expect(getActiveActionCount).not.toHaveBeenCalled();
   });
-  it.each(["create", "reopen"])("preserves the fast preflight rejection for %s", async operation => {
+  it.each(["create", "reopen"])("lets SQL decide %s instead of trusting an earlier personal count", async operation => {
     vi.mocked(getActiveActionCount).mockResolvedValue(10);
     const response = operation === "create" ? await POST(request("POST"), {}) : await PATCH(request("PATCH"), ctx);
-    expect(response.status).toBe(403);
-    expect(createAction).not.toHaveBeenCalled();
-    expect(updateAction).not.toHaveBeenCalled();
+    expect(response.status).toBe(operation==="create"?201:200);
+    expect(getActiveActionCount).not.toHaveBeenCalled();
+    expect(getSubscription).not.toHaveBeenCalled();
   });
   it("still permits creating a completed action at the active limit", async () => {
     vi.mocked(getActiveActionCount).mockResolvedValue(10);

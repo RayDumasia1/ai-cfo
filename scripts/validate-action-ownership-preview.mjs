@@ -38,6 +38,10 @@ async function freshProfile(){
 }
 try{
   await db.connect();
+  if((await db.query("SELECT to_regprocedure('public.owned_action_operation(text,uuid,uuid,jsonb,text,uuid)') IS NOT NULL AS installed")).rows[0].installed){
+    console.error('D4C is installed: use scripts/validate-operational-authority-preview.mjs; legacy action/usage writers are intentionally revoked.');
+    throw new Error('Use D4C verifier');
+  }
   const installed=(await db.query("SELECT to_regclass('organization_private.action_scope_repairs') IS NOT NULL AS installed")).rows[0].installed;
   const ownerRows=(await db.query('SELECT legacy_user_id AS user_id,legacy_business_profile_id AS profile_id,organization_id FROM organization_private.financial_scopes WHERE legacy_user_id=ANY($1::uuid[])',[users])).rows;
   const own=ownerRows.find(r=>r.user_id===users[0]),foreign=ownerRows.find(r=>r.user_id===users[1]);assert.ok(own&&foreign);

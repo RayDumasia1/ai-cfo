@@ -204,7 +204,7 @@ describe("proxy email-verification and billing boundaries", () => {
 
   it("still requires a paid subscription after verification", async () => {
     vi.mocked(hasPaidSubscription).mockResolvedValue(false);
-    expect((await proxy(request("/api/actions"))).status).toBe(402);
+    expect((await proxy(request("/api/actions/other"))).status).toBe(402);
     expect(hasPaidSubscription).toHaveBeenCalledWith("own_user", client);
   });
 
@@ -221,7 +221,7 @@ describe("proxy email-verification and billing boundaries", () => {
     expect(hasPaidSubscription).not.toHaveBeenCalled();
   });
 
-  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions", "/api/import/other", "/api/data/other", "/api/alerts/dismiss", "/api/ask-cfo", "/api/insights", "/api/account"])("preserves the paid-subscription boundary on %s", async path => {
+  it.each(["/api/notify-me-other", "/api/notify-me/other", "/api/actions/other", "/api/actions/bulk", "/api/actions/10000000-0000-4000-8000-000000000001/other", "/api/import/other", "/api/data/other", "/api/alerts/dismiss", "/api/ask-cfo", "/api/insights", "/api/account"])("preserves the paid-subscription boundary on %s", async path => {
     vi.mocked(hasPaidSubscription).mockResolvedValue(false);
     expect((await proxy(request(path))).status).toBe(402);
   });

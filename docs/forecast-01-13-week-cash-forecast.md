@@ -4,6 +4,8 @@
 **Audience:** Small and medium business owners, professional CFO/CPA users and Elidan advisors  
 **Depends on:** [CFO capability roadmap](cfo-capability-roadmap.md), [financial data contract v2](financial-data-contract-v2.md), [normalized cash engine](fin-03-normalized-engine.md)
 
+Organization follow-on, 1 November 2026: [D4C](org-01d4c-operational-authority.md) now authorizes action creation and forecast handoff through current original-owner organization scope, while preserving existing action presentation and linked-draft discard protection. Trusted service SELECT for the old discard engine remains. Weekly plan/case/review ownership conversion is still D5 work; this does not enable shared workspaces.
+
 ## Outcome
 
 Elidan will answer a practical owner question: **“Do I have enough cash to meet the obligations I expect over the next 13 weeks, and what should I address first?”**

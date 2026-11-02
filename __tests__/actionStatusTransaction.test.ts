@@ -17,7 +17,8 @@ const rpc = vi.fn();
 const from = vi.fn();
 const client = { auth: { getUser }, rpc, from };
 const ownUser = { id: "own-user", email: "test@example.invalid", email_confirmed_at: "2026-10-01T00:00:00Z" };
-const action = { id: "own-action", user_id: "own-user", status: "completed", name: "Test action" };
+const org="20000000-0000-4000-8000-000000000001";
+const action = { organization_id:org, id: "own-action", user_id: "own-user", status: "completed", name: "Test action" };
 const auditFailure = { code: "42501", message: "synthetic private audit failure" };
 const ctx = { params: Promise.resolve({ id: "own-action" }) };
 const request = (body: unknown = { status: "completed" }) => new NextRequest("https://example.invalid/api/actions/own-action", {
@@ -29,7 +30,7 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   getUser.mockResolvedValue({ data: { user: ownUser }, error: null });
   vi.mocked(createClient).mockResolvedValue(client as never);
-  rpc.mockResolvedValue({ data: action, error: null });
+  rpc.mockResolvedValue({ data: {actorId:ownUser.id,organizationId:org,policyVersion:"org-operations-1",action}, error: null });
   vi.mocked(getAction).mockResolvedValue({ ...action, status: "not_started" } as never);
   vi.mocked(getSubscription).mockResolvedValue({ feature_tier: "starter" } as never);
   vi.mocked(getActiveActionCount).mockResolvedValue(1);
@@ -47,24 +48,24 @@ afterEach(() => vi.restoreAllMocks());
 describe("atomic action update helper", () => {
   it("rejects an audit failure rather than reporting a successful status change", async () => {
     rpc.mockResolvedValue({ data: null, error: auditFailure });
-    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toEqual(auditFailure);
+    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toMatchObject({reason:"unauthorized"});
   });
   it("sends one scoped transaction call and never performs separate reads/updates/audit inserts", async () => {
     const updates = { status: "completed" as const, actual_impact: 123 };
     expect(await updateAction("own-user", "own-action", updates, {}, client as never)).toEqual(action);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("update_action_with_audit", {
-      p_user_id: "own-user", p_action_id: "own-action", p_updates: updates, p_audit_note: null,
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_action_operation", {
+      p_operation:"update",p_organization_id:null,p_action_id: "own-action", p_patch: updates, p_audit_note: null,p_request_id:expect.any(String),
     });
     expect(from).not.toHaveBeenCalled();
   });
   it("preserves optional audit notes in the same transaction", async () => {
     await updateAction("own-user", "own-action", { status: "completed" }, { auditNote: "Verified outcome" }, client as never);
-    expect(rpc).toHaveBeenCalledWith("update_action_with_audit", expect.objectContaining({ p_audit_note: "Verified outcome" }));
+    expect(rpc).toHaveBeenCalledWith("owned_action_operation", expect.objectContaining({ p_audit_note: "Verified outcome" }));
   });
   it("does not fall back to separate writes if the migration is missing", async () => {
     const error = { code: "PGRST202", message: "RPC not found" };
     rpc.mockResolvedValue({ data: null, error });
-    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toEqual(error);
+    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toMatchObject({reason:"unavailable"});
     expect(from).not.toHaveBeenCalled();
   });
   it("propagates a rejected transaction request without issuing another write", async () => {
@@ -75,12 +76,12 @@ describe("atomic action update helper", () => {
   });
   it("uses the same scoped transaction for a non-status edit", async () => {
     await updateAction("own-user", "own-action", { name: "Renamed" }, {}, client as never);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("update_action_with_audit", expect.objectContaining({ p_updates: { name: "Renamed" } }));
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_action_operation", expect.objectContaining({ p_patch: { name: "Renamed" } }));
     expect(from).not.toHaveBeenCalled();
   });
   it.each([null, {}, { ...action, id: "other-action" }, { ...action, user_id: "other-user" }])("does not confirm an invalid transaction result %#", async data => {
     rpc.mockResolvedValue({ data, error: null });
-    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toThrow("Could not confirm action update");
+    await expect(updateAction("own-user", "own-action", { status: "completed" }, {}, client as never)).rejects.toThrow("unavailable");
   });
 });
 
@@ -89,16 +90,16 @@ describe("action PATCH transaction integration", () => {
     const response = await PATCH(request({ status: "completed", user_id: "other", business_id: "other", old_status: "completed" }), ctx);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(action);
-    expect(rpc).toHaveBeenCalledExactlyOnceWith("update_action_with_audit", {
-      p_user_id: "own-user", p_action_id: "own-action", p_updates: { status: "completed" }, p_audit_note: null,
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("owned_action_operation", {
+      p_operation:"update",p_organization_id:null,p_action_id: "own-action", p_patch: { status: "completed" }, p_audit_note: null,p_request_id:expect.any(String),
     });
   });
   it("returns safe failure JSON when the atomic audit/write operation fails", async () => {
     rpc.mockResolvedValue({ data: null, error: auditFailure });
     const response = await PATCH(request(), ctx);
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(403);
     const body = await response.json();
-    expect(body).toEqual({ error: "Failed to update action.", requestId: expect.any(String) });
+    expect(body).toEqual({ error: "Workspace access could not be confirmed." });
     expect(JSON.stringify([body, vi.mocked(console.error).mock.calls])).not.toContain("synthetic private audit failure");
   });
   it("still returns the established limit response for a rejected reopening", async () => {

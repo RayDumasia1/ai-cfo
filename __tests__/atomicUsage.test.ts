@@ -59,6 +59,7 @@ describe("atomic usage database adapter", () => {
   });
 });
 
+const envelope=(data:object,tier="core")=>({actorId:"own-user",organizationId:"20000000-0000-4000-8000-000000000001",policyVersion:"org-operations-1",entitlementTier:tier,periodStart:period.toISOString(),...data});
 describe("atomic usage gate decisions", () => {
   const rpc = vi.fn();
   const client = { rpc } as unknown as SupabaseClient;
@@ -70,8 +71,8 @@ describe("atomic usage gate decisions", () => {
   afterEach(() => vi.useRealTimers());
 
   it("returns a hard-limit response without inventing another usage unit", async () => {
-    rpc.mockResolvedValue({ data: { allowed: false, throttled: false, count: 20,
-      usage_limit: 20, warning_sent_at: null }, error: null });
+    rpc.mockResolvedValue({ data: envelope({ allowed: false, throttled: false, count: 20,
+      usage_limit: 20, warning_sent_at: null }), error: null });
     const result = await checkAndIncrementUsage(
       "own-user", "person@example.invalid", "ask_cfo_questions", "core", period, client
     );
@@ -83,8 +84,8 @@ describe("atomic usage gate decisions", () => {
 
   it("uses the committed overage count and applies the Growth throttle", async () => {
     vi.useFakeTimers();
-    rpc.mockResolvedValue({ data: { allowed: true, throttled: true, count: 151,
-      usage_limit: 150, warning_sent_at: "2026-10-20T00:00:00Z" }, error: null });
+    rpc.mockResolvedValue({ data: envelope({ allowed: true, throttled: true, count: 151,
+      usage_limit: 150, warning_sent_at: "2026-10-20T00:00:00Z" },"growth"), error: null });
     const pending = checkAndIncrementUsage(
       "own-user", "person@example.invalid", "ask_cfo_questions", "growth", period, client
     );
@@ -93,11 +94,12 @@ describe("atomic usage gate decisions", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("keeps unlimited tiers untracked", async () => {
+  it("checks authority but keeps unlimited tiers untracked", async () => {
+    rpc.mockResolvedValue({data:envelope({allowed:true,throttled:false,count:0,usage_limit:null,warning_sent_at:null,periodStart:null},"growth"),error:null});
     await expect(checkAndIncrementUsage(
       "own-user", "person@example.invalid", "ai_insight_runs", "growth", period, client
     )).resolves.toEqual({ allowed: true, throttled: false, used: 0, limit: null });
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("owned_usage_operation",expect.objectContaining({p_operation:"consume",p_metric:"ai_insight_runs"}));
   });
 });
 

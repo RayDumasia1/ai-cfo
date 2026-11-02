@@ -55,6 +55,8 @@ Hosted owner checklist after preview deployment:
 
 ## Production handoff and recovery
 
+For a combined D3/D4B/D4C release, follow the current [dependency-ordered D4C handoff](org-01d4c-operational-authority.md#production-handoff-and-recovery). It supersedes earlier per-increment application sequencing for that combined release; do not rerun already successful migrations. D3 owner acceptance remains pending.
+
 Production D3 SQL and promotion remain pending until owner preview acceptance. D2 is already released at main `ccb6e24`, with production SQL owner-reported successful and Vercel production deployment `7414087417` independently confirmed; do not rerun D2.
 
 After D3 preview acceptance, run only the complete reviewed D3 migration as postgres in production's Supabase SQL Editor, then report success before promoting the matching code. It requires the current B/C/D2/import baseline, enables no collaboration, and rejects replay. A failed transaction rolls back the installation. This is a permission/function cutover rather than another financial-data backfill. A brief cutover window is required: older deployed imports/profile updates fail closed after SQL installation until matching code deploys. Preserve the new boundary if deployment fails; repair forward or temporarily disable affected writes. Do not roll application code back to service writers and reopen their grants. Production catalog/runtime evidence remains distinct from SQL execution reports and deployment success.

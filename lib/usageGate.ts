@@ -2,9 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { escapeHtml, sendEmail } from "./emailDelivery";
 import type { FeatureTier } from "./featureGates";
-import { USAGE_LIMITS } from "./featureGates";
 import {
-  consumeUsage,
+  consumeOwnedUsage,
   markWarningSent,
 } from "./db";
 
@@ -105,24 +104,15 @@ export async function checkAndIncrementUsage(
   userId: string,
   userEmail: string,
   metric: Metric,
-  featureTier: FeatureTier,
-  billingPeriodStart: Date,
-  serviceClient: SupabaseClient
+  _featureTier: FeatureTier,
+  _billingPeriodStart: Date,
+  client: SupabaseClient
 ): Promise<UsageCheckResult> {
-  const periodStart = billingPeriodStart;
-  const periodEnd = new Date(billingPeriodStart);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-  const limit = USAGE_LIMITS[featureTier][metric] ?? null;
-
-  // Unlimited — skip all tracking
-  if (limit === null) {
-    return { allowed: true, throttled: false, used: 0, limit: null };
-  }
-
-  const usage = await consumeUsage(
-    userId, metric, periodStart, periodEnd, limit, featureTier === "growth", serviceClient
-  );
+  // Legacy policy/period arguments are ignored. SQL derives the target's
+  // current coverage and billing window; the caller must pass a cookie client.
+  const usage=await consumeOwnedUsage(userId,metric,client);
+  const limit=usage.usage_limit;
+  if(limit===null)return {allowed:true,throttled:false,used:0,limit:null};
 
   if (!usage.allowed) {
     return {
@@ -147,7 +137,7 @@ export async function checkAndIncrementUsage(
 
   // Warn from 100/150; retry on subsequent eligible requests if acceptance failed.
   if (
-    featureTier === "growth" &&
+    usage.entitlementTier === "growth" &&
     metric === "ask_cfo_questions" &&
     usage.count >= 100 &&
     !usage.warning_sent_at
@@ -155,7 +145,7 @@ export async function checkAndIncrementUsage(
     const accepted = await sendUsageWarningEmail(userEmail, usage.count, limit);
     if (accepted) {
       try {
-        await markWarningSent(userId, metric, periodStart, serviceClient);
+        await markWarningSent(userId,metric,usage.periodStart!,client,usage.organizationId);
       } catch {
         // Usage already committed. Ancillary email bookkeeping must not turn
         // it into a failed request; a later attempt may send a duplicate.

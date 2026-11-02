@@ -47,6 +47,9 @@ const ALLOWED_WITHOUT_SUBSCRIPTION_PATHS = new Set([
   "/api/import/review",
   "/api/import/confirm",
   "/api/data",
+  // D4C checks the selected workspace; cleanup remains possible after lapse.
+  "/api/actions",
+  "/api/usage",
 ]);
 
 export async function proxy(request: NextRequest) {
@@ -88,7 +91,8 @@ export async function proxy(request: NextRequest) {
     }
 
     const connectionSettings = pathname === "/dashboard/settings" && request.nextUrl.searchParams.get("tab") === "connections";
-    const isAllowed = connectionSettings || ALLOWED_WITHOUT_SUBSCRIPTION_PATHS.has(pathname) || ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
+    const actionDetailPath=/^\/api\/actions\/[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(pathname);
+    const isAllowed = actionDetailPath || connectionSettings || ALLOWED_WITHOUT_SUBSCRIPTION_PATHS.has(pathname) || ALLOWED_WITHOUT_SUBSCRIPTION_PREFIXES.some((prefix) =>
       pathname.startsWith(prefix)
     );
     if (!isAllowed && !(await hasPaidSubscription(user.id, supabase))) {

@@ -44,6 +44,7 @@ import { buildReviewQueue, ownerReviewEvidence, type OwnerReviewState, type Revi
 import type { CaseBase, CaseCalculation, ForecastCasesState, SavedForecastCase, parseCaseSubmission } from "./forecastCases";
 import type { TokenEnvelope } from "./quickbooks";
 import { OrganizationAccessError, validateOwnerMonthlyRead, validateOwnerOrganizations } from "./organizationAccess";
+import { OperationalAuthorityError, operationalFailure, validateOperationalEnvelope, validateOperationalRow } from "./operationalAuthority";
 import { MonthlyAuthorityError, monthlyFailure, validateOwnerWriteContext, assertMonthlyAcknowledgment } from "./monthlyAuthority";
 
 function organizationReadFailure(code: string | undefined): never {
@@ -1018,8 +1019,8 @@ export interface UsageConsumptionResult extends UsageResult {
 }
 
 /**
- * Atomically decides and consumes one usage unit. The supplied client must be
- * the server-only service client; browser/session roles cannot execute the RPC.
+ * Historical DB-01B adapter. D4C revokes the underlying engine from application
+ * roles. Current quota callers must use consumeOwnedUsage with a cookie client.
  */
 export async function consumeUsage(
   userId: string,
@@ -1062,23 +1063,18 @@ export async function consumeUsage(
 
 /**
  * Records that a usage warning email has been sent for this period.
- * Always call with a trusted server-side client. Usage consumption itself
- * requires the service-role client because browser/session roles cannot run it.
+ * Uses current cookie authority and the exact consumed billing-period key.
  */
 export async function markWarningSent(
   userId: string,
   metric: string,
-  periodStart: Date,
-  client: SupabaseClient = supabase
+  periodStart: Date|string,
+  client: SupabaseClient = supabase, organizationId:string|null=null
 ): Promise<void> {
-  const { error } = await client
-    .from("usage_tracking")
-    .update({ warning_sent_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .eq("metric", metric)
-    .eq("period_start", periodStart.toISOString());
-
-  if (error) throw error;
+  const {data,error}=await client.rpc("owned_usage_operation",{p_operation:"mark_warning",p_metric:metric,p_period_start:typeof periodStart==="string"?periodStart:periodStart.toISOString(),p_organization_id:organizationId});
+  if(error)operationalFailure(error);
+  const result=validateOperationalEnvelope(data,userId,organizationId);
+  if(result.marked!==true)throw new OperationalAuthorityError("unavailable");
 }
 
 /**
@@ -1121,18 +1117,15 @@ export function getBillingPeriodStart(subscriptionCreatedAt: Date): Date {
 
 /**
  * Returns the count of active (non-completed) actions for a user.
- * Used to enforce per-tier limits before creating a new action.
- * Always call with the server client.
+ * The count is scoped in SQL; slot admission is independently atomic on write.
  */
 export async function getActiveActionCount(
   userId: string,
   client: SupabaseClient = supabase
 ): Promise<number> {
-  const { data, error } = await client.rpc("get_active_action_count", {
-    p_user_id: userId,
-  });
-  if (error) throw error;
-  return data ?? 0;
+  const result=await ownedActionCall(userId,"count",client);
+  if(!Number.isSafeInteger(result.count)||Number(result.count)<0)throw new OperationalAuthorityError("unavailable");
+  return result.count as number;
 }
 
 /**
@@ -1144,22 +1137,10 @@ export async function getActions(
   options: { status?: ActionStatus | ActionStatus[] } = {},
   client: SupabaseClient = supabase
 ): Promise<Action[]> {
-  let query = client
-    .from("actions")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
-
-  if (options.status) {
-    const statuses = Array.isArray(options.status)
-      ? options.status
-      : [options.status];
-    query = query.in("status", statuses);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return data ?? [];
+  const result=await ownedActionCall(userId,"list",client,null,null,options.status?{statuses:Array.isArray(options.status)?options.status:[options.status]}:{});
+  if(!Array.isArray(result.actions))throw new OperationalAuthorityError("unavailable");
+  for(const action of result.actions)validateOperationalRow(action,userId,result.organizationId);
+  return result.actions as Action[];
 }
 
 /**
@@ -1168,37 +1149,27 @@ export async function getActions(
 export async function getAction(
   userId: string,
   actionId: string,
-  client: SupabaseClient = supabase
+  client: SupabaseClient = supabase, organizationId:string|null=null
 ): Promise<Action | null> {
-  const { data, error } = await client
-    .from("actions")
-    .select("*")
-    .eq("id", actionId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  const result=await ownedActionCall(userId,"get",client,organizationId,actionId);
+  if(result.action===null)return null;
+  validateOperationalRow(result.action,userId,result.organizationId,actionId);
+  return result.action as Action;
 }
 
 /**
  * Creates a new action.
- * Callers preflight the tier limit; the database capacity trigger is authoritative
- * when concurrent creates/reopens compete for the remaining active slots.
+ * Cookie authority rechecks the selected organization and current capacity.
  */
 export async function createAction(
   userId: string,
   action: Omit<ActionInsert, "user_id">,
-  client: SupabaseClient = supabase
+  client: SupabaseClient = supabase, organizationId:string|null=null
 ): Promise<Action> {
-  const { data, error } = await client
-    .from("actions")
-    .insert({ ...action, user_id: userId })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const payload=Object.fromEntries(Object.entries(action).filter(([key])=>key!=="business_id"));
+  const result=await ownedActionCall(userId,"create",client,organizationId,null,payload);
+  validateOperationalRow(result.action,userId,result.organizationId);
+  return result.action as Action;
 }
 
 /**
@@ -1210,20 +1181,12 @@ export async function updateAction(
   userId: string,
   actionId: string,
   updates: ActionUpdate,
-  options: { auditNote?: string } = {},
+  options: { auditNote?: string; organizationId?:string } = {},
   client: SupabaseClient = supabase
 ): Promise<Action> {
-  const { data, error } = await client.rpc("update_action_with_audit", {
-    p_user_id: userId,
-    p_action_id: actionId,
-    p_updates: updates,
-    p_audit_note: options.auditNote ?? null,
-  });
-  if (error) throw error;
-  if (!data || data.id !== actionId || data.user_id !== userId) {
-    throw new Error("Could not confirm action update");
-  }
-  return data;
+  const result=await ownedActionCall(userId,"update",client,options.organizationId??null,actionId,updates,options.auditNote??null);
+  validateOperationalRow(result.action,userId,result.organizationId,actionId);
+  return result.action as Action;
 }
 
 /**
@@ -1233,15 +1196,10 @@ export async function updateAction(
 export async function deleteAction(
   userId: string,
   actionId: string,
-  client: SupabaseClient = supabase
+  client: SupabaseClient = supabase, organizationId:string|null=null
 ): Promise<void> {
-  const { error } = await client
-    .from("actions")
-    .delete()
-    .eq("id", actionId)
-    .eq("user_id", userId);
-
-  if (error) throw error;
+  const result=await ownedActionCall(userId,"delete",client,organizationId,actionId);
+  if(result.deleted!==true)throw new OperationalAuthorityError("unavailable");
 }
 
 /**
@@ -1252,13 +1210,36 @@ export async function getActionAuditLog(
   actionId: string,
   client: SupabaseClient = supabase
 ): Promise<ActionAuditLog[]> {
-  const { data, error } = await client
-    .from("action_audit_log")
-    .select("*")
-    .eq("action_id", actionId)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+  const result=await ownedActionCall(userId,"history",client,null,actionId);
+  if(!Array.isArray(result.history))throw new OperationalAuthorityError("unavailable");
+  for(const row of result.history){validateOperationalRow(row,userId,result.organizationId);if(row.action_id!==actionId)throw new OperationalAuthorityError("unavailable");}
+  return result.history as ActionAuditLog[];
+}
 
-  if (error) throw error;
-  return data ?? [];
+// Cookie/session authority only. Never retry a legacy RPC after a failure.
+async function ownedActionCall(userId:string,operation:string,client:SupabaseClient,organizationId:string|null=null,actionId:string|null=null,patch:object={},note:string|null=null){
+  const {data,error}=await client.rpc("owned_action_operation",{p_operation:operation,p_organization_id:organizationId,p_action_id:actionId,p_patch:patch,p_audit_note:note,p_request_id:crypto.randomUUID()});
+  if(error)operationalFailure(error);
+  return validateOperationalEnvelope(data,userId,organizationId);
+}
+export interface OwnedUsageConsumption extends UsageConsumptionResult {entitlementTier:"core"|"growth"|"advisory";periodStart:string|null;organizationId:string;}
+export async function consumeOwnedUsage(userId:string,metric:string,client:SupabaseClient,organizationId:string|null=null):Promise<OwnedUsageConsumption>{
+  const {data,error}=await client.rpc("owned_usage_operation",{p_operation:"consume",p_metric:metric,p_organization_id:organizationId,p_request_id:crypto.randomUUID()});
+  if(error)operationalFailure(error);
+  const r=validateOperationalEnvelope(data,userId,organizationId);
+  if(typeof r.allowed!=="boolean"||typeof r.throttled!=="boolean"||!Number.isSafeInteger(r.count)||Number(r.count)<0||
+    (r.usage_limit!==null&&(!Number.isSafeInteger(r.usage_limit)||Number(r.usage_limit)<0))||
+    (r.warning_sent_at!==null&&typeof r.warning_sent_at!=="string")||!["core","growth","advisory"].includes(String(r.entitlementTier))||
+    (r.usage_limit===null?r.periodStart!==null:typeof r.periodStart!=="string"||!Number.isFinite(Date.parse(r.periodStart))))throw new OperationalAuthorityError("unavailable");
+  return {allowed:r.allowed,throttled:r.throttled,count:r.count as number,usage_limit:r.usage_limit as number|null,warning_sent_at:r.warning_sent_at as string|null,
+    entitlementTier:r.entitlementTier as OwnedUsageConsumption["entitlementTier"],periodStart:r.periodStart as string|null,organizationId:r.organizationId as string};
+}
+export async function getOwnedUsageStatus(userId:string,client:SupabaseClient,organizationId:string|null=null):Promise<{metric:string;count:number;limit:number|null}[]>{
+  const {data,error}=await client.rpc("owned_usage_operation",{p_operation:"status",p_organization_id:organizationId});if(error)operationalFailure(error);
+  const r=validateOperationalEnvelope(data,userId,organizationId);
+  if(!Array.isArray(r.usage)||!["starter","core","growth","advisory","suspended"].includes(String(r.entitlementTier)))throw new OperationalAuthorityError("unavailable");
+  const expected=["core","growth"].includes(String(r.entitlementTier))?["ask_cfo_questions","ai_insight_runs","actions_active"]:[];
+  if(r.usage.some(v=>!v||typeof v!=="object"||Array.isArray(v)))throw new OperationalAuthorityError("unavailable");
+  if(r.usage.length!==expected.length||new Set(r.usage.map(v=>v.metric)).size!==expected.length||r.usage.some(v=>!expected.includes(v.metric)||!Number.isSafeInteger(v.count)||v.count<0||(v.limit!==null&&(!Number.isSafeInteger(v.limit)||v.limit<0))))throw new OperationalAuthorityError("unavailable");
+  return r.usage;
 }
