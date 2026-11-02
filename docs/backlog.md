@@ -14,6 +14,8 @@ D3 implementation `cfb98d0` is published to preview; Vercel preview deployment `
 
 ## Release status
 
+D4C implementation `14a6e28` is published to preview; Vercel preview deployment `7481934411` independently succeeded on 1 November 2026. Its [owner checklist](org-01d4c-operational-authority.md#hosted-owner-acceptance) is the current acceptance gate. The combined D3/D4B/D4C production SQL/application handoff is documented, but production remains unchanged and owner acceptance/SQL confirmation are not inferred.
+
 D4B implementation `391b39c` is published to preview; Vercel preview deployment `7467031144` independently succeeded on 31 October 2026. Its [owner acceptance checklist](org-01d4b-action-ownership-storage.md#owner-preview-acceptance) is the next D4B gate. [D4C](org-01d4c-operational-authority.md) is now implemented and installed in preview; production dependencies remain separate from this preview success.
 
 | Release | Status and validation |
